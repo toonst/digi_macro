@@ -122,7 +122,9 @@ from this work goes back to digikit (a finding, a tool fix), keep elekloader out
 
 ## 3. The spec on the device
 
-| Spec | Device | Code | LED |
+SPEC.md now uses the panel's names. This table maps its first wording to the panel:
+
+| First wording | Device | Code | LED |
 | --- | --- | --- | --- |
 | "MOD knob" | MOD **page key** (the LFO page). It is a key with an LED, not a knob | 6 | logical 25, idx 24 |
 | "PAGE" | PAGE key | 22 | idx 18 |
