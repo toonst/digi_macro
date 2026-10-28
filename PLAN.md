@@ -140,7 +140,7 @@ All decided by the user:
 | D12 | On the setup screen the selected slot is the one whose knob (A–D or E–H) was last turned or pushed; LEFT / RIGHT also step it |
 | D13 | Mod id `macro-mode`, title "MACRO MODE" (not "Digi Macro", which the shop has) |
 | D14 | Macro positions are not stored: every boot starts at the centre |
-| D15 | **Entry and exit act on presses**, never on releases: PAGE + MOD in either order enters, on the second key's press; PAGE held + MOD also exits (4.1) |
+| D15 | **Entry and exit act on presses**, never on releases: PAGE + MOD in either order enters, on the second key's press; PAGE held + MOD also exits, from the macro screen only; from the setup screen, leaving takes two MOD presses (4.1) |
 
 ## 4. Behaviour
 
@@ -150,10 +150,8 @@ All decided by the user:
    PAGE + MOD (either order)                     FUNC + push A..H
   OFF  ----------------->  MACRO  --------------------------------------->  SETUP(k)
    ^                        |   ^                                             |
-   |   MOD, or PAGE + MOD   |   |              NO or MOD (D8)                 |
+   |   MOD, or PAGE + MOD   |   |   NO or MOD (D8), also with PAGE held       |
    +------------------------+   +---------------------------------------------+
-   ^                                                                          |
-   +--------------------------------- PAGE held + MOD ------------------------+
 ```
 
 - **Entry, on the second key's press (D15).** Both orders enter, and the mode starts at once on the press that
@@ -167,7 +165,8 @@ All decided by the user:
   still holding it does not enter again. FUNC + MOD is the stock Master compressor page; neither order of PAGE +
   MOD has a documented stock use, and S1 checks this.
 - **Exit, on MOD's press.** On the macro screen a MOD press exits. On the setup screen it goes back to the macro
-  screen (D8). PAGE held + MOD exits from either screen. With MOD held first, MOD's own press has already acted
+  screen (D8), with or without PAGE held: PAGE held + MOD exits from the macro screen only. So from the setup
+  screen, leaving macro mode takes two MOD presses. With MOD held first, MOD's own press has already acted
   (exit, or back from the setup screen), and a PAGE press after it makes no chord: after an exit it goes to the
   firmware as usual, and on the macro screen it is taken.
 - **Releases follow their press.** The mod remembers which presses it took and also takes their repeats and
@@ -188,7 +187,7 @@ All decided by the user:
 | Trig 1–16 | Pass: their usual function, in their current mode (D6) | Toggle that track in the selected slot's mask |
 | NO alone | Pass | Back to MACRO (the configuration is saved) |
 | MOD | Exit, on the press (4.1) | Back to MACRO, on the press (D8) |
-| PAGE held + MOD | Exit | Exit |
+| PAGE held + MOD | Exit | Back to MACRO, as MOD alone |
 | PAGE | Taken (held for the exit chord) | Taken (held for the exit chord) |
 | PLAY, STOP, RECORD, PTN, SONG, TRK, FUNC, LEVEL | Pass | Pass |
 | Any other key or encoder | Taken | Taken |
@@ -326,7 +325,8 @@ risky half.
 - **Unit (host).** `mm_logic.c` built for the host. Cases:
   - entry in both orders, on the second key's press; a MOD press that exits does not enter again when PAGE
     follows while MOD is held;
-  - exit on MOD's press from the macro screen, MOD back from the setup screen, PAGE + MOD exit from either;
+  - exit on MOD's press from the macro screen; MOD, with or without PAGE held, back from the setup screen, so two
+    MOD presses leave from there; PAGE + MOD exits from the macro screen;
   - every taken press has its repeats and release taken too, and a passed press its release passed;
   - push + turn steps, and push + NO resets;
   - clamping at both ends, and ±64 × ±64 without overflow;
