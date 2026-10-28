@@ -57,6 +57,39 @@ int mm_decode(mm_t *s, const uint8_t *in, int len)
     return 0;
 }
 
+static uint32_t be32(const uint8_t *p)
+{
+    return (uint32_t)p[0] << 24 | (uint32_t)p[1] << 16 | (uint32_t)p[2] << 8 | p[3];
+}
+
+void mm_record_encode(const mm_t *s, uint32_t seq, uint8_t *out)
+{
+    for (int i = 0; i < MM_RECORD_SIZE; i++)
+        out[i] = 0;
+    out[0] = 'M', out[1] = 'M', out[2] = 'C', out[3] = 'F';
+    out[4] = (uint8_t)(seq >> 24), out[5] = (uint8_t)(seq >> 16), out[6] = (uint8_t)(seq >> 8), out[7] = (uint8_t)seq;
+    mm_encode(s, out + 8);
+}
+
+static int record_valid(const mm_t *s, const uint8_t *r)
+{
+    mm_t probe;
+    uint8_t *p = (uint8_t *)&probe;
+    for (unsigned i = 0; i < sizeof probe; i++)
+        p[i] = 0;
+    probe.dests = s->dests;
+    return r[0] == 'M' && r[1] == 'M' && r[2] == 'C' && r[3] == 'F' && mm_decode(&probe, r + 8, MM_BLOB_SIZE) == 0;
+}
+
+int mm_record_pick(const mm_t *s, const uint8_t *a, const uint8_t *b, uint32_t *seq)
+{
+    int va = record_valid(s, a), vb = record_valid(s, b);
+    int pick = va && vb ? (be32(b + 4) > be32(a + 4) ? 1 : 0) : va ? 0 : vb ? 1 : -1;
+    if (pick >= 0)
+        *seq = be32((pick ? b : a) + 4);
+    return pick;
+}
+
 int mm_dest_pos(const mm_dests *d, int dest)
 {
     if (!d || !dest)

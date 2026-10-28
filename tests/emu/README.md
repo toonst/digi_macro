@@ -4,10 +4,16 @@ The builds run in [digikit](https://github.com/toonst/digikit)'s emulator. Its d
 does not know at start and loads a patched one ColdFire-only, where the frame interrupt (and so the macros) never runs.
 `zero_patched.rs` runs a patched build with the DSP side answering zeros instead, so the frame interrupt runs.
 
-Once, in a digikit checkout (it needs the Rust toolchain digikit's `mise.toml` names):
+Once, in a digikit checkout (it needs the Rust toolchain digikit's `mise.toml` names): copy the runner into the
+`digi-coupled` crate's examples, and give that crate `plusdrive-format` as a dev-dependency (the runner builds its card
+the way the emulator does when it is given none):
 
 ```bash
 cp tests/emu/zero_patched.rs DIGIKIT/packages/emulator/coupled/examples/
+```
+
+```bash
+printf '\n[dev-dependencies]\nplusdrive-format = { path = "../plusdrive" }\n' >> DIGIKIT/packages/emulator/coupled/Cargo.toml
 ```
 
 ```bash
@@ -21,5 +27,6 @@ python3 tests/emu/scenario.py --runner DIGIKIT/target/release/examples/zero_patc
 ```
 
 The runner first cold-boots the build to its main screen and saves that state next to the screens (`build.state`,
-about 3 s); every run starts from a fresh one. The screens are `out/emu/*.png`. The zero-DSP runner produces no sound:
+about 3 s); every run starts from a fresh one. The second part restarts with the card sectors the first part wrote
+(`card-mm.bin`) and checks that the configuration came back. The screens are `out/emu/*.png`. The zero-DSP runner produces no sound:
 the frame values are checked in memory.

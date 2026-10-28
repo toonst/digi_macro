@@ -123,6 +123,12 @@ int mm_leds(const mm_t *s, uint8_t *code, uint8_t *value, int cap);
 int mm_encode(const mm_t *s, uint8_t *out);         /* -> MM_BLOB_SIZE */
 int mm_decode(mm_t *s, const uint8_t *in, int len); /* 0, or -1 (unknown version, bad size or check) */
 
+/* A card sector holding the blob (W3): "MMCF", a sequence number, the blob; two copies, the newer valid one wins. */
+#define MM_RECORD_SIZE 512
+void mm_record_encode(const mm_t *s, uint32_t seq, uint8_t *out); /* MM_RECORD_SIZE bytes */
+/* Which copy to load: 0 or 1, -1 when neither holds a valid record; *seq gets its sequence number. */
+int mm_record_pick(const mm_t *s, const uint8_t *a, const uint8_t *b, uint32_t *seq);
+
 /* Destinations. */
 int mm_dest_pos(const mm_dests *d, int dest);       /* its place in the list, -1 for none or unknown */
 void mm_dest_label(const mm_dests *d, int dest, char *buf); /* 8 bytes */

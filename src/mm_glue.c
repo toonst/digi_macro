@@ -2,8 +2,7 @@
 /* macro-mode on elekloader's hook bus (core-dt2 1.0, core-dn2 0.2; PLAN.md 2.1 and 5): ev_key, ev_enc, ev_tick and
  * ev_draw. The only firmware routine it calls is Bitmap::fillRect, at FILLRECT_AT (mod.json cflags).
  *
- * Still to come (PLAN.md 6): storage (W3) and the check that no menu or dialog is open (D9); the configuration lives
- * in RAM until W3. */
+ * Still to come (PLAN.md 6): the check that no menu or dialog is open (D9). */
 #include "mm.h"
 
 #ifndef FILLRECT_AT
@@ -20,6 +19,41 @@ static mm_mods mm_buf[2];
 static uint8_t mm_back;
 /* The lists the frame handler reads; written only on the UI task, by one pointer store. */
 mm_mods *volatile mm_live;
+
+#ifdef CARD_WRITE_AT
+/* W3 (docs/findings/s5-storage.md): the configuration in two card sectors the stock OS never writes, between the end
+ * of the +Drive and digikit's store; the firmware's eMMC block read and write, int f(sector, bytes, buf), 0 = ok. */
+typedef int (*block_fn)(uint32_t sector, uint32_t bytes, void *buf);
+static uint8_t mm_sector[MM_RECORD_SIZE] __attribute__((aligned(16)));
+static uint32_t mm_seq;
+static uint8_t mm_copy, mm_loaded;
+
+static void card_load(mm_t *s)
+{
+    static uint8_t other[MM_RECORD_SIZE] __attribute__((aligned(16)));
+    uint32_t seq = 0;
+    int pick;
+    mm_loaded = 1;
+    if (((block_fn)CARD_READ_AT)(CARD_SECTOR, MM_RECORD_SIZE, mm_sector) ||
+        ((block_fn)CARD_READ_AT)(CARD_SECTOR + 1, MM_RECORD_SIZE, other))
+        return;                     /* no card: the configuration stays in RAM */
+    pick = mm_record_pick(s, mm_sector, other, &seq);
+    if (pick < 0)
+        return;
+    mm_decode(s, (pick ? other : mm_sector) + 8, MM_BLOB_SIZE);
+    mm_seq = seq;
+    mm_copy = (uint8_t)pick;
+}
+
+static void card_store(mm_t *s)
+{
+    mm_record_encode(s, mm_seq + 1, mm_sector);
+    if (((block_fn)CARD_WRITE_AT)(CARD_SECTOR + (mm_copy ^ 1), MM_RECORD_SIZE, mm_sector) == 0) {
+        mm_seq++;
+        mm_copy ^= 1;               /* the next write goes to the other copy */
+    }
+}
+#endif
 
 static mm_t *state(void)
 {
@@ -56,7 +90,16 @@ void mm_ev_tick(void *ctrl)
         mm_back ^= 1;
         s->dirty_mods = 0;
     }
-    s->dirty_config = 0;            /* W3: stored here once storage exists; in RAM until then */
+#ifdef CARD_WRITE_AT
+    if (!mm_loaded)
+        card_load(s);
+    if (s->dirty_config && s->state != MM_SETUP) {  /* once per visit of the setup screen, not per turn */
+        card_store(s);
+        s->dirty_config = 0;
+    }
+#else
+    s->dirty_config = 0;
+#endif
     if (mm_tick(s))
         *((unsigned char *)ctrl + 0x20) = 1;  /* recompose the frame */
     if (s->dirty_leds) {

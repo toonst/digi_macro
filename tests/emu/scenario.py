@@ -25,6 +25,7 @@ LED_MOD, LED_TRIG1 = 24, 25   # LED indices (digikit devices/digitakt-ii-leds.to
 # DT2 1.17 (docs/findings/s3-frame-values.md): the frame's per-track values, the mirror they glide to, the kit's
 # Sound pointers (the Sound array is at +0x14).
 FRAME_VALUES, MIRROR, SOUND_PTRS, STRIDE = 0x80005b72, 0x80003362, 0x8000470c, 142
+CARD_SECTOR = 0x2df0e00   # the configuration's two sectors (mods/dt2/mod.json, docs/findings/s5-storage.md)
 
 
 def delta(pos, depth):
@@ -208,6 +209,30 @@ def scenario(r):
     r.check(again != left, 'MOD + PAGE enters too')
     r.tap(MOD)
     r.shot('11-left-again')
+    r.check(r.cmd('card-save %s' % (r.out / 'card.bin')).startswith('ok'), 'the card written so far is saved')
+
+
+def after_restart(r):
+    """A cold boot with the card of the first run: the configuration comes back, the positions do not (D14)."""
+    r.tap(NO)
+    r.step(SETTLE)
+    r.down(PAGE)
+    r.down(MOD)
+    r.up(MOD)
+    r.up(PAGE)
+    r.shot('20-after-restart')
+    frame, mirror, _ = r.values(2, 27)
+    r.check(frame == mirror, 'after the restart every macro is at the centre: frame %04x = mirror %04x' % (frame, mirror))
+    r.turn(3, -6)
+    want = delta(-6, -12)
+    for t in (2, 4, 0):
+        frame, mirror, _ = r.values(t, 27)
+        exp = max(0, min(0x7f00, mirror + want)) if t in (2, 4) else mirror
+        r.check(frame == exp, 'after the restart, track %d: frame %04x, expected %04x (the stored slot)' % (t + 1, frame, exp))
+    r.down(FUNC)
+    r.tap(PUSH_A + 2)
+    r.up(FUNC)
+    r.shot('21-setup-after-restart')
 
 
 def playhead_over_setup(r):
@@ -239,8 +264,25 @@ def main():
         scenario(r)
     finally:
         r.close()
-    print('%d checks, %d failed' % (r.n, r.failed))
-    return r.failed
+    n, failed = r.n, r.failed
+    print('-- restart with the card of that run')
+    state2 = out / 'restart.state'
+    state2.unlink(missing_ok=True)
+    # only the mod's two sectors go on a fresh card: the firmware's own writes of the first run (the working project, the
+    # +Drive) replayed on a blank card do not make a card it boots from
+    saved = (out / 'card.bin').read_bytes()
+    ours = b''.join(saved[i:i + 520] for i in range(0, len(saved), 520)
+                    if int.from_bytes(saved[i:i + 8], 'big') in (CARD_SECTOR, CARD_SECTOR + 1))
+    (out / 'card-mm.bin').write_bytes(ours)
+    r = Run([a.runner, a.stock, a.build, str(state2), str(out / 'card-mm.bin')], out)
+    r.check(len(ours) == 520, 'the first run wrote one of the two record sectors (%d bytes)' % len(ours))
+    try:
+        after_restart(r)
+    finally:
+        r.close()
+    n, failed = n + r.n, failed + r.failed
+    print('%d checks, %d failed' % (n, failed))
+    return failed
 
 
 if __name__ == '__main__':

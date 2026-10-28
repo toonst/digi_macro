@@ -430,6 +430,27 @@ static void test_blob_round_trip(void)
     CHECK(mm_decode(&b, blob, MM_BLOB_SIZE - 1) == -1);
 }
 
+static void test_record(void)
+{
+    mm_t a, b;
+    static uint8_t r0[MM_RECORD_SIZE], r1[MM_RECORD_SIZE];
+    uint32_t seq = 0;
+    fresh(&a);
+    fresh(&b);
+    CHECK(mm_record_pick(&b, r0, r1, &seq) == -1);      /* a blank card: nothing to load */
+    a.m[1].slot[0] = (mm_slot){30, 7, 0x0101};
+    mm_record_encode(&a, 5, r0);
+    CHECK(mm_record_pick(&b, r0, r1, &seq) == 0 && seq == 5);
+    a.m[1].slot[0].depth = 9;
+    mm_record_encode(&a, 6, r1);
+    CHECK(mm_record_pick(&b, r0, r1, &seq) == 1 && seq == 6); /* the newer copy */
+    r1[20] ^= 0x40;                                     /* a torn write: the older copy */
+    CHECK(mm_record_pick(&b, r0, r1, &seq) == 0 && seq == 5);
+    CHECK(mm_decode(&b, r0 + 8, MM_BLOB_SIZE) == 0 && b.m[1].slot[0].depth == 7);
+    r0[0] = 'X';
+    CHECK(mm_record_pick(&b, r0, r1, &seq) == -1);
+}
+
 static void test_labels(void)
 {
     char buf[8];
@@ -470,6 +491,7 @@ int main(void)
     test_leds_dirty();
     test_blob_round_trip();
     test_labels();
+    test_record();
     test_draw(&checks, &failures);
     printf("%d checks, %d failed\n", checks, failures);
     return failures != 0;

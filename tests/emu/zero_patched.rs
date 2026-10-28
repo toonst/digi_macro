@@ -1,30 +1,46 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 //! A patched build in digikit's emulator with the DSP side answering zeros, so the frame interrupt (vector 191) runs:
 //! the daemon refuses a build it does not know at start, and loads a patched one ColdFire-only, where no frame runs.
-//! Build it as an example of digikit's `digi-coupled` crate (tests/emu/README.md):
+//! Build it as an example of digikit's `digi-coupled` crate, with `plusdrive-format` as its dev-dependency
+//! (tests/emu/README.md):
 //!
-//!     zero_patched STOCK.syx BUILD.syx CF_STATE
+//!     zero_patched STOCK.syx BUILD.syx CF_STATE [CARD_SECTORS]
 //!
 //! CF_STATE is the build's ColdFire state at the main screen; when the file does not exist the runner makes it first (a
 //! ColdFire-only cold boot with the SSI diagnostic on, as zero-DSP mode needs). Commands, one per line on stdin, each
 //! answered by one line on stdout:
-//!   step N | down CODE | up CODE | turn ENCODER DETENTS | peek ADDR (a long, hex) | leds | frame PATH | quit
+//!   step N | down CODE | up CODE | turn ENCODER DETENTS | peek ADDR (a long, hex) | leds | frame PATH
+//!   | card-save PATH (every sector the guest wrote: a big-endian u64 sector and its 512 bytes each) | quit
+//! CARD_SECTORS is such a file: the card starts with those sectors, as after a restart of the unit.
 use std::io::{BufRead, Write};
 
 use digi_coupled::{AudioMode, AudioOptions, CoupledRuntime};
+use emmc_card::{Card, CardIdentity};
 use sha2::{Digest, Sha256};
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
-    if args.len() != 4 {
-        eprintln!("usage: zero_patched STOCK.syx BUILD.syx CF_STATE");
+    if args.len() != 4 && args.len() != 5 {
+        eprintln!("usage: zero_patched STOCK.syx BUILD.syx CF_STATE [CARD_SECTORS]");
         std::process::exit(2);
     }
     let stock = std::fs::read(&args[1]).expect("stock .syx");
     let build = std::fs::read(&args[2]).expect("build .syx");
     let base = format!("{:x}", Sha256::digest(&stock));
+    let card = || -> Option<Card> {
+        let path = args.get(4)?;
+        let bytes = std::fs::read(path).expect("CARD_SECTORS");
+        // the card the emulator boots with when it is given none (an empty +Drive), with the sectors written over it
+        let image = plusdrive_format::build_sample_image(Vec::new()).expect("empty +Drive").image;
+        let mut card = Card::with_backing(CardIdentity::from_env().expect("identity"), Some(Box::new(image))).expect("card");
+        for record in bytes.chunks(8 + 512) {
+            let sector = u64::from_be_bytes(record[..8].try_into().expect("sector")) as u32;
+            card.write_data(25, sector, &record[8..]).expect("card write");
+        }
+        Some(card)
+    };
     if !std::path::Path::new(&args[3]).exists() {
-        let mut cold = CoupledRuntime::new_patched(&build, None, &base).expect("cold runtime");
+        let mut cold = CoupledRuntime::new_patched(&build, card(), &base).expect("cold runtime");
         cold.enable_ssi_diagnostic(96_000).expect("SSI diagnostic");
         let mut steps = 0u32;
         while !cold.step_chunk(1_000_000).status.main_ui_reached {
@@ -48,7 +64,7 @@ fn main() {
         dsp_patch: None,
         zero: true,
     };
-    let mut rt = CoupledRuntime::new_patched_audio(&build, None, &base, &options).expect("runtime");
+    let mut rt = CoupledRuntime::new_patched_audio(&build, card(), &base, &options).expect("runtime");
     let mut leds = String::new();
     let mut frame: Vec<u8> = Vec::new();
     let stdin = std::io::stdin();
@@ -97,6 +113,18 @@ fn main() {
                 Ok(()) => format!("ok {}", frame.len()),
                 Err(e) => e.to_string(),
             },
+            ["card-save", path] => {
+                let mut out = Vec::new();
+                let sectors = rt.card_overlay();
+                for s in &sectors {
+                    out.extend_from_slice(&s.sector.to_be_bytes());
+                    out.extend_from_slice(&s.data);
+                }
+                match std::fs::write(path, out) {
+                    Ok(()) => format!("ok {}", sectors.len()),
+                    Err(e) => e.to_string(),
+                }
+            }
             ["quit"] => break,
             _ => format!("unknown: {line}"),
         };
