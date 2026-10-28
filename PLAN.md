@@ -140,14 +140,14 @@ All decided by the user:
 | D12 | On the setup screen the selected slot is the one whose knob (A–D or E–H) was last turned or pushed; LEFT / RIGHT also step it |
 | D13 | Mod id `macro-mode`, title "MACRO MODE" (not "Digi Macro", which the shop has) |
 | D14 | Macro positions are not stored: every boot starts at the centre |
-| D15 | **Entry and exit act on presses**, never on releases: hold PAGE, then press MOD, to enter; PAGE held + MOD also exits (4.1) |
+| D15 | **Entry and exit act on presses**, never on releases: PAGE + MOD in either order enters, on the second key's press; PAGE held + MOD also exits (4.1) |
 
 ## 4. Behaviour
 
 ### 4.1 States
 
 ```text
-        PAGE held + MOD                          FUNC + push A..H
+   PAGE + MOD (either order)                     FUNC + push A..H
   OFF  ----------------->  MACRO  --------------------------------------->  SETUP(k)
    ^                        |   ^                                             |
    |   MOD, or PAGE + MOD   |   |              NO or MOD (D8)                 |
@@ -156,16 +156,24 @@ All decided by the user:
    +--------------------------------- PAGE held + MOD ------------------------+
 ```
 
-- **Entry, on MOD's press (D15).** Only this order enters: PAGE is held down, then MOD is pressed. The PAGE press
-  goes to the firmware as usual (the mod cannot yet know MOD will follow); the MOD press is taken and macro mode
-  starts at once, so the LFO page does not open. MOD held first and then PAGE is left to the firmware. FUNC + MOD is
-  the stock Master compressor page; PAGE held + MOD has no documented stock use, and S1 checks this.
+- **Entry, on the second key's press (D15).** Both orders enter, and the mode starts at once on the press that
+  completes the chord, which the mod takes:
+  - PAGE held, then MOD: the PAGE press goes to the firmware as usual (the mod cannot yet know MOD will follow);
+    the MOD press is taken, so the LFO page does not open.
+  - MOD held, then PAGE: the MOD press goes to the firmware, which opens the LFO page behind the macro screen; the
+    PAGE press is taken.
+
+  A MOD press the mod took itself (an exit, below) never counts as the first key of a chord, so pressing PAGE while
+  still holding it does not enter again. FUNC + MOD is the stock Master compressor page; neither order of PAGE +
+  MOD has a documented stock use, and S1 checks this.
 - **Exit, on MOD's press.** On the macro screen a MOD press exits. On the setup screen it goes back to the macro
-  screen (D8). PAGE held + MOD exits from either screen: the same chord switches the mode on and off.
+  screen (D8). PAGE held + MOD exits from either screen. With MOD held first, MOD's own press has already acted
+  (exit, or back from the setup screen), and a PAGE press after it makes no chord: after an exit it goes to the
+  firmware as usual, and on the macro screen it is taken.
 - **Releases follow their press.** The mod remembers which presses it took and also takes their repeats and
-  releases; a key whose press went to the firmware (the PAGE of the entry chord) has its release go there too. So
-  the firmware's own record of held keys stays right.
-- **Claims** (elekloader `resources.names`): `ui:hold PAGE + MOD`, `ui:macro mode` (the keys it takes while
+  releases; a key whose press went to the firmware (the first key of the entry chord) has its release go there
+  too. So the firmware's own record of held keys stays right.
+- **Claims** (elekloader `resources.names`): `ui:PAGE + MOD`, `ui:macro mode` (the keys it takes while
   active).
 
 ### 4.2 Input map
@@ -289,7 +297,7 @@ and the hash anchors in `devices/ports/`. They are then checked in digikit's emu
 
 | Spike | Questions | Done when |
 | --- | --- | --- |
-| S1 Input | The `ev_enc` id of LEVEL. Push codes 41–48 arrive at `ev_key`. The stock push + turn step and push + NO reset (D3). What the stock does with the PAGE press the entry passes on, and that PAGE held + MOD has no stock use. | A table of events and stock behaviours, both devices |
+| S1 Input | The `ev_enc` id of LEVEL. Push codes 41–48 arrive at `ev_key`. The stock push + turn step and push + NO reset (D3). What the stock does with the first key of the entry chord, which the mod passes on (a PAGE press, a MOD press), and that neither order of PAGE + MOD has a stock use. | A table of events and stock behaviours, both devices |
 | S2 LEDs | The per-frame LED pass on both devices (port the mk1 pass by masked code, as elekloader found its other mk2 sites; cross-check with digikit's LedManager setter). Whether the playhead and the view LEDs all go through it. Which value is blue: look for the panel MCU's firmware in the image (digiemu's lead), else a unit | Site, prototype and colour values, both devices |
 | S3 Modulation | Resolve the modulation kernel, the drivers and the LFO tick on 1.17 / 1.12; find the Digitakt II's driver and sources. Find the per-frame working array the modulators write and prove it is rebuilt from the base values every frame (the Digitakt II's `0x8e` mirror is updated only from dirty bits, so this is not obvious). Find a site before the modulators on both devices and measure the frame's spare time | A go / no-go note with the sites; **no-go stops the plan** (D1) |
 | S4 Screens | The stock modulation setup views' layout and fonts (the Digitone II's six `*SetupView` classes, the Digitakt II's equivalent). Text and invert routines and fonts on DN2 1.12. The cost of a full redraw | Routine addresses for both manifests and a layout to copy |
@@ -301,7 +309,7 @@ and the hash anchors in `devices/ports/`. They are then checked in digikit's emu
 | Phase | Work | Done when | Days |
 | --- | --- | --- | --- |
 | P0 | Spikes S1–S6 (parallel with M1) | Findings and the S3 go / no-go | 4–6 |
-| M1 | **Walking skeleton** on the Digitakt II: PAGE held + MOD opens the knob screen, A–H turn (push for bigger steps, push + NO resets), MOD exits. Needs only the hooks that exist | Runs in digikit's emulator from an elekloader build | 2–3 |
+| M1 | **Walking skeleton** on the Digitakt II: PAGE + MOD (either order) opens the knob screen, A–H turn (push for bigger steps, push + NO resets), MOD exits. Needs only the hooks that exist | Runs in digikit's emulator from an elekloader build | 2–3 |
 | W1 | LED event and the mode's LEDs, both devices | MOD blue; trig keys red in SETUP with PLAY running | 2–4 |
 | W2 + W4 | Per-frame event, macro math, destination table | A macro moves its target on the masked tracks only; kit bytes unchanged; frames identical with every macro at the centre | 6–10 |
 | SETUP | The D7 setup screen, slot selection, masks on the trig keys, NO back | Scenario: configure C slot 2 on tracks 3 and 5, turn C, check both | 3–4 |
@@ -316,7 +324,8 @@ risky half.
 ## 8. Testing
 
 - **Unit (host).** `mm_logic.c` built for the host. Cases:
-  - entry only with PAGE held and then MOD, on the press (MOD held, then PAGE, stays the firmware's);
+  - entry in both orders, on the second key's press; a MOD press that exits does not enter again when PAGE
+    follows while MOD is held;
   - exit on MOD's press from the macro screen, MOD back from the setup screen, PAGE + MOD exit from either;
   - every taken press has its repeats and release taken too, and a passed press its release passed;
   - push + turn steps, and push + NO resets;
