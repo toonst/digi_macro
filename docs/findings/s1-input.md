@@ -1,11 +1,12 @@
-# S1: input (Digitakt II 1.17)
+# S1: input (Digitakt II 1.17, Digitone II 1.12)
 
 Spike S1 of [PLAN.md](../../PLAN.md): which events the mode gets and when it may start. Marks as digikit's (**[D]**
 read or measured once here, **[O]** open, **[V]** checked by a second agent; nothing here is **[V]** yet).
 
 ## Events **[D]**
 
-Measured with `tests/emu/scenario.py` (the zero-DSP runner, an elekloader build of core-dt2 1.0 and this mod):
+Measured with `tests/emu/scenario.py` (the zero-DSP runner, an elekloader build of core-dt2 1.0 and this mod; the
+same on the Digitone II with core-dn2 0.2):
 
 | Input | What arrives |
 | --- | --- |
@@ -18,16 +19,16 @@ Measured with `tests/emu/scenario.py` (the zero-DSP runner, an elekloader build 
 
 The view controller sits at Brain `+0x40`; its view stack is a list whose sentinel is at `+0x14` (the sentinel's
 second word is the top node, the view at node `+8`, its vtable at the view's first word). On the main screen and the
-parameter pages the top view's vtable is `0x40216f14`; a menu, dialog or popup pushes another view on top. The glue
-(`fw_can_enter`) lets PAGE + MOD start the mode only with `0x40216f14` on top.
+parameter pages the top view's vtable is `HelpBubbleView`'s (DT2 `0x40216f14`, DN2 `0x402008e8`, found by its
+typeinfo name `14HelpBubbleView`); a menu, dialog or popup pushes another view on top. The glue
+(`fw_can_enter`) lets PAGE + MOD start the mode only with that view on top; the Brain offsets are the same on both.
 
 In the scenario, with SETTINGS open the chord leaves the mode off. The MOD press itself still goes to the firmware,
 which closes the menu and shows its MOD page, as without the mod.
 
 The boot's file-system windows (VERIFYING, FILE SYSTEM OK) are such views too: the scenario closes them with NO until
-`0x40216f14` is on top.
+that view is on top.
 
 ## Open **[O]**
 
 - The stock step of push + turn (`MM_COARSE` is 8 for now).
-- The same on the Digitone II 1.12.

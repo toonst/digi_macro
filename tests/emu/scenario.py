@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 """Drive a macro-mode build in digikit's emulator and check the screen, the LEDs and the frame values (PLAN.md 8).
 
-    python3 tests/emu/scenario.py --runner ZERO_PATCHED --stock STOCK.syx --build BUILD.syx --out OUT_DIR
+    python3 tests/emu/scenario.py --runner ZERO_PATCHED --stock STOCK.syx --build BUILD.syx --out OUT_DIR [--device dn2]
 
 ZERO_PATCHED is tests/emu/zero_patched.rs built as an example of digikit's digi-coupled crate (tests/emu/README.md):
 the build runs with the DSP side answering zeros, so the frame interrupt, where the macros apply, runs too. Screens
@@ -21,12 +21,23 @@ SETTLE = 240_000_000
 
 PAGE, MOD, NO, FUNC, PLAY, STOP = 22, 6, 12, 17, 20, 21
 TRIG1, PUSH_A = 25, 41
-LED_MOD, LED_TRIG1 = 24, 25   # LED indices (digikit devices/digitakt-ii-leds.toml)
+LED_MOD, LED_TRIG1 = 24, 25   # LED indices, the same on both (digikit devices/digit*-ii-leds.toml)
+LEVEL = 9                     # the LEVEL/DATA encoder
 
-# DT2 1.17 (docs/findings/s3-frame-values.md): the frame's per-track values, the mirror they glide to, the kit's
-# Sound pointers (the Sound array is at +0x14).
-FRAME_VALUES, MIRROR, SOUND_PTRS, STRIDE = 0x80005b72, 0x80003362, 0x8000470c, 142
-CARD_SECTOR = 0x2df0e00   # the configuration's two sectors (mods/dt2/mod.json, docs/findings/s5-storage.md)
+# Per device (docs/findings): the frame's per-track values and the mirror they glide to (block + 0x22, stride in
+# bytes), where the kit's Sound buffers are, the view on top of the stack on the main screen (D9), the
+# configuration's two card sectors, the scenario's destination (its place in src/mm_dests.c's list is the detents of
+# B that pick it), and indices with a non-zero default, to check the Sound arrays against.
+DEVICES = {
+    'dt2': dict(frame=0x80005b72, mirror=0x80003362, stride=142, view_top=0x40216f14, card=0x2df0e00, dest=34, turns=2, probe=(36, 59),
+                # the Sound pointers at 0x8000470c (the array at +0x14)
+                sounds=lambda r: [r.peek32(0x8000470c + 4 * t) + 0x14 for t in range(16)]),
+    'dn2': dict(frame=0x80006906, mirror=0x80003b12, stride=202, view_top=0x402008e8, card=0x7ff000, dest=67, turns=1, probe=(67, 90),
+                # the kit at *0x800052a0, track t's Sound at + 0x34 + 0x48b t (digikit finding 02, read on 1.11)
+                sounds=lambda r: [r.peek32(0x800052a0) + 0x34 + 0x48b * t + 0x14 for t in range(16)]),
+}
+DEV = DEVICES['dt2']
+DEST = DEV['dest']
 
 
 def delta(pos, depth):
@@ -58,9 +69,13 @@ class Run:
         self.sounds = None
 
     def read_sounds(self):
-        """The kit's Sound buffers: the pointers at SOUND_PTRS hold them from boot until the sequencer first runs (it
-        then uses them for the sounds it plays, and clears them on STOP), so they are taken at boot."""
-        self.sounds = [int(self.cmd('peek %x' % (SOUND_PTRS + 4 * t)), 16) for t in range(16)]
+        """The kit's Sound arrays, taken at boot (on the Digitakt II the pointers hold them only until the sequencer
+        first runs). Checked against the mirror, which is a copy: None when they do not match."""
+        self.sounds = DEV['sounds'](self)
+        if any(self.peek16(self.sounds[t] + 2 * i) != self.peek16(DEV['mirror'] + DEV['stride'] * t + 2 * i)
+               for t in (0, 2) for i in DEV['probe']):
+            print('SKIP the kit checks: the Sound arrays were not found where the device profile says')
+            self.sounds = None
 
     def cmd(self, line):
         self.p.stdin.write(line + '\n')
@@ -107,21 +122,29 @@ class Run:
         leds = self.cmd('leds')
         return int(leds[2 * idx:2 * idx + 2], 16) if len(leds) >= 2 * idx + 2 else None
 
+    def peek32(self, addr):
+        return int(self.cmd('peek %x' % addr), 16)
+
+    def peek8(self, addr):
+        return (self.peek32(addr & ~3) >> (24 - 8 * (addr & 3))) & 0xff
+
     def peek16(self, addr):
-        word = int(self.cmd('peek %x' % (addr & ~3)), 16)
+        if addr & 1:                            # the Digitone II's Sound arrays sit at odd addresses
+            return self.peek8(addr) << 8 | self.peek8(addr + 1)
+        word = self.peek32(addr & ~3)
         return (word >> 16) & 0xffff if addr & 2 == 0 else word & 0xffff
 
     def values(self, track, index, samples=7):
         """(frame value, mirror value, kit value) of one parameter of one track. The frame block is rebuilt from the
         smoother at the start of each frame and the handlers add to it a little later, so a stop inside that window
         reads the value without them: the frame value is the most common of a few samples taken between steps."""
-        sound = self.sounds[track]
         seen = []
         for _ in range(samples):
-            seen.append(self.peek16(FRAME_VALUES + STRIDE * track + 2 * index))
+            seen.append(self.peek16(DEV['frame'] + DEV['stride'] * track + 2 * index))
             self.step(30011)
         frame = max(set(seen), key=seen.count)
-        return (frame, self.peek16(MIRROR + STRIDE * track + 2 * index), self.peek16(sound + 0x14 + 2 * index))
+        kit = self.peek16(self.sounds[track] + 2 * index) if self.sounds else None
+        return (frame, self.peek16(DEV['mirror'] + DEV['stride'] * track + 2 * index), kit)
 
     def mode(self):
         """The mode's state byte (0 off, 1 macro screen, 2 setup), from the build's symbol map; None without one."""
@@ -138,9 +161,6 @@ class Run:
         print(('ok   ' if ok else 'FAIL ') + what, flush=True)
 
 
-DEST = 34                    # the slot's destination in the scenario: LEV (src/mm_dests.c)
-LEVEL = 9                    # the LEVEL/DATA encoder
-VIEW_TOP_BASE = 0x40216f14   # the view on top of the stack on the main screen (docs/findings/s1-input.md)
 
 
 def top_view(r):
@@ -163,7 +183,7 @@ def settle_boot(r):
             r.step(8 * SETTLE)
             r.tap(NO)
             break
-        if top_view(r) == VIEW_TOP_BASE:
+        if top_view(r) == DEV['view_top']:
             break
     r.step(SETTLE)
 
@@ -226,8 +246,8 @@ def scenario(r):
     setup = r.shot('06-setup')
     r.check(setup not in (macro, turned), 'FUNC + push C opens the setup screen')
 
-    r.turn(2, 2)                                # B: slot 2 destination, the second in the list (LEV)
-    r.turn(6, -12)                              # F: slot 2 depth
+    r.turn(2, DEV['turns'])                     # B: slot 2 destination
+    r.turn(6, 12)                               # F: slot 2 depth
     r.tap(TRIG1 + 2)
     r.tap(TRIG1 + 4)
     r.shot('07-setup-edited')
@@ -248,12 +268,13 @@ def scenario(r):
     back = r.shot('08-back')
     r.check(back not in (stock, setup), 'MOD goes back from the setup screen to the macro screen')
 
-    want = delta(-6, -12)                       # macro C at -6: LEV by depth -12 on tracks 3 and 5 only
+    want = delta(-6, 12)                        # macro C at -6: DEST by depth +12 on tracks 3 and 5 only
     for t in (2, 4, 0):
         frame, mirror, kit = r.values(t, DEST)
         exp = max(0, min(0x7f00, mirror + want)) if t in (2, 4) else mirror
         r.check(frame == exp, 'track %d, index %d: frame %04x, mirror %04x, expected %04x' % (t + 1, DEST, frame, mirror, exp))
-        r.check(kit == mirror, 'track %d, index %d: the kit keeps %04x (mirror %04x)' % (t + 1, DEST, kit, mirror))
+        if kit is not None:
+            r.check(kit == mirror, 'track %d, index %d: the kit keeps %04x (mirror %04x)' % (t + 1, DEST, kit, mirror))
     r.turn(3, 6)                                # C back to the centre: the frame values follow the mirror again
     for t in (2, 4):
         frame, mirror, _ = r.values(t, DEST)
@@ -308,7 +329,7 @@ def after_restart(r):
     frame, mirror, _ = r.values(2, DEST)
     r.check(frame == mirror, 'after the restart every macro is at the centre: frame %04x = mirror %04x' % (frame, mirror))
     r.turn(3, -6)
-    want = delta(-6, -12)
+    want = delta(-6, 12)
     for t in (2, 4, 0):
         frame, mirror, _ = r.values(t, DEST)
         exp = max(0, min(0x7f00, mirror + want)) if t in (2, 4) else mirror
@@ -338,8 +359,12 @@ def main():
     ap.add_argument('--stock', required=True)
     ap.add_argument('--build', required=True)
     ap.add_argument('--out', required=True)
+    ap.add_argument('--device', choices=sorted(DEVICES), default='dt2')
     ap.add_argument('--map', help='the build\'s symbol map (tools/check.sh writes out/check/macro-<dev>.map.json)')
     a = ap.parse_args()
+    global DEV, DEST
+    DEV = DEVICES[a.device]
+    DEST = DEV['dest']
     syms = json.load(open(a.map)) if a.map else None
     out = pathlib.Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -359,7 +384,7 @@ def main():
     # +Drive) replayed on a blank card do not make a card it boots from
     saved = (out / 'card.bin').read_bytes()
     ours = b''.join(saved[i:i + 520] for i in range(0, len(saved), 520)
-                    if int.from_bytes(saved[i:i + 8], 'big') in (CARD_SECTOR, CARD_SECTOR + 1))
+                    if int.from_bytes(saved[i:i + 8], 'big') in (DEV['card'], DEV['card'] + 1))
     (out / 'card-mm.bin').write_bytes(ours)
     r = Run([a.runner, a.stock, a.build, str(state2), str(out / 'card-mm.bin')], out)
     r.syms = syms

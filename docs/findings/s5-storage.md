@@ -1,4 +1,4 @@
-# S5: where the configuration is kept (Digitakt II 1.17)
+# S5: where the configuration is kept (Digitakt II 1.17, Digitone II 1.12)
 
 Spike S5 of [PLAN.md](../../PLAN.md): keep the macros' configuration across restarts, globally for now (D4). Marks as
 digikit's (**[D]** read or measured once here, **[O]** open, **[V]** checked by a second agent; nothing here is
@@ -14,6 +14,14 @@ nor digikit's.
 Records in the firmware's own files were looked at first: the kit's FX storage record has 28 spare halfwords (digikit
 finding 61), too few for the 135-byte configuration; the firmware's global settings record is not mapped yet. Both stay
 candidates for the per-pattern and per-project scopes of D4.
+
+## The Digitone II 1.12 **[D]**
+
+Sectors `0x7FF000` and `0x7FF001`, with the block read `0x4012c87a` and write `0x4012ca60` (digikit's port file). Stock
+writes nothing at or above `0x458000` on the Digitone II (a FORMAT trims up to `0x457FFF`), and digikit's store
+starts at `0x800000` (finding 59). Unlike that store, these two are below `0x800000`, where a crafted Data-API
+request could reach them; a record it damaged fails its check and is ignored. The scenario's restart part passes the
+same way on the Digitone II.
 
 ## The routines on 1.17 **[D]**
 

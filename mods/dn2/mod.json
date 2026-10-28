@@ -11,7 +11,9 @@
   "../../src/mm_apply.c",
   "../../src/mm_store.c",
   "../../src/mm_draw.c",
-  "../../src/mm_dests.c"
+  "../../src/mm_dests.c",
+  "../../src/frame.s",
+  "../../src/leds.s"
  ],
  "subscribe": [
   {
@@ -33,24 +35,65 @@
    "event": "ev_draw",
    "fn": "mm_ev_draw",
    "order": 90
+  },
+  {
+   "event": "ev_frame_params",
+   "fn": "mm_ev_frame_params",
+   "order": 50
+  },
+  {
+   "event": "ev_key_leds",
+   "fn": "mm_ev_key_leds",
+   "order": 10
   }
  ],
  "requires": [
   "core"
  ],
- "description": "Macro mode for the Digitone II: hold PAGE and press MOD (or the other way round) and encoders A-H become eight macros, each moving up to four parameters on the tracks you choose. FUNC + an encoder push opens its setup. Development build: macros do not reach the sound yet and the configuration is not stored (docs/STATUS.md).",
+ "description": "Macro mode for the Digitone II: hold PAGE and press MOD (or the other way round) and encoders A-H become eight macros, each moving up to four parameters on the tracks you choose. FUNC + an encoder push opens its setup. The configuration is kept on the card (docs/findings/s5-storage.md).",
  "device": "digitone-mk2",
  "os": "1.12",
  "cflags": [
   "-DFILLRECT_AT=0x40114b22",
+  "-DLEDSET_AT=0x4002c318",
   "-DMM_DN2",
+  "-DCARD_READ_AT=0x4012c87a",
+  "-DCARD_WRITE_AT=0x4012ca60",
+  "-DCARD_SECTOR=0x7ff000",
+  "-DVIEW_TOP_BASE=0x402008e8",
+  "-DTEXT_AT=0x4011573c",
+  "-DTEXT_FONT=0x44508ef8",
   "-fno-tree-loop-distribute-patterns"
  ],
  "resources": {
   "core": "0.1",
   "names": [
    "ui:PAGE + MOD",
-   "ui:macro mode"
+   "ui:macro mode",
+   "card:0x7ff000-0x7ff001"
   ]
+ },
+ "defsym": {
+  "MODS_STOCK": "0x400db390",
+  "LEDS_CLEAR": "0x4002c3c6",
+  "FRAME_STRIDE": "101"
+ },
+ "sites": [
+  {
+   "addr": "0x40027196",
+   "stock": "4eb9400db390",
+   "op": "jsr",
+   "target": "mmx_frame"
+  },
+  {
+   "addr": "0x4002c87a",
+   "stock": "4ebafb4a2f02",
+   "op": "jsr",
+   "target": "mmx_leds"
+  }
+ ],
+ "collections": {
+  "ev_frame_params": 4,
+  "ev_key_leds": 4
  }
 }

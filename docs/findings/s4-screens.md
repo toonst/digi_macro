@@ -1,4 +1,4 @@
-# S4: the screens (Digitakt II 1.17)
+# S4: the screens (Digitakt II 1.17, Digitone II 1.12)
 
 Spike S4 of [PLAN.md](../../PLAN.md): draw the macro and setup screens like the stock ones. Marks as digikit's
 (**[D]** read or measured once here, **[O]** open, **[V]** checked by a second agent; nothing here is **[V]** yet).
@@ -7,7 +7,9 @@ Spike S4 of [PLAN.md](../../PLAN.md): draw the macro and setup screens like the 
 
 `0x40113dc8` is the firmware's printf-style text routine (digikit's `cf.text.fn.draw_fmt`): `(bitmap, font, x, y,
 flags, fmt, ...)`. `y` is the text's bottom row counted from the bottom of the screen; flags bit 1 centres on `x`. The
-stock views pass the font object `0x44d2e70c` (for example at `0x40105b16`); its capitals are 5 pixels high. The glue
+stock views pass the font object `0x44d2e70c` (for example at `0x40105b16`); its capitals are 5 pixels high. On
+the Digitone II 1.12 the routine is `0x4011573c` and the font `0x44508ef8` (the font both pass most, `0x18` above the
+next, as on the Digitakt II). The glue
 draws a string whose top row is `ytop` at `y = 59 − ytop`. Measured: the scenario's screens show the firmware's
 glyphs where the host previews show the mod's own.
 
@@ -28,5 +30,5 @@ position on the fader. `src/mm_draw.c` has the coordinates.
 ## Open **[O]**
 
 - How the stock setup screen marks the selected column (the mod inverts its heading).
-- The same on the Digitone II 1.12 (text routine `0x4011573c` there, per digikit's port file; its font object is not
-  read yet).
+- The Digitone II's stock pages use the same header and page box (seen in the emulator); its MODULATION SETUP was
+  not dumped.

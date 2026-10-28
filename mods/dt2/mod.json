@@ -12,8 +12,8 @@
   "../../src/mm_store.c",
   "../../src/mm_draw.c",
   "../../src/mm_dests.c",
-  "../../src/frame_dt2.s",
-  "../../src/leds_dt2.s"
+  "../../src/frame.s",
+  "../../src/leds.s"
  ],
  "subscribe": [
   {
@@ -75,7 +75,8 @@
  },
  "defsym": {
   "MODS_STOCK": "0x400d9508",
-  "LEDS_CLEAR": "0x4003098e"
+  "LEDS_CLEAR": "0x4003098e",
+  "FRAME_STRIDE": "71"
  },
  "sites": [
   {

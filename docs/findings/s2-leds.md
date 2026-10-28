@@ -1,4 +1,4 @@
-# S2: the key LEDs (Digitakt II 1.17)
+# S2: the key LEDs (Digitakt II 1.17, Digitone II 1.12)
 
 Spike S2 of [PLAN.md](../../PLAN.md): hold the MOD LED blue in macro mode and show the selected parameter's tracks red
 on the trig keys in the setup screen, over whatever the stock views set. Marks as digikit's (**[D]** read or measured
@@ -27,9 +27,15 @@ Read with `m68k-linux-gnu-objdump` on the MAIN image. The getter of the singleto
 The logical id of a key's LED is its index in digikit's `devices/digitakt-ii-leds.toml` plus 1: MOD 25, TRIG n 25 + n
 (digikit finding 19).
 
+## The Digitone II 1.12 **[D]**
+
+The same code, found by the Digitakt II's bytes with the addresses masked: setter `0x4002c318`, clear `0x4002c3c6`,
+finish `0x4002c3ee`, the LED frame `0x4002c854` with the hook site at `0x4002c87a` (`4eba fb4a 2f02`), the request
+byte's setter `0x4011d5f4`. The logical ids are the same (digikit's `digitone-ii-leds.toml`).
+
 ## The hook **[D]**
 
-`src/leds_dt2.s` replaces the 6 bytes at `0x400311a2` (the 4-byte `jsr (pc)` to the clear and the `move.l d2,-(sp)`
+`src/leds.s` replaces the 6 bytes at the site (DT2 `0x400311a2`) (the 4-byte `jsr (pc)` to the clear and the `move.l d2,-(sp)`
 after it) with a `jsr` to `mmx_leds`: it runs the clear, calls each handler of the collection `ev_key_leds` as
 `f(void *mgr)`, and replays the displaced push. `mm_ev_key_leds` sets MOD to `0x41` with layer 2, and in the setup
 screen each trig key to `0x11` (layer 2) or off (layer 1). When the mode's LEDs change, the tick sets the view
@@ -38,7 +44,7 @@ controller's `+0x21` so an LED frame runs.
 ## Measured in the emulator **[D]**
 
 `tests/emu/scenario.py` with the zero-DSP runner: MOD reads `0x41` in macro mode and the firmware's own value after
-leaving it; in the setup screen trig keys 3 and 5 read `0x11` and the others off.
+leaving it; in the setup screen trig keys 3 and 5 read `0x11` and the others off. The same on the Digitone II.
 
 ## Open **[O]**
 

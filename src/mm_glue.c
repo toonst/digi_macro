@@ -156,7 +156,7 @@ void mm_ev_draw(void *bmp, void *ctrl)
     mm_draw(s, &c);
 }
 
-/* W2: ev_frame_params (src/frame_dt2.s): each frame's per-track values, before the stock modulators. Interrupt
+/* W2: ev_frame_params (src/frame.s): each frame's per-track values, before the stock modulators. Interrupt
  * level: it only reads the lists the UI task published. */
 void mm_ev_frame_params(int16_t *values, int stride)
 {
@@ -166,7 +166,7 @@ void mm_ev_frame_params(int16_t *values, int stride)
 }
 
 #ifdef LEDSET_AT
-/* W1: ev_key_leds (src/leds_dt2.s). LedManager's setter (mgr, logical id, layer, value): layer 2 lights the LED with
+/* W1: ev_key_leds (src/leds.s). LedManager's setter (mgr, logical id, layer, value): layer 2 lights the LED with
  * the value, layer 1 turns it off, and either keeps the views' later sets out (docs/findings/s2-leds.md). The logical
  * id of key code c is MOD 25 and TRIG n 25 + n (digikit finding 19). */
 typedef void (*ledset_t)(void *mgr, int logical, int layer, int value);

@@ -6,9 +6,9 @@ become eight macros, each moving up to four parameters on the tracks you choose,
 modulations. Requirements: [SPEC.md](SPEC.md); plan and decisions: [PLAN.md](PLAN.md); where it stands:
 [docs/STATUS.md](docs/STATUS.md).
 
-> **Development build.** On the Digitakt II everything runs in digikit's emulator (screens, LEDs, the macros in the
-> frame values, the stored configuration), but nothing has been tried on a unit or listened to yet. The Digitone II
-> build has the basic handlers only. Do not flash it on a device you need.
+> **Development build.** On both devices everything runs in digikit's emulator (screens, LEDs, the macros in the
+> frame values, the stored configuration), but nothing has been tried on a unit or listened to yet. Do not flash it
+> on a device you need.
 
 ## Using it
 
@@ -61,7 +61,7 @@ Test a build in [digikit](https://github.com/toonst/digikit)'s emulator before i
 | `src/mm_apply.c` | Macro math, the per-track lists and their frame-time apply; the LEDs the mode holds |
 | `src/mm_store.c` | The stored configuration's format; destination helpers |
 | `src/mm_draw.c` | The two screens, in the stock layout (the previews use the mod's own font; the device the firmware's) |
-| `src/mm_dests.c` | The destinations per device: the Digitakt II's from the firmware's parameter table, the Digitone II's provisional |
+| `src/mm_dests.c` | The destinations per device: both from the firmware's parameter tables |
 | `src/mm_glue.c` | The elekloader handlers: `ev_key`, `ev_enc`, `ev_tick`, `ev_draw` |
 | `mods/dt2`, `mods/dn2` | The elekloader manifests, one per device and OS |
 | `tests/` | Host tests and the preview renderer |

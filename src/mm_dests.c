@@ -38,46 +38,47 @@ static const mm_dest table[] = {
     {67, MM_G_FX, 0, 0, "OVER"},
     {62, MM_G_PORT, 0, 0, "PTIM"},
 };
+
+#elif defined(MM_DN2)
+/* The Digitone II 1.12's, from its parameter table (0x401f83a4): the filter, amp, FX and portamento parameters are
+ * the Digitakt II's, at index + 31. No source parameter: the four machines share none (index 25 is FM Tone's
+ * algorithm, the others' tune). */
+#define BOUND 100 /* the LFO DEST bound on the Digitone II */
+static const mm_dest table[] = {
+    {67, MM_G_FLTR, 0, 0, "FREQ"},
+    {68, MM_G_FLTR, 0, 0, "RESO"},
+    {69, MM_G_FLTR, 0, 0, "ENV"},
+    {70, MM_G_FLTR, 0, 0, "DEL"},
+    {71, MM_G_FLTR, 0, 0, "ATK"},
+    {72, MM_G_FLTR, 0, 0, "DEC"},
+    {73, MM_G_FLTR, 0, 0, "SUS"},
+    {74, MM_G_FLTR, 0, 0, "REL"},
+    {76, MM_G_FLTR, 0, 0, "BASE"},
+    {77, MM_G_FLTR, 0, 0, "WDTH"},
+    {79, MM_G_FLTR, 0, 0x6400, "KEY.T"},
+    {80, MM_G_AMP, 0, 0, "DEL"},
+    {81, MM_G_AMP, 0, 0, "ATK"},
+    {82, MM_G_AMP, 0, 0, "HOLD"},
+    {83, MM_G_AMP, 0, 0, "DEC"},
+    {84, MM_G_AMP, 0, 0, "SUS"},
+    {85, MM_G_AMP, 0, 0, "REL"},
+    {89, MM_G_AMP, 0, 0, "PAN"},
+    {90, MM_G_AMP, 0, 0, "VOL"},
+    {86, MM_G_FX, 0, 0, "DEL"},
+    {87, MM_G_FX, 0, 0, "REV"},
+    {88, MM_G_FX, 0, 0, "CHR"},
+    {95, MM_G_FX, 0, 0, "BR"},
+    {96, MM_G_FX, 0, 0, "SRR"},
+    {98, MM_G_FX, 0, 0, "OVER"},
+    {93, MM_G_PORT, 0, 0, "PTIM"},
+};
+#endif
+
+#if defined(MM_DT2) || defined(MM_DN2)
 static const mm_dests dests = {table, sizeof table / sizeof table[0], BOUND};
 
 const mm_dests *mm_device_dests(void)
 {
-    return &dests;
-}
-
-#elif defined(MM_DN2)
-/* PROVISIONAL until spike S6 is done on the Digitone II 1.12: every per-track value-array index the frame carries
- * (digikit finding 04: from 25, below the modulation bound), minus the SRR routing switch; the few names digikit
- * finding 02 has, the others shown as P and the index. */
-#define FIRST 25
-#define BOUND 100 /* the LFO DEST bound on the Digitone II */
-#define SKIP 97
-#define N (BOUND - FIRST - 1)
-static mm_dest table[N];
-static const struct { uint8_t i; uint8_t g; const char *n; } known[] = {
-    {86, MM_G_FX, "DEL"}, {87, MM_G_FX, "REV"}, {88, MM_G_FX, "CHR"},
-    {95, MM_G_FX, "BR"},  {96, MM_G_FX, "SRR"}, {98, MM_G_FX, "OVER"},
-};
-static mm_dests dests;
-
-/* Filled at run time (on the first event), so the table costs no image bytes. */
-const mm_dests *mm_device_dests(void)
-{
-    if (!dests.count) {
-        int n = 0;
-        for (int i = FIRST; i < BOUND; i++) {
-            if (i == SKIP)
-                continue;
-            table[n] = (mm_dest){(uint8_t)i, MM_G_NONE, 0, 0, 0};
-            for (unsigned k = 0; k < sizeof known / sizeof known[0]; k++)
-                if (known[k].i == i)
-                    table[n].group = known[k].g, table[n].name = known[k].n;
-            n++;
-        }
-        dests.d = table;
-        dests.bound = BOUND;
-        dests.count = (uint8_t)n;
-    }
     return &dests;
 }
 #else

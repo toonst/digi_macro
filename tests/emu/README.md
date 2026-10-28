@@ -26,7 +26,7 @@ Then, with a build from `tools/check.sh`:
 python3 tests/emu/scenario.py --runner DIGIKIT/target/release/examples/zero_patched --stock firmware/Digitakt_II_OS1.17.syx --build out/check/macro-dt2.syx --out out/emu --map out/check/macro-dt2.map.json
 ```
 
-`--map` is the symbol map `tools/check.sh` writes next to the build: with it the scenario reads the mode's state and
+For the Digitone II, add `--device dn2` and use its stock file, build and map. `--map` is the symbol map `tools/check.sh` writes next to the build: with it the scenario reads the mode's state and
 the firmware's view stack (the D9 check). The runner first cold-boots the build to its main screen and saves that state next to the screens (`build.state`,
 about 3 s); every run starts from a fresh one. The second part restarts with the card sectors the first part wrote
 (`card-mm.bin`) and checks that the configuration came back. The screens are `out/emu/*.png`. The zero-DSP runner produces no sound:

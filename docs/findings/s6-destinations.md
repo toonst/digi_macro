@@ -1,4 +1,4 @@
-# S6: destinations (Digitakt II 1.17)
+# S6: destinations (Digitakt II 1.17, Digitone II 1.12)
 
 Spike S6 of [PLAN.md](../../PLAN.md): which per-track parameters a slot can take, and their names. Marks as
 digikit's (**[D]** read or measured once here, **[O]** open, **[V]** checked by a second agent; nothing here is
@@ -25,9 +25,16 @@ type, and indices 27 and 31–33, whose meaning and range change with the machin
 switch, and Slice's SLICE). Measured in the scenario: slot 2 of macro C on LEV with depth −12 moves tracks 3 and 5 by
 `0x23b` from `0x6400`; the kit's Sound buffers keep `0x6400`.
 
+## The Digitone II 1.12 **[D]**
+
+Its table is at `0x401f83a4`, in the same format. The filter, amp, track FX and portamento descriptors are the
+Digitakt II's, at index + 31, with the same short names and ranges: 26 destinations, 67 .. 98. The machines (FM Tone,
+Wavetone, FM Drum, Swarm; owners 0–3) share no source parameter (index 25 is FM Tone's ALGO, the others' TUNE), so
+the list has none. Measured in the scenario: FREQ moves by the slot's delta, the kit keeps its value.
+
 ## Open **[O]**
 
 - The machine-dependent source parameters, with names and ranges per track's machine (the machine byte is at
   `0x80003cd0 + 0x9a t`).
 - The LFO parameters as destinations: whether a value added before the LFO tick reaches the LFOs.
-- The Digitone II 1.12's table (the list there is still the provisional one).
+- The Digitone II's machine parameters, per machine.
