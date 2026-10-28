@@ -2,9 +2,8 @@
 /* macro-mode on elekloader's hook bus (core-dt2 1.0, core-dn2 0.2; PLAN.md 2.1 and 5): ev_key, ev_enc, ev_tick and
  * ev_draw. The only firmware routine it calls is Bitmap::fillRect, at FILLRECT_AT (mod.json cflags).
  *
- * Still to come, each behind a spike (PLAN.md 6): the LED event (W1, mm_ev_key_leds below is its handler), the
- * per-frame value arrays (W2, mm_frame), storage (W3) and the check that no menu or dialog is open (D9). Until then
- * the mode runs, draws and edits its configuration, and the configuration lives in RAM. */
+ * Still to come, each behind a spike (PLAN.md 6): the LED event (W1, mm_ev_key_leds below is its handler), storage
+ * (W3) and the check that no menu or dialog is open (D9); the configuration lives in RAM until W3. */
 #include "mm.h"
 
 #ifndef FILLRECT_AT
@@ -73,12 +72,13 @@ void mm_ev_draw(void *bmp, void *ctrl)
     mm_draw(s, &c);
 }
 
-/* W2: called by the per-frame event once it exists, at interrupt level, with the 16 tracks' value arrays. */
-void mm_frame(int16_t *values, int stride)
+/* W2: ev_frame_params (src/frame_dt2.s): each frame's per-track values, before the stock modulators. Interrupt
+ * level: it only reads the lists the UI task published. */
+void mm_ev_frame_params(int16_t *values, int stride)
 {
     mm_mods *m = mm_live;
     if (m)
-        mm_apply(m, values, stride, mm_state.dests ? mm_state.dests->bound : 0);
+        mm_apply(m, values, stride, mm_state.dests->bound);
 }
 
 #ifdef LEDSET_AT

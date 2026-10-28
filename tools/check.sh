@@ -5,7 +5,8 @@
 #   2. the screen previews in docs/img (--previews rewrites them);
 #   3. a ColdFire cross-compile of each manifest with elekloader's flags for the device: no undefined symbol may be
 #      left (the mods have no C library), and the sizes are printed;
-#   4. with DT2_SYX / DN2_SYX set to the stock OS files, elekloader's own build and lint of each mod.
+#   4. with DT2_SYX / DN2_SYX set to the stock OS files, elekloader's own build and lint of each mod, and the OS file
+#      out/check/macro-<dev>.syx (never commit it: it holds Elektron's firmware).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 OUT=${OUT:-out/check}
@@ -33,13 +34,20 @@ for dev in dt2 dn2; do
     mapfile -t cflags < <(python3 -c "import json;print('\n'.join(json.load(open('mods/$dev/mod.json'))['cflags']))")
     mapfile -t srcs < <(python3 -c "import json;print('\n'.join(json.load(open('mods/$dev/mod.json'))['sources']))")
     objs=()
+    mapfile -t defsym < <(python3 -c "import json;print('\n'.join('--defsym=%s=%s' % kv for kv in json.load(open('mods/$dev/mod.json')).get('defsym', {}).items()))")
+    mapfile -t tables < <(python3 -c "import json;print('\n'.join(json.load(open('mods/$dev/mod.json')).get('collections', {})))")
     for s in "${srcs[@]}"; do
-        o="$OUT/$dev-$(basename "${s%.c}").o"
-        "${CROSS}gcc" "${FLAGS[@]}" "${cflags[@]}" -c "mods/$dev/$s" -o "$o"
+        o="$OUT/$dev-$(basename "${s%.*}").o"
+        if [[ "$s" == *.s ]]; then
+            "${CROSS}as" -mcpu=54455 "${defsym[@]}" "mods/$dev/$s" -o "$o"
+        else
+            "${CROSS}gcc" "${FLAGS[@]}" "${cflags[@]}" -c "mods/$dev/$s" -o "$o"
+        fi
         objs+=("$o")
     done
     "${CROSS}ld" -r -o "$OUT/$dev.o" "${objs[@]}"
-    undef=$("${CROSS}nm" -u "$OUT/$dev.o")
+    # the collections the mod declares are the linker's tables
+    undef=$("${CROSS}nm" -u "$OUT/$dev.o" | awk '{print $2}' | grep -v -x -F -f <(printf '%s\n' "${tables[@]:-}" ) || true)
     if [[ -n "$undef" ]]; then
         echo "$dev: undefined symbols (the mod has no C library):"; echo "$undef"; exit 1
     fi
@@ -58,6 +66,8 @@ if [[ -n "${DT2_SYX:-}${DN2_SYX:-}" ]]; then
         (cd "$EL" && ELEKLOADER_CROSS="$CROSS" python3 -m elekloader.sdk.build "mods/$core" --stock "$syx" --out "$OLDPWD/$OUT/$dev-core")
         (cd "$EL" && ELEKLOADER_CROSS="$CROSS" python3 -m elekloader.sdk.build "$OLDPWD/mods/$dev" --stock "$syx" --out "$OLDPWD/$OUT/$dev-mod")
         (cd "$EL" && python3 -m elekloader.lint "$OLDPWD/$OUT/$dev-mod"/*.elemod --stock "$syx" --with "$OLDPWD/$OUT/$dev-core"/*.elemod)
+        (cd "$EL" && python3 -m elekloader.patch --stock "$syx" --mod "$OLDPWD/$OUT/$dev-core"/*.elemod \
+            --mod "$OLDPWD/$OUT/$dev-mod"/*.elemod --out "$OLDPWD/$OUT/macro-$dev.syx" --version MMDV | tail -2)
     done
 else
     echo "== elekloader build skipped: set DT2_SYX and/or DN2_SYX to the stock OS files"

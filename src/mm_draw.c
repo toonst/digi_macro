@@ -75,12 +75,18 @@ static void circle(const mm_canvas *c, int cx, int cy, int r)
 }
 
 /* A knob at position v (-64 .. +63): pointer up is the centre, the travel is +-135 degrees. */
+/* n / 1024, rounded to the nearest, halves away from zero */
+static int q10(int n)
+{
+    return n >= 0 ? (n + 512) >> 10 : -((-n + 512) >> 10);
+}
+
 static void knob(const mm_canvas *c, int cx, int cy, int r, int v)
 {
     int a = v * 135 / 64;
     int len = r - 2;
     circle(c, cx, cy, r);
-    line(c, cx, cy, cx + (isin(a) * len + 512) / 1024, cy - (icos(a) * len + 512) / 1024);
+    line(c, cx, cy, cx + q10(isin(a) * len), cy - q10(icos(a) * len));
     px(c, cx, cy - r - 2);          /* the centre mark */
 }
 
