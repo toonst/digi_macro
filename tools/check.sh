@@ -92,6 +92,10 @@ done
 if [[ -n "$DT2_SYX$DN2_SYX" ]]; then
     echo "== elekloader build and lint"
     EL=third_party/elekloader
+    [[ -f "$EL/elekloader/__init__.py" ]] || {
+        echo "$EL is empty: fetch it with  git submodule update --init" >&2
+        exit 1
+    }
     export ELEKLOADER_CROSS=$CROSS
     for pair in "dt2:$DT2_SYX:core-dt2" "dn2:$DN2_SYX:core-dn2"; do
         IFS=: read -r dev syx core <<< "$pair"

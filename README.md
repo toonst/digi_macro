@@ -48,15 +48,12 @@ DT2_SYX=path/to/Digitakt_II_OS1.17.syx DN2_SYX=path/to/Digitone_II_OS1.12.syx to
 ```
 
 `tools/check.sh` runs the host tests, renders the screen previews (`--previews` rewrites `docs/img`), cross-compiles
-both manifests and, with the stock files, builds the elekloader core and this mod for each device into `out/check/`.
-Combine them into an OS file with elekloader:
-
-```bash
-cd third_party/elekloader && python3 -m elekloader.patch --stock /path/to/Digitakt_II_OS1.17.syx --mod ../../out/check/dt2-core/core-1.0.elemod --mod ../../out/check/dt2-mod/macro-mode-0.1.elemod --out ../../out/macro-dt2.syx --version MM01
-```
+both manifests and, with the stock files, builds the elekloader core and this mod for each device and patches them
+into the stock OS: `out/check/macro-dt2.syx` and `out/check/macro-dn2.syx`. Those are the files to send to a device
+(never commit them: they hold Elektron's firmware).
 
 Test a build in [digikit](https://github.com/toonst/digikit)'s emulator before it goes near a device
-(`mise run workbench -- out/macro-dt2.syx` in a digikit checkout).
+(`mise run workbench -- /path/to/out/check/macro-dt2.syx` in a digikit checkout).
 
 ## Layout
 
