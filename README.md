@@ -30,15 +30,21 @@ PLAY, STOP, RECORD, PTN, SONG, TRK and FUNC keep their stock function throughout
 
 ## Building
 
-You need Python 3, a host C compiler and the m68k cross tools (Ubuntu: `apt install gcc-m68k-linux-gnu
-binutils-m68k-linux-gnu`), and your own stock OS files from Elektron's site. This repository never holds firmware.
+You need Python 3, a host C compiler and the m68k cross tools, and your own stock OS files from Elektron's site.
+This repository never holds firmware. The cross tools:
+
+- Ubuntu or Debian: `apt install gcc-m68k-linux-gnu binutils-m68k-linux-gnu`
+- macOS: `brew install m68k-elf-gcc` (it brings `m68k-elf-binutils`)
+
+`tools/check.sh` uses whichever of `m68k-linux-gnu-` and `m68k-elf-` it finds (`ELEKLOADER_CROSS` names another
+prefix), and runs on the bash macOS ships.
 
 ```bash
 git submodule update --init
 ```
 
 ```bash
-DT2_SYX=/path/to/Digitakt_II_OS1.17.syx DN2_SYX=/path/to/Digitone_II_OS1.12.syx tools/check.sh
+DT2_SYX=path/to/Digitakt_II_OS1.17.syx DN2_SYX=path/to/Digitone_II_OS1.12.syx tools/check.sh
 ```
 
 `tools/check.sh` runs the host tests, renders the screen previews (`--previews` rewrites `docs/img`), cross-compiles
