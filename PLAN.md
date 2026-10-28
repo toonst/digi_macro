@@ -141,7 +141,7 @@ All decided by the user:
 | D13 | Mod id `macro-mode`, title "MACRO MODE" (not "Digi Macro", which the shop has) |
 | D14 | Macro positions are not stored: every boot starts at the centre |
 | D15 | **Entry and exit act on presses**, never on releases: PAGE + MOD in either order enters, on the second key's press; PAGE held + MOD also exits, from the macro screen only; from the setup screen, leaving takes two MOD presses (4.1) |
-| D16 | **LEVEL/DATA** moves all eight macros by the same amount; **FUNC + NO** (the stock reload) puts all eight back at the centre and does not reload the pattern. Both on either screen |
+| D16 | **LEVEL/DATA** moves all eight macros by the same amount; **FUNC + NO** (the stock reload) puts all eight back at the centre and does not reload the pattern, on either screen. On the setup screen LEVEL/DATA moves only the macro being edited |
 
 ## 4. Behaviour
 
@@ -188,7 +188,7 @@ All decided by the user:
 | Trig 1–16 | Pass: their usual function, in their current mode (D6) | Toggle that track in the selected slot's mask |
 | NO alone | Pass | Back to MACRO (the configuration is saved) |
 | FUNC + NO | Every macro to the centre; the pattern is not reloaded (D16) | The same, staying on SETUP |
-| Turn LEVEL/DATA | Every macro moves by the turn (D16) | The same |
+| Turn LEVEL/DATA | Every macro moves by the turn (D16) | The edited macro moves (its fader) |
 | MOD | Exit, on the press (4.1) | Back to MACRO, on the press (D8) |
 | PAGE held + MOD | Exit | Back to MACRO, as MOD alone |
 | PAGE | Taken (held for the exit chord) | Taken (held for the exit chord) |

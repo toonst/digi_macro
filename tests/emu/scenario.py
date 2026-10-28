@@ -238,6 +238,12 @@ def scenario(r):
     if seq_runs:
         playhead_over_setup(r)
 
+    r.turn(LEVEL, 6)                            # LEVEL on SETUP: only the edited macro (C, at -6) moves
+    frame, mirror, _ = r.values(2, DEST)
+    r.check(frame == mirror, 'LEVEL +6 on the setup of C brings C to the centre: frame %04x = mirror %04x' % (frame, mirror))
+    r.shot('07-setup-level')
+    r.turn(LEVEL, -6)
+
     r.tap(MOD)                                  # MOD on the setup screen: back to the macro screen (D8)
     back = r.shot('08-back')
     r.check(back not in (stock, setup), 'MOD goes back from the setup screen to the macro screen')

@@ -34,6 +34,7 @@ static void macro_screen(void)
     CHECK(r.px[13][7] && r.px[36][7] && r.px[24][0] && r.px[24][14]); /* the MAC box */
     CHECK(!r.px[13][0] && !r.px[36][14]);       /* with rounded corners */
     CHECK(raster_count(&r, 2, 22, 12, 26) > 8); /* MAC */
+    CHECK(raster_count(&r, 1, 14, 1, 35) == 0 && raster_count(&r, 13, 14, 13, 35) == 0); /* a pixel free each side */
     CHECK(raster_count(&r, 0, 40, 16, 63) == 0); /* no VOL fader under it */
     for (int k = 0; k < MM_MACROS; k++) {
         int cx = 33 + 26 * (k & 3), cy = k < 4 ? 21 : 48, ly = k < 4 ? 32 : 59;

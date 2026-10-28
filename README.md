@@ -20,7 +20,7 @@ modulations. Requirements: [SPEC.md](SPEC.md); plan and decisions: [PLAN.md](PLA
 | Trig keys | Their usual function | The tracks of the selected parameter (red) |
 | LEFT / RIGHT | Their usual function | Select a parameter |
 | NO | Its usual function | Back to the macro screen |
-| LEVEL/DATA | Move all eight macros together | The same |
+| LEVEL/DATA | Move all eight macros together | Move the macro being edited |
 | FUNC + NO | All eight macros back to the centre (the pattern is not reloaded) | The same |
 | MOD | Leave macro mode (also with PAGE held) | Back to the macro screen |
 

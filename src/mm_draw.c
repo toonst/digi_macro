@@ -203,7 +203,7 @@ static void draw_macro(const mm_t *s, const mm_canvas *c)
     c->fill(c->ctx, 1, 36, 13, 36, 1);
     c->fill(c->ctx, 0, 14, 0, 35, 1);
     c->fill(c->ctx, 14, 14, 14, 35, 1);
-    text(c, 7, 22, 1, "MAC");
+    own_text(c, 7 - text_width("MAC") / 2, 22, "MAC"); /* the stock box's narrow font: 3-pixel letters, 1 pixel free */
     for (int k = 0; k < MM_MACROS; k++) {
         int col = k & 3, row = k >> 2;
         knob(c, COL_X(col), ROW_Y(row), s->m[k].pos);

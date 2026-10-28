@@ -387,6 +387,16 @@ static void test_level_moves_all(void)
     mm_enc(&s, MM_ENC_LEVEL, -200);
     for (int k = 0; k < MM_MACROS; k++)
         CHECK(s.m[k].pos == MM_POS_MIN);
+
+    press(&s, MM_K_FUNC);                       /* on SETUP it moves only the macro being edited */
+    press(&s, MM_K_PUSH_A + 2);
+    release(&s, MM_K_PUSH_A + 2);
+    release(&s, MM_K_FUNC);
+    CHECK(s.state == MM_SETUP && s.edit == 2);
+    s.dirty_mods = s.dirty_config = 0;
+    CHECK(mm_enc(&s, MM_ENC_LEVEL, 10) == 1);
+    CHECK(s.m[2].pos == MM_POS_MIN + 10 && s.m[1].pos == MM_POS_MIN && s.m[3].pos == MM_POS_MIN);
+    CHECK(s.dirty_mods && !s.dirty_config);     /* a position, not configuration (D14) */
 }
 
 static void test_func_no_centres_all(void)

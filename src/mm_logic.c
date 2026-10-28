@@ -36,7 +36,7 @@ static void centre_all(mm_t *s)
     s->dirty_screen = 1;
 }
 
-/* LEVEL/DATA: every macro moves by delta. */
+/* LEVEL/DATA on the macro screen: every macro moves by delta. */
 static void offset_all(mm_t *s, int delta)
 {
     for (int i = 0; i < MM_MACROS; i++) {
@@ -251,8 +251,18 @@ int mm_enc(mm_t *s, int enc, int delta)
     int i = enc - 1;
     if (s->state == MM_OFF || !delta)
         return 0;
-    if (enc == MM_ENC_LEVEL) {
-        offset_all(s, delta);
+    if (enc == MM_ENC_LEVEL) {      /* D16: every macro on the macro screen, the edited one on SETUP */
+        if (s->state == MM_MACRO) {
+            offset_all(s, delta);
+        } else {
+            mm_macro *m = &s->m[s->edit];
+            int v = clamp(m->pos + delta, MM_POS_MIN, MM_POS_MAX);
+            if (v != m->pos) {
+                m->pos = (int8_t)v;
+                s->dirty_mods = 1;
+            }
+            s->dirty_screen = 1;
+        }
         return 1;
     }
     if (i < 0 || i >= MM_MACROS)
