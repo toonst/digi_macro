@@ -52,6 +52,13 @@ both manifests and, with the stock files, builds the elekloader core and this mo
 into the stock OS: `out/check/macro-dt2.syx` and `out/check/macro-dn2.syx`. Those are the files to send to a device
 (never commit them: they hold Elektron's firmware).
 
+To patch by hand instead (for another version string, say), run elekloader from this directory with the submodule on
+Python's module path:
+
+```bash
+PYTHONPATH=third_party/elekloader python3 -m elekloader.patch --stock path/to/Digitakt_II_OS1.17.syx --mod out/check/dt2-core/core-1.0.elemod --mod out/check/dt2-mod/macro-mode-0.1.elemod --out out/macro-dt2.syx --version MM01
+```
+
 Test a build in [digikit](https://github.com/toonst/digikit)'s emulator before it goes near a device
 (`mise run workbench -- /path/to/out/check/macro-dt2.syx` in a digikit checkout).
 

@@ -17,7 +17,7 @@ printf '\n[dev-dependencies]\nplusdrive-format = { path = "../plusdrive" }\n' >>
 ```
 
 ```bash
-cd DIGIKIT && cargo build --release -p digi-coupled --example zero_patched
+cargo build --manifest-path DIGIKIT/Cargo.toml --release -p digi-coupled --example zero_patched
 ```
 
 Then, with a build from `tools/check.sh`:

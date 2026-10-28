@@ -97,16 +97,18 @@ if [[ -n "$DT2_SYX$DN2_SYX" ]]; then
         exit 1
     }
     export ELEKLOADER_CROSS=$CROSS
+    # elekloader from the submodule, run from this directory: python3 with it on the module path
+    el() { PYTHONPATH="$EL${PYTHONPATH:+:$PYTHONPATH}" python3 "$@"; }
     for pair in "dt2:$DT2_SYX:core-dt2" "dn2:$DN2_SYX:core-dn2"; do
         IFS=: read -r dev syx core <<< "$pair"
         [[ -n "$syx" ]] || continue
-        (cd "$EL" && python3 -m elekloader.sdk.build "mods/$core" --stock "$syx" --out "$OLDPWD/$OUT/$dev-core")
-        (cd "$EL" && python3 -m elekloader.sdk.build "$OLDPWD/mods/$dev" --stock "$syx" --out "$OLDPWD/$OUT/$dev-mod")
-        (cd "$EL" && python3 -m elekloader.lint "$OLDPWD/$OUT/$dev-mod"/*.elemod --stock "$syx" --with "$OLDPWD/$OUT/$dev-core"/*.elemod)
-        (cd "$EL" && python3 -m elekloader.patch --stock "$syx" --mod "$OLDPWD/$OUT/$dev-core"/*.elemod \
-            --mod "$OLDPWD/$OUT/$dev-mod"/*.elemod --out "$OLDPWD/$OUT/macro-$dev.syx" --version MMDV | tail -2)
+        el -m elekloader.sdk.build "$EL/mods/$core" --stock "$syx" --out "$OUT/$dev-core"
+        el -m elekloader.sdk.build "mods/$dev" --stock "$syx" --out "$OUT/$dev-mod"
+        el -m elekloader.lint "$OUT/$dev-mod"/*.elemod --stock "$syx" --with "$OUT/$dev-core"/*.elemod
+        el -m elekloader.patch --stock "$syx" --mod "$OUT/$dev-core"/*.elemod --mod "$OUT/$dev-mod"/*.elemod \
+            --out "$OUT/macro-$dev.syx" --version MMDV | tail -2
         # where the mod's symbols landed, for the emulator scenarios
-        (cd "$EL" && python3 - "$syx" "$OLDPWD/$OUT/$dev-core"/*.elemod "$OLDPWD/$OUT/$dev-mod"/*.elemod "$OLDPWD/$OUT/macro-$dev.map.json" <<'PY'
+        el - "$syx" "$OUT/$dev-core"/*.elemod "$OUT/$dev-mod"/*.elemod "$OUT/macro-$dev.map.json" <<'PY'
 import json, sys
 from elekloader import patch
 stock, core, mod, out = sys.argv[1:5]
@@ -116,7 +118,6 @@ m = json.load(open(mod))
 syms = {k: secs['macro-mode ' + v[0]] + v[1] for k, v in m['symbols'].items() if v[0] in ('.run', '.bss')}
 json.dump(syms, open(out, 'w'), indent=1, sort_keys=True)
 PY
-        )
     done
 else
     echo "== elekloader build skipped: set DT2_SYX and/or DN2_SYX to the stock OS files"
