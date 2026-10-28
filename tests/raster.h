@@ -26,7 +26,7 @@ static inline void raster_fill(void *ctx, int x0, int y0, int x1, int y1, int co
 
 static inline void raster_draw(raster *r, const mm_t *s)
 {
-    mm_canvas c = {raster_fill, r};
+    mm_canvas c = {raster_fill, r, 0}; /* the mode's own font */
     memset(r, 0, sizeof *r);
     mm_draw(s, &c);
 }

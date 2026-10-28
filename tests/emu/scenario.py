@@ -9,6 +9,7 @@ go to OUT_DIR as PNGs; the exit status is the number of failed checks.
 """
 import argparse
 import hashlib
+import json
 import pathlib
 import struct
 import subprocess
@@ -53,6 +54,13 @@ class Run:
     def __init__(self, cmd, out):
         self.p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
         self.out, self.failed, self.n = out, 0, 0
+        self.syms = None
+        self.sounds = None
+
+    def read_sounds(self):
+        """The kit's Sound buffers: the pointers at SOUND_PTRS hold them from boot until the sequencer first runs (it
+        then uses them for the sounds it plays, and clears them on STOP), so they are taken at boot."""
+        self.sounds = [int(self.cmd('peek %x' % (SOUND_PTRS + 4 * t)), 16) for t in range(16)]
 
     def cmd(self, line):
         self.p.stdin.write(line + '\n')
@@ -107,13 +115,21 @@ class Run:
         """(frame value, mirror value, kit value) of one parameter of one track. The frame block is rebuilt from the
         smoother at the start of each frame and the handlers add to it a little later, so a stop inside that window
         reads the value without them: the frame value is the most common of a few samples taken between steps."""
-        sound = int(self.cmd('peek %x' % (SOUND_PTRS + 4 * track)), 16)
+        sound = self.sounds[track]
         seen = []
         for _ in range(samples):
             seen.append(self.peek16(FRAME_VALUES + STRIDE * track + 2 * index))
             self.step(30011)
         frame = max(set(seen), key=seen.count)
         return (frame, self.peek16(MIRROR + STRIDE * track + 2 * index), self.peek16(sound + 0x14 + 2 * index))
+
+    def mode(self):
+        """The mode's state byte (0 off, 1 macro screen, 2 setup), from the build's symbol map; None without one."""
+        if not self.syms:
+            return None
+        addr = self.syms['mm_state']
+        word = int(self.cmd('peek %x' % (addr & ~3)), 16)
+        return (word >> (24 - 8 * (addr & 3))) & 0xff
 
     def check(self, ok, what):
         self.n += 1
@@ -122,8 +138,39 @@ class Run:
         print(('ok   ' if ok else 'FAIL ') + what, flush=True)
 
 
+DEST = 34                    # the slot's destination in the scenario: LEV (src/mm_dests.c)
+LEVEL = 9                    # the LEVEL/DATA encoder
+VIEW_TOP_BASE = 0x40216f14   # the view on top of the stack on the main screen (docs/findings/s1-input.md)
+
+
+def top_view(r):
+    """The vtable of the view on top of the firmware's stack, through the Brain the mod saw last; None before a key."""
+    brain = int(r.cmd('peek %x' % r.syms['mm_brain']), 16)
+    if not brain:
+        return None
+    sentinel = brain + 0x40 + 0x14
+    node = int(r.cmd('peek %x' % (sentinel + 4)), 16)
+    view = int(r.cmd('peek %x' % (node + 8)), 16)
+    return int(r.cmd('peek %x' % view), 16)
+
+
+def settle_boot(r):
+    """Close the boot's file-system windows: NO until nothing is on top of the main screen's views."""
+    for _ in range(60):
+        r.tap(NO)
+        r.step(SETTLE)
+        if r.syms is None:
+            r.step(8 * SETTLE)
+            r.tap(NO)
+            break
+        if top_view(r) == VIEW_TOP_BASE:
+            break
+    r.step(SETTLE)
+
+
 def scenario(r):
-    r.tap(NO)                                   # the emulator's FILE SYSTEM OK window
+    settle_boot(r)
+    r.read_sounds()
     stock = r.shot('01-main')
     r.tap(PLAY)                                 # control: the sequencer runs here, its playhead lights the trig keys
     lit = set()
@@ -136,6 +183,19 @@ def scenario(r):
     seq_runs = len(lit) >= 2
     if not seq_runs:
         print('SKIP the playhead checks: the sequencer does not step in this emulator mode (its clock is the audio side)')
+
+    if r.syms:                                  # D9: not with a menu open
+        r.tap(8)                                # SETTINGS
+        menu = r.shot('01-settings')
+        r.down(PAGE)
+        r.down(MOD)
+        r.up(MOD)
+        r.up(PAGE)
+        r.shot('01-settings-chord')             # MOD itself is the firmware's: it closes the menu for its page
+        r.check(menu != stock and r.mode() == 0, 'PAGE + MOD does not start macro mode with a menu open (D9)')
+        r.tap(NO)
+        r.tap(NO)
+        r.step(SETTLE)
 
     r.down(PAGE)                                # entry: PAGE held, then MOD
     r.down(MOD)
@@ -166,7 +226,7 @@ def scenario(r):
     setup = r.shot('06-setup')
     r.check(setup not in (macro, turned), 'FUNC + push C opens the setup screen')
 
-    r.turn(2, 3)                                # B: slot 2 destination (index 27)
+    r.turn(2, 2)                                # B: slot 2 destination, the second in the list (LEV)
     r.turn(6, -12)                              # F: slot 2 depth
     r.tap(TRIG1 + 2)
     r.tap(TRIG1 + 4)
@@ -182,23 +242,41 @@ def scenario(r):
     back = r.shot('08-back')
     r.check(back not in (stock, setup), 'MOD goes back from the setup screen to the macro screen')
 
-    want = delta(-6, -12)                       # macro C at -6: index 27 by depth -12 on tracks 3 and 5 only
+    want = delta(-6, -12)                       # macro C at -6: LEV by depth -12 on tracks 3 and 5 only
     for t in (2, 4, 0):
-        frame, mirror, kit = r.values(t, 27)
+        frame, mirror, kit = r.values(t, DEST)
         exp = max(0, min(0x7f00, mirror + want)) if t in (2, 4) else mirror
-        r.check(frame == exp, 'track %d, index 27: frame %04x, mirror %04x, expected %04x' % (t + 1, frame, mirror, exp))
-        r.check(kit == mirror, 'track %d, index 27: the kit keeps %04x (mirror %04x)' % (t + 1, kit, mirror))
+        r.check(frame == exp, 'track %d, index %d: frame %04x, mirror %04x, expected %04x' % (t + 1, DEST, frame, mirror, exp))
+        r.check(kit == mirror, 'track %d, index %d: the kit keeps %04x (mirror %04x)' % (t + 1, DEST, kit, mirror))
     r.turn(3, 6)                                # C back to the centre: the frame values follow the mirror again
     for t in (2, 4):
-        frame, mirror, _ = r.values(t, 27)
+        frame, mirror, _ = r.values(t, DEST)
         r.check(frame == mirror, 'track %d at the centre: frame %04x = mirror %04x' % (t + 1, frame, mirror))
+    r.turn(3, -6)
+
+    r.turn(LEVEL, 6)                            # LEVEL moves every macro: C back to the centre
+    frame, mirror, _ = r.values(2, DEST)
+    r.check(frame == mirror, 'LEVEL +6 brings C from -6 to the centre: frame %04x = mirror %04x' % (frame, mirror))
+    r.shot('08-level')
+    r.turn(LEVEL, -6)
+    frame, mirror, _ = r.values(2, DEST)
+    r.check(frame == max(0, min(0x7f00, mirror + want)), 'LEVEL -6 takes C back to -6: frame %04x' % frame)
+
+    before = r.shot('08-before-reload')
+    r.down(FUNC)                                # FUNC + NO: every macro to the centre, no pattern reload
+    r.tap(NO)
+    r.up(FUNC)
+    frame, mirror, _ = r.values(2, DEST)
+    r.check(frame == mirror, 'FUNC + NO centres the macros: frame %04x = mirror %04x' % (frame, mirror))
+    centred = r.shot('08-func-no')
+    r.check(centred != before and r.mode() in (1, None), 'FUNC + NO stays on the macro screen')
     r.turn(3, -6)
 
     r.tap(MOD)                                  # a second MOD leaves macro mode
     left = r.shot('09-left')
     r.check(left != back, 'MOD leaves macro mode')
     r.check(r.led(LED_MOD) in (0x01, 0x71), 'the MOD LED is the firmware\'s again: %02x' % (r.led(LED_MOD) or 0))
-    frame, mirror, _ = r.values(2, 27)
+    frame, mirror, _ = r.values(2, DEST)
     r.check(frame == max(0, min(0x7f00, mirror + want)), 'the macro keeps working after leaving the mode (D2)')
 
     r.down(MOD)                                 # the other order: MOD held, then PAGE
@@ -214,19 +292,19 @@ def scenario(r):
 
 def after_restart(r):
     """A cold boot with the card of the first run: the configuration comes back, the positions do not (D14)."""
-    r.tap(NO)
-    r.step(SETTLE)
+    settle_boot(r)
+    r.read_sounds()
     r.down(PAGE)
     r.down(MOD)
     r.up(MOD)
     r.up(PAGE)
     r.shot('20-after-restart')
-    frame, mirror, _ = r.values(2, 27)
+    frame, mirror, _ = r.values(2, DEST)
     r.check(frame == mirror, 'after the restart every macro is at the centre: frame %04x = mirror %04x' % (frame, mirror))
     r.turn(3, -6)
     want = delta(-6, -12)
     for t in (2, 4, 0):
-        frame, mirror, _ = r.values(t, 27)
+        frame, mirror, _ = r.values(t, DEST)
         exp = max(0, min(0x7f00, mirror + want)) if t in (2, 4) else mirror
         r.check(frame == exp, 'after the restart, track %d: frame %04x, expected %04x (the stored slot)' % (t + 1, frame, exp))
     r.down(FUNC)
@@ -254,12 +332,15 @@ def main():
     ap.add_argument('--stock', required=True)
     ap.add_argument('--build', required=True)
     ap.add_argument('--out', required=True)
+    ap.add_argument('--map', help='the build\'s symbol map (tools/check.sh writes out/check/macro-<dev>.map.json)')
     a = ap.parse_args()
+    syms = json.load(open(a.map)) if a.map else None
     out = pathlib.Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     state = out / 'build.state'
     state.unlink(missing_ok=True)
     r = Run([a.runner, a.stock, a.build, str(state)], out)
+    r.syms = syms
     try:
         scenario(r)
     finally:
@@ -275,6 +356,7 @@ def main():
                     if int.from_bytes(saved[i:i + 8], 'big') in (CARD_SECTOR, CARD_SECTOR + 1))
     (out / 'card-mm.bin').write_bytes(ours)
     r = Run([a.runner, a.stock, a.build, str(state2), str(out / 'card-mm.bin')], out)
+    r.syms = syms
     r.check(len(ours) == 520, 'the first run wrote one of the two record sectors (%d bytes)' % len(ours))
     try:
         after_restart(r)

@@ -1,7 +1,8 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
-/* macro-mode: the macro screen and the setup screen (PLAN.md 4.4), drawn with one fill callback. The font and the
- * knob are the mod's own, so the only firmware routine it needs is fillRect. [O] spike S4 may swap in the stock
- * font and knob graphic. */
+/* macro-mode: the macro screen and the setup screen (PLAN.md 4.4), in the stock geometry of the Digitakt II 1.17
+ * (docs/findings/s4-screens.md): the macro screen like a parameter page under the stock header, the setup screen like
+ * the stock MODULATION SETUP. Text goes through the canvas's text callback (the firmware's font on the device); the
+ * mode's own 3 x 5 font stands in without one. */
 #include "mm.h"
 
 #define W 128
@@ -74,20 +75,21 @@ static void circle(const mm_canvas *c, int cx, int cy, int r)
     }
 }
 
-/* A knob at position v (-64 .. +63): pointer up is the centre, the travel is +-135 degrees. */
 /* n / 1024, rounded to the nearest, halves away from zero */
 static int q10(int n)
 {
     return n >= 0 ? (n + 512) >> 10 : -((-n + 512) >> 10);
 }
 
-static void knob(const mm_canvas *c, int cx, int cy, int r, int v)
+/* The stock knob: a circle of radius 8 and a pointer from the centre; up is the centre of a bipolar value
+ * (-64 .. +63), the travel +-135 degrees. */
+#define KNOB_R 8
+static void knob(const mm_canvas *c, int cx, int cy, int v)
 {
     int a = v * 135 / 64;
-    int len = r - 2;
-    circle(c, cx, cy, r);
+    int len = KNOB_R - 1;
+    circle(c, cx, cy, KNOB_R);
     line(c, cx, cy, cx + q10(isin(a) * len), cy - q10(icos(a) * len));
-    px(c, cx, cy - r - 2);          /* the centre mark */
 }
 
 /* 3 x 5 glyphs, top row first, bit 2 the left column */
@@ -116,7 +118,7 @@ static int text_width(const char *s)
     return n ? 4 * n - 1 : 0;
 }
 
-static void text(const mm_canvas *c, int x, int y, const char *s)
+static void own_text(const mm_canvas *c, int x, int y, const char *s)
 {
     for (; *s; s++, x += 4) {
         char ch = *s >= 'a' && *s <= 'z' ? (char)(*s - 32) : *s;
@@ -142,9 +144,13 @@ static void text(const mm_canvas *c, int x, int y, const char *s)
     }
 }
 
-static void text_centre(const mm_canvas *c, int cx, int y, const char *s)
+/* s with its top row at ytop, from x or centred on it */
+static void text(const mm_canvas *c, int x, int ytop, int centre, const char *s)
 {
-    text(c, cx - text_width(s) / 2, y, s);
+    if (c->text)
+        c->text(c->ctx, x, ytop, centre, s);
+    else
+        own_text(c, centre ? x - text_width(s) / 2 : x, ytop, s);
 }
 
 static void fmt_signed(int v, char *buf)
@@ -176,55 +182,84 @@ static void macro_label(const mm_t *s, int k, char *buf)
     buf[1] = 0;
 }
 
+static void rect(const mm_canvas *c, int x0, int y0, int x1, int y1)
+{
+    c->fill(c->ctx, x0, y0, x1, y0, 1);
+    c->fill(c->ctx, x0, y1, x1, y1, 1);
+    c->fill(c->ctx, x0, y0, x0, y1, 1);
+    c->fill(c->ctx, x1, y0, x1, y1, 1);
+}
+
+/* The parameter pages' knob grid: 2 rows of 4, the label (or the turned knob's value) under each. */
+#define COL_X(i) (33 + 26 * (i))
+#define ROW_Y(r) ((r) ? 48 : 21)
+#define LABEL_Y(r) ((r) ? 59 : 32)
+
 static void draw_macro(const mm_t *s, const mm_canvas *c)
 {
     char buf[8];
+    /* the page's box on the left, as the FX page's, with no VOL fader under it */
+    c->fill(c->ctx, 1, 13, 13, 13, 1);
+    c->fill(c->ctx, 1, 36, 13, 36, 1);
+    c->fill(c->ctx, 0, 14, 0, 35, 1);
+    c->fill(c->ctx, 14, 14, 14, 35, 1);
+    text(c, 7, 22, 1, "MAC");
     for (int k = 0; k < MM_MACROS; k++) {
-        int cx = 16 + 32 * (k & 3), cy = 12 + 32 * (k >> 2);
-        knob(c, cx, cy, 9, s->m[k].pos);
+        int col = k & 3, row = k >> 2;
+        knob(c, COL_X(col), ROW_Y(row), s->m[k].pos);
         if (s->popup == k + 1)
             fmt_signed(s->m[k].pos, buf);
         else
             macro_label(s, k, buf);
-        text_centre(c, cx, cy + 14, buf);
+        text(c, COL_X(col), LABEL_Y(row), 1, buf);
     }
 }
+
+/* The stock MODULATION SETUP: the source on the left (here the macro, its position as the fader), then a column per
+ * slot with the destination's page and name, the depth knob and its value. */
+#define SEP_X(j) (17 + 28 * (j))
+#define SLOT_X(j) (SEP_X(j) + 14)
 
 static void draw_setup(const mm_t *s, const mm_canvas *c)
 {
     char buf[8];
     const mm_macro *m = &s->m[s->edit];
-    char title[] = "MACRO A";
-    title[6] = (char)('A' + s->edit);
-    text(c, 1, 0, title);
+    text(c, 64, 0, 1, "MODULATION SETUP");
+    text(c, 64, 6, 1, "MACRO MODE");
+    for (int j = 0; j < MM_SLOTS; j++)          /* the dotted separators */
+        for (int y = 15; y < H; y += 2)
+            c->fill(c->ctx, SEP_X(j), y, SEP_X(j), y, 1);
+
+    buf[0] = (char)('A' + s->edit), buf[1] = 0;  /* the macro, where the stock shows the source's icon */
+    text(c, 8, 26, 1, buf);
+    rect(c, 3, 40, 13, 55);                       /* its position as a fader, filled from the middle */
+    for (int y = 42; y < 55; y += 2)
+        c->fill(c->ctx, 5, y, 5, y, 1), c->fill(c->ctx, 11, y, 11, y, 1);
+    c->fill(c->ctx, 1, 56, 15, 56, 1);
+    {
+        int h = m->pos * 7 / 64;                  /* rows 41 .. 54, the middle between 47 and 48 */
+        if (h > 0)
+            c->fill(c->ctx, 6, 48 - h, 10, 47, 1);
+        else if (h < 0)
+            c->fill(c->ctx, 6, 48, 10, 47 - h, 1);
+        else
+            c->fill(c->ctx, 6, 47, 10, 48, 1);
+    }
+    fmt_signed(m->pos, buf);
+    text(c, 8, 59, 1, buf);
+
     for (int j = 0; j < MM_SLOTS; j++) {
         const mm_slot *sl = &m->slot[j];
-        int x0 = 32 * j, cx = x0 + 16;
-        int n = 0;
+        int cx = SLOT_X(j);
+        text(c, cx, 25, 1, mm_dest_group(s->dests, sl->dest));  /* A..D: the destination */
         mm_dest_label(s->dests, sl->dest, buf);
-        text_centre(c, cx, 9, buf);                 /* A..D: the destination */
-        knob(c, cx, 28, 9, sl->depth);              /* E..H: the depth */
+        text(c, cx, 33, 1, buf);
+        knob(c, cx, 48, sl->depth);                              /* E..H: the depth */
         fmt_signed(sl->depth, buf);
-        text_centre(c, cx, 40, buf);
-        for (int t = 0; t < MM_TRACKS; t++)
-            n += (sl->tracks >> t) & 1;
-        if (!n) {
-            buf[0] = '-', buf[1] = '-', buf[2] = 0;
-        } else if (n == MM_TRACKS) {
-            buf[0] = 'A', buf[1] = 'L', buf[2] = 'L', buf[3] = 0;
-        } else {
-            fmt_signed(n, buf);
-            int i = buf[0] == '+' ? 1 : 0;          /* "3 TRK" */
-            int o = 0;
-            while (buf[i])
-                buf[o++] = buf[i++];
-            buf[o++] = ' ', buf[o++] = 'T', buf[o++] = 'R', buf[o++] = 'K', buf[o] = 0;
-        }
-        text_centre(c, cx, 47, buf);
-        if (j == s->sel)                            /* the selected parameter, inverted */
-            c->fill(c->ctx, x0, 7, x0 + 31, 53, -1);
+        text(c, cx, 59, 1, buf);
+        if (j == s->sel)                                         /* the selected slot: its heading inverted */
+            c->fill(c->ctx, SEP_X(j) + 1, 23, SEP_X(j) + 27 > W - 1 ? W - 1 : SEP_X(j) + 27, 39, -1);
     }
-    text(c, 1, 58, "A-D DEST  E-H DEPTH  TRIG TRK");
 }
 
 void mm_draw(const mm_t *s, const mm_canvas *c)

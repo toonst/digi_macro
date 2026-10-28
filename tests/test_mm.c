@@ -15,9 +15,11 @@ static int failures, checks;
         }                                                                \
     } while (0)
 
-static const uint8_t idx[] = {25, 26, 30, 55, 64};
-static const char *const names[] = {"TUNE", 0, "FLT FRQ", "DEL SND", 0};
-static const mm_dests dests = {idx, names, 5, 70};
+static const mm_dest table[] = {
+    {25, MM_G_SRC, 0x400, 0x7c00, "TUNE"}, {26, MM_G_NONE, 0, 0, 0}, {30, MM_G_FLTR, 0, 0, "FREQ"},
+    {55, MM_G_FX, 0, 0, "DEL"},            {64, MM_G_FX, 0, 0x6400, 0},
+};
+static const mm_dests dests = {table, 5, 70};
 
 static void fresh(mm_t *s)
 {
@@ -139,7 +141,7 @@ static void test_pass_through(void)
         CHECK(repeat(&s, taken[i]) == 1);
         CHECK(release(&s, taken[i]) == 1);
     }
-    CHECK(mm_enc(&s, MM_ENC_LEVEL, 2) == 0);  /* LEVEL keeps its stock function */
+    CHECK(mm_enc(&s, 12, 2) == 0);            /* an encoder the mode does not know stays the firmware's */
     CHECK(s.state == MM_MACRO);
 }
 
@@ -361,7 +363,58 @@ static void test_build_saturates_and_cancels(void)
     int16_t v[71] = {0};
     v[25] = 0x7000;
     mm_apply(&mods, v, 71, 70);
-    CHECK(v[25] == MM_RAW_MAX);
+    CHECK(v[25] == 0x7c00);                     /* held in the destination's range */
+    for (int k = 0; k < 4; k++)
+        s.m[k].pos = -64;
+    mm_build(&s, &mods);
+    v[25] = 0x7000;
+    mm_apply(&mods, v, 71, 70);
+    CHECK(v[25] == 0x400);
+}
+
+static void test_level_moves_all(void)
+{
+    mm_t s;
+    fresh(&s);
+    CHECK(mm_enc(&s, MM_ENC_LEVEL, 3) == 0);    /* off: LEVEL is the firmware's */
+    enter(&s);
+    s.m[1].pos = 62;
+    s.m[2].pos = -10;
+    s.dirty_mods = 0;
+    CHECK(mm_enc(&s, MM_ENC_LEVEL, 3) == 1);
+    CHECK(s.m[0].pos == 3 && s.m[1].pos == MM_POS_MAX && s.m[2].pos == -7 && s.m[7].pos == 3);
+    CHECK(s.dirty_mods && s.dirty_screen);
+    mm_enc(&s, MM_ENC_LEVEL, -200);
+    for (int k = 0; k < MM_MACROS; k++)
+        CHECK(s.m[k].pos == MM_POS_MIN);
+}
+
+static void test_func_no_centres_all(void)
+{
+    mm_t s;
+    fresh(&s);
+    enter(&s);
+    for (int k = 0; k < MM_MACROS; k++)
+        s.m[k].pos = (int8_t)(k * 5 - 20);
+    s.m[2].slot[0] = (mm_slot){30, 10, 1};
+    press(&s, MM_K_FUNC);
+    CHECK(press(&s, MM_K_NO) == 1);             /* FUNC + NO: taken, so the pattern is not reloaded */
+    CHECK(release(&s, MM_K_NO) == 1);
+    release(&s, MM_K_FUNC);
+    for (int k = 0; k < MM_MACROS; k++)
+        CHECK(s.m[k].pos == 0);
+    CHECK(s.state == MM_MACRO && s.m[2].slot[0].dest == 30);
+
+    s.m[5].pos = 9;                             /* on the setup screen too, without leaving it */
+    press(&s, MM_K_FUNC);
+    press(&s, MM_K_PUSH_A + 1);
+    release(&s, MM_K_PUSH_A + 1);
+    CHECK(s.state == MM_SETUP);
+    CHECK(press(&s, MM_K_NO) == 1);
+    release(&s, MM_K_NO);
+    release(&s, MM_K_FUNC);
+    CHECK(s.m[5].pos == 0 && s.state == MM_SETUP);
+    CHECK(mm_key(&s, MM_K_NO, MM_F_PRESS | MM_F_FUNC) == 1); /* the firmware's FUNC bit alone counts too */
 }
 
 static void test_leds_dirty(void)
@@ -455,9 +508,12 @@ static void test_labels(void)
 {
     char buf[8];
     mm_dest_label(&dests, 30, buf);
-    CHECK(!strcmp(buf, "FLT FRQ"));
+    CHECK(!strcmp(buf, "FREQ"));
     mm_dest_label(&dests, 26, buf);
     CHECK(!strcmp(buf, "P26"));
+    CHECK(!strcmp(mm_dest_group(&dests, 30), "FLTR"));
+    CHECK(!strcmp(mm_dest_group(&dests, 0), "META"));
+    CHECK(!strcmp(mm_dest_group(&dests, 26), "META"));
     mm_dest_label(&dests, 0, buf);
     CHECK(!strcmp(buf, "---"));
     mm_dest_label(0, 99, buf);
@@ -487,6 +543,8 @@ int main(void)
     test_slot_delta();
     test_build_and_apply();
     test_build_saturates_and_cancels();
+    test_level_moves_all();
+    test_func_no_centres_all();
     test_leds();
     test_leds_dirty();
     test_blob_round_trip();

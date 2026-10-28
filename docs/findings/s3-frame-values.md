@@ -33,14 +33,15 @@ modulation destinations and the Sound array use.
 collection `ev_frame_params` as `f(int16_t *values, int stride)` with `values = block + 0x22`, `stride = 71`, then jumps
 to `0x400d9508` with the stack as it came. So the stock velocity, second source and LFOs ride on top of the macros, as
 on elekloader's Digitone mk1 `ev_render_params`. The handler (`mm_ev_frame_params`) adds the precomputed per-track
-deltas and saturates to `0 .. 0x7f00`.
+deltas and holds each value in its destination's range (`0 .. 0x7f00` for most;
+[s6](s6-destinations.md)).
 
 ## Measured in the emulator **[D]**
 
 `tests/emu/scenario.py` with the zero-DSP runner (digikit's emulator, the DSP side answering zeros so the frame
 interrupt runs), on an elekloader build of core-dt2 1.0 and this mod:
 
-- macro C at −6, slot 2 on index 27 with depth −12 on tracks 3 and 5: the frame values of those tracks are
+- macro C at −6, slot 2 on index 34 (LEV) with depth −12 on tracks 3 and 5: the frame values of those tracks are
   `mirror + 0x023b` (= `(−6 × −12 × 0x7f00) >> 12`), track 1's equal the mirror, and every kit value equals the
   mirror;
 - C back at the centre: the frame values equal the mirror again;
@@ -51,7 +52,7 @@ most common of seven samples.
 
 ## Open **[O]**
 
-- What index 27 and the others are on each machine (spike S6), and whether the DSP smooths a value that jumps at the UI
+- Whether the DSP smooths a value that jumps at the UI
   tick (zipper noise; PLAN.md section 9).
 - The hook's cost per frame, and whether the second source at `0x8000483c` is aftertouch.
 - The same path on the Digitone II 1.12 (its driver `0x400db22c` on 1.11 runs six sources).

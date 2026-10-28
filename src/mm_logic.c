@@ -24,6 +24,31 @@ static int clamp(int v, int lo, int hi)
     return v < lo ? lo : v > hi ? hi : v;
 }
 
+/* FUNC + NO (the stock reload): every macro back to the centre; the pattern is not reloaded. */
+static void centre_all(mm_t *s)
+{
+    for (int i = 0; i < MM_MACROS; i++)
+        if (s->m[i].pos) {
+            s->m[i].pos = 0;
+            s->dirty_mods = 1;
+        }
+    s->popup = 0;
+    s->dirty_screen = 1;
+}
+
+/* LEVEL/DATA: every macro moves by delta. */
+static void offset_all(mm_t *s, int delta)
+{
+    for (int i = 0; i < MM_MACROS; i++) {
+        int v = clamp(s->m[i].pos + delta, MM_POS_MIN, MM_POS_MAX);
+        if (v != s->m[i].pos) {
+            s->m[i].pos = (int8_t)v;
+            s->dirty_mods = 1;
+        }
+    }
+    s->dirty_screen = 1;
+}
+
 static void enter(mm_t *s)
 {
     s->state = MM_MACRO;
@@ -98,6 +123,10 @@ static int press_macro(mm_t *s, int code)
             s->pushes |= (uint8_t)(1u << i);
         return 1;
     }
+    if (code == MM_K_NO && s->func) {
+        centre_all(s);
+        return 1;
+    }
     if (code == MM_K_NO && s->pushes) { /* push + NO: back to the centre (D3) */
         for (int i = 0; i < MM_MACROS; i++)
             if (s->pushes & (1u << i) && s->m[i].pos) {
@@ -130,6 +159,10 @@ static int press_setup(mm_t *s, int code)
             s->sel = (uint8_t)(i & 3);
         }
         s->dirty_screen = s->dirty_leds = 1;
+        return 1;
+    }
+    if (code == MM_K_NO && s->func) {
+        centre_all(s);
         return 1;
     }
     if (code == MM_K_NO) {
@@ -216,8 +249,14 @@ static int step(const mm_t *s, int i, int delta)
 int mm_enc(mm_t *s, int enc, int delta)
 {
     int i = enc - 1;
-    if (s->state == MM_OFF || i < 0 || i >= MM_MACROS || !delta)
-        return 0;                   /* LEVEL (and anything unknown) keeps its stock function */
+    if (s->state == MM_OFF || !delta)
+        return 0;
+    if (enc == MM_ENC_LEVEL) {
+        offset_all(s, delta);
+        return 1;
+    }
+    if (i < 0 || i >= MM_MACROS)
+        return 0;                   /* anything unknown keeps its stock function */
     delta = step(s, i, delta);
     if (s->state == MM_MACRO) {
         mm_macro *m = &s->m[i];
@@ -236,7 +275,7 @@ int mm_enc(mm_t *s, int enc, int delta)
         mm_slot *sl = &m->slot[i];
         int n = s->dests ? s->dests->count : 0;
         int p = clamp(mm_dest_pos(s->dests, sl->dest) + delta, -1, n - 1);
-        sl->dest = p < 0 ? 0 : s->dests->index[p];
+        sl->dest = p < 0 ? 0 : s->dests->d[p].index;
         s->sel = (uint8_t)i;
     } else {                        /* E..H: depth of slot 1..4 */
         mm_slot *sl = &m->slot[i - MM_SLOTS];

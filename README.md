@@ -6,9 +6,9 @@ become eight macros, each moving up to four parameters on the tracks you choose,
 modulations. Requirements: [SPEC.md](SPEC.md); plan and decisions: [PLAN.md](PLAN.md); where it stands:
 [docs/STATUS.md](docs/STATUS.md).
 
-> **Development build.** The mode runs, draws and edits its configuration, but the macros do not reach the sound yet,
-> the LEDs are not set and the configuration is not stored. Those parts need the firmware research in PLAN.md
-> section 6. Do not flash it on a device you need.
+> **Development build.** On the Digitakt II everything runs in digikit's emulator (screens, LEDs, the macros in the
+> frame values, the stored configuration), but nothing has been tried on a unit or listened to yet. The Digitone II
+> build has the basic handlers only. Do not flash it on a device you need.
 
 ## Using it
 
@@ -20,9 +20,11 @@ modulations. Requirements: [SPEC.md](SPEC.md); plan and decisions: [PLAN.md](PLA
 | Trig keys | Their usual function | The tracks of the selected parameter (red) |
 | LEFT / RIGHT | Their usual function | Select a parameter |
 | NO | Its usual function | Back to the macro screen |
+| LEVEL/DATA | Move all eight macros together | The same |
+| FUNC + NO | All eight macros back to the centre (the pattern is not reloaded) | The same |
 | MOD | Leave macro mode (also with PAGE held) | Back to the macro screen |
 
-PLAY, STOP, RECORD, PTN, SONG, TRK, FUNC and LEVEL keep their stock function throughout.
+PLAY, STOP, RECORD, PTN, SONG, TRK and FUNC keep their stock function throughout.
 
 ![The macro screen](docs/img/macro-turned.png) ![The setup screen of macro C](docs/img/setup.png)
 
@@ -58,8 +60,8 @@ Test a build in [digikit](https://github.com/toonst/digikit)'s emulator before i
 | `src/mm_logic.c` | States and the input map: entry and exit, the macro screen, the setup screen |
 | `src/mm_apply.c` | Macro math, the per-track lists and their frame-time apply; the LEDs the mode holds |
 | `src/mm_store.c` | The stored configuration's format; destination helpers |
-| `src/mm_draw.c` | The two screens, with the mod's own font and knob |
-| `src/mm_dests.c` | The destinations per device (provisional until spike S6) |
+| `src/mm_draw.c` | The two screens, in the stock layout (the previews use the mod's own font; the device the firmware's) |
+| `src/mm_dests.c` | The destinations per device: the Digitakt II's from the firmware's parameter table, the Digitone II's provisional |
 | `src/mm_glue.c` | The elekloader handlers: `ev_key`, `ev_enc`, `ev_tick`, `ev_draw` |
 | `mods/dt2`, `mods/dn2` | The elekloader manifests, one per device and OS |
 | `tests/` | Host tests and the preview renderer |

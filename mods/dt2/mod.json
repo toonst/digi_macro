@@ -60,6 +60,9 @@
   "-DCARD_READ_AT=0x4012e1b6",
   "-DCARD_WRITE_AT=0x4012e39c",
   "-DCARD_SECTOR=0x2df0e00",
+  "-DVIEW_TOP_BASE=0x40216f14",
+  "-DTEXT_AT=0x40113dc8",
+  "-DTEXT_FONT=0x44d2e70c",
   "-fno-tree-loop-distribute-patterns"
  ],
  "resources": {

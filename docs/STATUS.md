@@ -1,25 +1,24 @@
 # Status
 
-Against [PLAN.md](../PLAN.md) section 7.
+Against [PLAN.md](../PLAN.md) section 7. Measured on the Digitakt II 1.17 in digikit's emulator with
+`tests/emu/scenario.py` (31 checks); host tests with `tools/check.sh`.
 
 | Part | State |
 | --- | --- |
-| Mode logic: entry and exit (D15, D8), input map (D3, D6, D7, D12), release follows press | Done, host-tested (`tests/test_mm.c`) |
-| Macro math, per-track lists, frame-time apply, saturation | Done, host-tested; not yet called by the firmware (W2) |
-| Screens: macro and setup, own font and knob | Done, host-tested; previews in `docs/img` |
-| Stored configuration format | Done, host-tested; not yet stored (W3) |
-| elekloader glue and manifests (DT2 1.17, DN2 1.12) | Written; cross-compile clean (no undefined symbols, about 7.5 KB of code). **Not yet built by elekloader**: that needs the stock OS files |
-| M1 walking skeleton in the emulator | Needs the stock OS files and digikit's emulator |
-| P0 spikes S1–S6 | Need the stock OS files and digikit's analysis databases |
-| W1 LEDs, W2 frame values, W3 storage, W4 real destinations | After the spikes |
+| Mode logic: entry and exit (D15, D8, D9), input map (D3, D6, D7, D12, D16), release follows press | Done, host-tested; in the emulator on DT2 |
+| Macro math, per-track lists, frame-time apply held in each destination's range (W2) | Done; in the emulator on DT2 ([s3](findings/s3-frame-values.md)) |
+| Screens in the stock layout, firmware font (S4) | Done on DT2 ([s4](findings/s4-screens.md)); previews in `docs/img` use the mod's own font |
+| Destinations with the firmware's names (S6, W4) | DT2: 28 per-track destinations ([s6](findings/s6-destinations.md)); DN2 provisional |
+| LEDs (W1) | Done on DT2 ([s2](findings/s2-leds.md)) |
+| Stored configuration (W3) | Done on DT2 ([s5](findings/s5-storage.md)) |
+| LEVEL/DATA and FUNC + NO (D16) | Done on DT2 ([s1](findings/s1-input.md)) |
+| Digitone II 1.12 | The basic handlers only; needs the stock OS file for W1–W3, S4, S6 |
 
-Provisional choices the spikes settle:
+Still open:
 
-| Where | Choice now | Spike |
+| Where | Now | To do |
 | --- | --- | --- |
-| `MM_COARSE` | Push + turn moves 8 steps | S1: the stock step |
-| `MM_ENC_LEVEL` | LEVEL is `ev_enc` id 9 | S1 |
-| `can_enter` | Entry allowed on every screen | S1 / S4: D9, no menu or dialog open |
-| `MM_LED_*` | Blue `0x41`, red `0x11`, off `0x01` | S2 |
-| `src/mm_dests.c` | Value-array indices 25 up to the modulation bound, six named | S6 |
-| Font and knob | The mod's own | S4 |
+| `MM_COARSE` | Push + turn moves 8 steps | The stock step (S1) |
+| `MM_LED_*` | Blue `0x41`, red `0x11`, off `0x01` | Colours on a unit (S2) |
+| Machine-dependent source parameters, LFO parameters | Not offered | S6 |
+| Audio | The zero-DSP runner makes no sound | Coupled emulator or a unit |

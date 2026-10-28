@@ -1,8 +1,9 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 /* macro-mode on elekloader's hook bus (core-dt2 1.0, core-dn2 0.2; PLAN.md 2.1 and 5): ev_key, ev_enc, ev_tick and
- * ev_draw. The only firmware routine it calls is Bitmap::fillRect, at FILLRECT_AT (mod.json cflags).
+ * ev_draw. It draws with the firmware's Bitmap::fillRect (FILLRECT_AT) and, where the device has it, its text routine
+ * (TEXT_AT, with the font object at TEXT_FONT).
  *
- * Still to come (PLAN.md 6): the check that no menu or dialog is open (D9). */
+ * The device's addresses come from mod.json's cflags; docs/findings has what each is. */
 #include "mm.h"
 
 #ifndef FILLRECT_AT
@@ -19,6 +20,8 @@ static mm_mods mm_buf[2];
 static uint8_t mm_back;
 /* The lists the frame handler reads; written only on the UI task, by one pointer store. */
 mm_mods *volatile mm_live;
+/* The firmware's Brain, as ev_key last handed it over (its view controller is at +0x40). */
+void *mm_brain;
 
 #ifdef CARD_WRITE_AT
 /* W3 (docs/findings/s5-storage.md): the configuration in two card sectors the stock OS never writes, between the end
@@ -55,10 +58,29 @@ static void card_store(mm_t *s)
 }
 #endif
 
+#ifdef VIEW_TOP_BASE
+/* D9 (docs/findings/s1-input.md): macro mode starts only when no menu, dialog or popup is open, that is when the top
+ * of the view controller's stack (Brain + 0x40; list sentinel at + 0x14, its prev the top node, the view at node + 8)
+ * is the view that tops the stack on the main screen and the parameter pages. */
+static int fw_can_enter(void)
+{
+    char *sentinel = (char *)mm_brain + 0x40 + 0x14;
+    char *top;
+    if (!mm_brain)
+        return 0;
+    top = *(char **)(sentinel + 4);
+    return top != sentinel && **(uint32_t **)(top + 8) == VIEW_TOP_BASE;
+}
+#endif
+
 static mm_t *state(void)
 {
-    if (!mm_state.dests)
+    if (!mm_state.dests) {
         mm_state.dests = mm_device_dests();
+#ifdef VIEW_TOP_BASE
+        mm_state.can_enter = fw_can_enter;
+#endif
+    }
     return &mm_state;
 }
 
@@ -68,9 +90,19 @@ static void fw_fill(void *bmp, int x0, int y0, int x1, int y1, int colour)
     FILLRECT(bmp, x0, 63 - y1, x1, 63 - y0, colour);
 }
 
+#ifdef TEXT_AT
+/* The firmware's printf-style text routine (bitmap, font, x, y, flags, fmt, ...): y is the bottom row of the text,
+ * counted from the bottom; flags bit 1 centres on x (docs/findings/s4-screens.md). */
+typedef int (*text_t)(void *bmp, void *font, int x, int y, unsigned flags, const char *fmt, ...);
+static void fw_text(void *bmp, int x, int ytop, int centre, const char *str)
+{
+    ((text_t)TEXT_AT)(bmp, (void *)TEXT_FONT, x, 59 - ytop, centre ? 2 : 0, "%s", str);
+}
+#endif
+
 int mm_ev_key(void *brain, void *ev)
 {
-    (void)brain;
+    mm_brain = brain;
     return mm_key(state(), *(int *)((char *)ev + 12), *(int *)((char *)ev + 16));
 }
 
@@ -111,11 +143,16 @@ void mm_ev_tick(void *ctrl)
 void mm_ev_draw(void *bmp, void *ctrl)
 {
     mm_t *s = state();
-    mm_canvas c = {fw_fill, bmp};
+#ifdef TEXT_AT
+    mm_canvas c = {fw_fill, bmp, fw_text};
+#else
+    mm_canvas c = {fw_fill, bmp, 0};
+#endif
     (void)ctrl;
     if (s->state == MM_OFF)
         return;
-    FILLRECT(bmp, 0, 0, 127, 63, 0);    /* the mode's screen replaces the stock one */
+    /* the macro screen keeps the stock header (pattern, name, tempo); the setup screen has its own title */
+    FILLRECT(bmp, 0, 0, 127, s->state == MM_MACRO ? 63 - MM_HEADER : 63, 0);
     mm_draw(s, &c);
 }
 

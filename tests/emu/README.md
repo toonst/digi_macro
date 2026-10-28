@@ -23,10 +23,11 @@ cd DIGIKIT && cargo build --release -p digi-coupled --example zero_patched
 Then, with a build from `tools/check.sh`:
 
 ```bash
-python3 tests/emu/scenario.py --runner DIGIKIT/target/release/examples/zero_patched --stock firmware/Digitakt_II_OS1.17.syx --build out/check/macro-dt2.syx --out out/emu
+python3 tests/emu/scenario.py --runner DIGIKIT/target/release/examples/zero_patched --stock firmware/Digitakt_II_OS1.17.syx --build out/check/macro-dt2.syx --out out/emu --map out/check/macro-dt2.map.json
 ```
 
-The runner first cold-boots the build to its main screen and saves that state next to the screens (`build.state`,
+`--map` is the symbol map `tools/check.sh` writes next to the build: with it the scenario reads the mode's state and
+the firmware's view stack (the D9 check). The runner first cold-boots the build to its main screen and saves that state next to the screens (`build.state`,
 about 3 s); every run starts from a fresh one. The second part restarts with the card sectors the first part wrote
 (`card-mm.bin`) and checks that the configuration came back. The screens are `out/emu/*.png`. The zero-DSP runner produces no sound:
 the frame values are checked in memory.

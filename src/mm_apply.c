@@ -32,7 +32,11 @@ void mm_build(const mm_t *s, mm_mods *out)
                 for (i = 0; i < n && tm->dest[i] != sl->dest; i++)
                     ;
                 if (i == n) {       /* slots that hit one destination are merged */
+                    int p = mm_dest_pos(s->dests, sl->dest);
+                    const mm_dest *dd = p >= 0 ? &s->dests->d[p] : 0;
                     tm->dest[n] = sl->dest;
+                    tm->lo[n] = dd ? dd->lo : 0;
+                    tm->hi[n] = dd && dd->hi ? dd->hi : MM_RAW_MAX;
                     sum[n++] = 0;
                 }
                 sum[i] += mm_slot_delta(m->pos, sl->depth);
@@ -44,6 +48,8 @@ void mm_build(const mm_t *s, mm_mods *out)
             if (!d)
                 continue;           /* two slots that cancel out */
             tm->dest[kept] = tm->dest[i];
+            tm->lo[kept] = tm->lo[i];
+            tm->hi[kept] = tm->hi[i];
             tm->delta[kept++] = (int16_t)d;
         }
         tm->n = (uint8_t)kept;
@@ -65,7 +71,7 @@ void mm_apply(const mm_mods *mods, int16_t *values, int stride, int bound)
             if (d >= bound)
                 continue;
             int32_t x = (int32_t)v[d] + tm->delta[i];
-            v[d] = (int16_t)(x < 0 ? 0 : x > MM_RAW_MAX ? MM_RAW_MAX : x);
+            v[d] = (int16_t)(x < tm->lo[i] ? tm->lo[i] : x > tm->hi[i] ? tm->hi[i] : x);
         }
     }
 }

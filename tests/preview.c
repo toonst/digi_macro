@@ -4,9 +4,11 @@
 
 #include "raster.h"
 
-static const uint8_t idx[] = {25, 30, 31, 55};
-static const char *const names[] = {"SMP TUN", "FLT FRQ", "FLT RES", "DEL SND"};
-static const mm_dests dests = {idx, names, 4, 70};
+static const mm_dest table[] = {
+    {25, MM_G_SRC, 0x400, 0x7c00, "TUNE"}, {36, MM_G_FLTR, 0, 0, "FREQ"},
+    {37, MM_G_FLTR, 0, 0, "RESO"},         {55, MM_G_FX, 0, 0, "DEL"},
+};
+static const mm_dests dests = {table, 4, 70};
 
 static void save(const raster *r, const char *dir, const char *name)
 {
@@ -41,7 +43,7 @@ int main(int argc, char **argv)
     s.m[0].pos = 40;
     s.m[1].pos = -25;
     s.m[2].pos = 63;
-    s.m[2].slot[0] = (mm_slot){30, 40, 0x0005};
+    s.m[2].slot[0] = (mm_slot){36, 40, 0x0005};
     s.m[5].pos = -64;
     s.popup = 2;
     raster_draw(&r, &s);

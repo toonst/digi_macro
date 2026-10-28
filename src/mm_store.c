@@ -95,7 +95,7 @@ int mm_dest_pos(const mm_dests *d, int dest)
     if (!d || !dest)
         return -1;
     for (int i = 0; i < d->count; i++)
-        if (d->index[i] == dest)
+        if (d->d[i].index == dest)
             return i;
     return -1;
 }
@@ -103,11 +103,11 @@ int mm_dest_pos(const mm_dests *d, int dest)
 void mm_dest_label(const mm_dests *d, int dest, char *buf)
 {
     int p = mm_dest_pos(d, dest);
-    const char *n = p >= 0 && d->name ? d->name[p] : 0;
+    const char *n = p >= 0 ? d->d[p].name : 0;
     int i = 0;
     if (!dest) {
         n = "---";
-    } else if (!n) {                /* no name known yet (spike S6): P and the index */
+    } else if (!n) {                /* no name known: P and the index */
         buf[i++] = 'P';
         if (dest >= 100)
             buf[i++] = (char)('0' + dest / 100);
@@ -119,4 +119,13 @@ void mm_dest_label(const mm_dests *d, int dest, char *buf)
     for (; i < 7 && n[i]; i++)
         buf[i] = n[i];
     buf[i] = 0;
+}
+
+const char *mm_dest_group(const mm_dests *d, int dest)
+{
+    /* the stock modulation setup heads an unset destination META */
+    static const char *const groups[MM_G_COUNT] = {"META", "SRC", "FLTR", "AMP", "FX", "PORT"};
+    int p = mm_dest_pos(d, dest);
+    int g = p >= 0 ? d->d[p].group : MM_G_NONE;
+    return groups[g < MM_G_COUNT ? g : MM_G_NONE];
 }

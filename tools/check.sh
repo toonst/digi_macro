@@ -68,6 +68,18 @@ if [[ -n "${DT2_SYX:-}${DN2_SYX:-}" ]]; then
         (cd "$EL" && python3 -m elekloader.lint "$OLDPWD/$OUT/$dev-mod"/*.elemod --stock "$syx" --with "$OLDPWD/$OUT/$dev-core"/*.elemod)
         (cd "$EL" && python3 -m elekloader.patch --stock "$syx" --mod "$OLDPWD/$OUT/$dev-core"/*.elemod \
             --mod "$OLDPWD/$OUT/$dev-mod"/*.elemod --out "$OLDPWD/$OUT/macro-$dev.syx" --version MMDV | tail -2)
+        # where the mod's symbols landed, for the emulator scenarios
+        (cd "$EL" && python3 - "$syx" "$OLDPWD/$OUT/$dev-core"/*.elemod "$OLDPWD/$OUT/$dev-mod"/*.elemod "$OLDPWD/$OUT/macro-$dev.map.json" <<'PY'
+import json, sys
+from elekloader import patch
+stock, core, mod, out = sys.argv[1:5]
+_, manifest = patch.build(stock, [core, mod], 'MMDV', log=lambda *a: None)
+secs = manifest['link']['layout']['sections']
+m = json.load(open(mod))
+syms = {k: secs['macro-mode ' + v[0]] + v[1] for k, v in m['symbols'].items() if v[0] in ('.run', '.bss')}
+json.dump(syms, open(out, 'w'), indent=1, sort_keys=True)
+PY
+        )
     done
 else
     echo "== elekloader build skipped: set DT2_SYX and/or DN2_SYX to the stock OS files"

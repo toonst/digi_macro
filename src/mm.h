@@ -37,7 +37,7 @@ enum {
     MM_K_TRIG1 = 25,  /* .. 40: TRIG 16 */
     MM_K_PUSH_A = 41, /* .. 48: encoder H pushed */
 };
-#define MM_ENC_LEVEL 9 /* [O] spike S1: the ev_enc id of LEVEL */
+#define MM_ENC_LEVEL 9 /* [O] spike S1: the ev_enc id of LEVEL/DATA; it moves every macro at once */
 
 /* Key event flags (elekloader ev_key, ev+16). */
 #define MM_F_PRESS 0x01
@@ -64,11 +64,18 @@ typedef struct {
 } mm_macro;
 
 /* The destinations a slot can take, in the order the encoder steps through them (W4, spike S6). */
+enum { MM_G_NONE = 0, MM_G_SRC, MM_G_FLTR, MM_G_AMP, MM_G_FX, MM_G_PORT, MM_G_COUNT };
 typedef struct {
-    const uint8_t *index;     /* value-array indices */
-    const char *const *name;  /* up to 7 characters each; 0 entries (or a 0 table) are named by index */
+    uint8_t index;    /* value-array index */
+    uint8_t group;    /* MM_G_*: the page it is on, the setup screen's column heading */
+    uint16_t lo, hi;  /* the raw range the frame value is held in; hi 0 means 0 .. MM_RAW_MAX */
+    const char *name; /* the firmware's short name, up to 5 characters; 0 names it by index */
+} mm_dest;
+
+typedef struct {
+    const mm_dest *d;
     uint8_t count;
-    uint8_t bound;            /* indices at or above this are never applied */
+    uint8_t bound;    /* indices at or above this are never applied */
 } mm_dests;
 
 typedef struct mm {
@@ -102,6 +109,7 @@ typedef struct {
     uint8_t n;
     uint8_t dest[MM_MAX_PAIRS];
     int16_t delta[MM_MAX_PAIRS];
+    uint16_t lo[MM_MAX_PAIRS], hi[MM_MAX_PAIRS]; /* the destination's range */
 } mm_track_mods;
 
 typedef struct {
@@ -111,7 +119,7 @@ typedef struct {
 
 int32_t mm_slot_delta(int pos, int depth);
 void mm_build(const mm_t *s, mm_mods *out);
-/* Interrupt level: adds the deltas into the per-frame value arrays and saturates to 0 .. MM_RAW_MAX. */
+/* Interrupt level: adds the deltas into the per-frame value arrays and saturates to each destination's range. */
 void mm_apply(const mm_mods *mods, int16_t *values, int stride, int bound);
 
 /* LEDs the mode holds: up to cap (key code, value) pairs; 0 when the mode is off (W1). */
@@ -132,13 +140,19 @@ int mm_record_pick(const mm_t *s, const uint8_t *a, const uint8_t *b, uint32_t *
 /* Destinations. */
 int mm_dest_pos(const mm_dests *d, int dest);       /* its place in the list, -1 for none or unknown */
 void mm_dest_label(const mm_dests *d, int dest, char *buf); /* 8 bytes */
+const char *mm_dest_group(const mm_dests *d, int dest);     /* the column heading: SRC, FLTR, ...; META for none */
 
 /* Screens: fill(ctx, x0, y0, x1, y1, colour) with y = 0 the top row, corners inclusive; colour 0 clears, 1 sets,
- * -1 inverts. */
+ * -1 inverts. text(ctx, x, ytop, centre, s) writes s in the firmware's 5-pixel font, its top row at ytop, starting at
+ * x or centred on it; without it the mode uses its own 3 x 5 font. The macro screen leaves rows 0 .. MM_HEADER - 1
+ * (the stock header: pattern, name, tempo) to the firmware. */
+#define MM_HEADER 10
 typedef void mm_fill_fn(void *ctx, int x0, int y0, int x1, int y1, int colour);
+typedef void mm_text_fn(void *ctx, int x, int ytop, int centre, const char *s);
 typedef struct {
     mm_fill_fn *fill;
     void *ctx;
+    mm_text_fn *text;
 } mm_canvas;
 void mm_draw(const mm_t *s, const mm_canvas *c);
 

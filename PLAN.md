@@ -131,7 +131,7 @@ All decided by the user:
 | D3 | **Push + turn** changes a macro in bigger increments, and **push + NO** resets it to the centre, as for the stock parameters |
 | D4 | The configuration is **global** in the first version. Later it is per pattern or per project, chosen by a setting |
 | D5 | Depth −64 … +63 per slot, 0 = off; at full depth and full turn the offset spans the whole parameter range |
-| D6 | Outside the setup screen the **trig keys keep their usual function**, in whatever mode they are in (in mute mode they stay mute keys). PLAY, STOP, RECORD, PTN, SONG, TRK, FUNC and the LEVEL encoder keep theirs too; they act behind the macro screen. Only the setup screen gives the trig keys another function (4.2) |
+| D6 | Outside the setup screen the **trig keys keep their usual function**, in whatever mode they are in (in mute mode they stay mute keys). PLAY, STOP, RECORD, PTN, SONG, TRK and FUNC keep theirs too; they act behind the macro screen. The LEVEL/DATA encoder and FUNC + NO are the mode's (D16). Only the setup screen gives the trig keys another function (4.2) |
 | D7 | The setup screen works like the stock modulation setups: **A** = slot 1 destination, **E** = slot 1 depth, **B / F** = slot 2, **C / G** = slot 3, **D / H** = slot 4 |
 | D8 | On the setup screen **MOD goes back** to the macro screen, as NO does; a second MOD press, on the macro screen, exits macro mode |
 | D9 | Macro mode can be entered from the main screen and the parameter pages (no menu or dialog open) |
@@ -141,6 +141,7 @@ All decided by the user:
 | D13 | Mod id `macro-mode`, title "MACRO MODE" (not "Digi Macro", which the shop has) |
 | D14 | Macro positions are not stored: every boot starts at the centre |
 | D15 | **Entry and exit act on presses**, never on releases: PAGE + MOD in either order enters, on the second key's press; PAGE held + MOD also exits, from the macro screen only; from the setup screen, leaving takes two MOD presses (4.1) |
+| D16 | **LEVEL/DATA** moves all eight macros by the same amount; **FUNC + NO** (the stock reload) puts all eight back at the centre and does not reload the pattern. Both on either screen |
 
 ## 4. Behaviour
 
@@ -186,10 +187,12 @@ All decided by the user:
 | LEFT / RIGHT | Pass | Step the selected slot |
 | Trig 1–16 | Pass: their usual function, in their current mode (D6) | Toggle that track in the selected slot's mask |
 | NO alone | Pass | Back to MACRO (the configuration is saved) |
+| FUNC + NO | Every macro to the centre; the pattern is not reloaded (D16) | The same, staying on SETUP |
+| Turn LEVEL/DATA | Every macro moves by the turn (D16) | The same |
 | MOD | Exit, on the press (4.1) | Back to MACRO, on the press (D8) |
 | PAGE held + MOD | Exit | Back to MACRO, as MOD alone |
 | PAGE | Taken (held for the exit chord) | Taken (held for the exit chord) |
-| PLAY, STOP, RECORD, PTN, SONG, TRK, FUNC, LEVEL | Pass | Pass |
+| PLAY, STOP, RECORD, PTN, SONG, TRK, FUNC | Pass | Pass |
 | Any other key or encoder | Taken | Taken |
 
 `ev_key` runs at a low `order` (before other mods) and `ev_enc` likewise. Both stay `.run` code on the Digitakt II
@@ -205,29 +208,21 @@ static mm_macro mm_macros[8];                                            /* abou
 
 Each slot has its own track mask: "for the selected parameter, to which tracks it applies".
 
-### 4.4 Screens (128 × 64, drawn in `ev_draw` over a cleared frame)
+### 4.4 Screens (128 × 64, drawn in `ev_draw` after the stock view)
 
-```text
- MACRO                                    SETUP, macro C (slot 2 selected: inverted)
- +------------------------------------+   +------------------------------------+
- |   (|)     (\)     (|)     (/)      |   | MACRO C                            |
- |    A       B       C       D       |   | FLT FRQ #AMP DEC# SMP TUN    ---   |  <- A B C D: destination
- |   (|)     (|)     (|)     (|)      |   |   (/)   #  (\)  #   (|)      (|)   |  <- E F G H: depth
- |    E       F       G       H       |   |   +40   #  -12  #    +5       0    |
- |                          C:+23     |   |                                    |
- +------------------------------------+   +------------------------------------+
-                                           trig keys: red for slot 2's tracks
-```
+Both copy the stock Digitakt II 1.17 screens ([s4-screens](docs/findings/s4-screens.md)); previews in `docs/img`.
 
-- **Macro screen.** A circle of about 9 px radius with a pointer. Pointer up is the centre; the travel is ±135°.
-  Under each knob is its letter, or the short name of its first slot once one is set. While a knob turns, the
-  bottom line shows `C:+23`.
-- **Setup screen.** One column per slot: the destination (top, knob A–D) and the depth knob (bottom, E–H). The
-  selected slot's column is inverted, as the spec asks. S4 reads the stock modulation setup views so that the layout
-  and the fonts match them.
-- **Drawing.** Firmware routines by address: `fillRect`, invert and printf text (finding 71; one manifest per
-  device). The knob raster is the mod's own (integer sine table). `ev_tick` sets the redraw flag only when the state
-  changed.
+- **Macro screen**, like a parameter page: the stock header stays (pattern, name, tempo; rows 0–9). Below it, the
+  page box on the left reads MAC, with no pattern VOL fader under it, and the eight knobs sit in the parameter pages'
+  grid (2 × 4, radius 8). Pointer up is the centre; the travel is ±135°. Under each knob is its letter, or the short
+  name of its first slot's destination once one is set; while a knob turns, its value.
+- **Setup screen**, like the stock MODULATION SETUP (FUNC + FLTR, then a modulation source): the title MODULATION
+  SETUP and MACRO MODE. The left column is the source: the macro's letter and its position as a fader with the value
+  under it. Then one column per slot, between dotted separators: the destination's page (SRC, FLTR, AMP, FX, PORT;
+  META for none, as the stock) and short name (knob A–D), the depth knob (E–H) and the depth. The selected slot's
+  heading is inverted.
+- **Drawing.** The firmware's `fillRect` and printf text routine with its 5-pixel font; the knob raster is the mod's
+  own (integer sine table). `ev_tick` sets the redraw flag only when the state changed.
 
 ### 4.5 LEDs
 
