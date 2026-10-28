@@ -1,0 +1,95 @@
+/* SPDX-License-Identifier: GPL-2.0-or-later */
+/* macro-mode on elekloader's hook bus (core-dt2 1.0, core-dn2 0.2; PLAN.md 2.1 and 5): ev_key, ev_enc, ev_tick and
+ * ev_draw. The only firmware routine it calls is Bitmap::fillRect, at FILLRECT_AT (mod.json cflags).
+ *
+ * Still to come, each behind a spike (PLAN.md 6): the LED event (W1, mm_ev_key_leds below is its handler), the
+ * per-frame value arrays (W2, mm_frame), storage (W3) and the check that no menu or dialog is open (D9). Until then
+ * the mode runs, draws and edits its configuration, and the configuration lives in RAM. */
+#include "mm.h"
+
+#ifndef FILLRECT_AT
+#error "FILLRECT_AT: Bitmap::fillRect's address in the target OS (mod.json cflags)"
+#endif
+
+typedef void (*fillrect_t)(void *bmp, int x0, int y0, int x1, int y1, int colour);
+#define FILLRECT ((fillrect_t)FILLRECT_AT)
+
+const mm_dests *mm_device_dests(void);
+
+static mm_t mm_state;
+static mm_mods mm_buf[2];
+static uint8_t mm_back;
+/* The lists the frame handler reads; written only on the UI task, by one pointer store. */
+mm_mods *volatile mm_live;
+
+static mm_t *state(void)
+{
+    if (!mm_state.dests)
+        mm_state.dests = mm_device_dests();
+    return &mm_state;
+}
+
+/* The firmware's frame has y = 0 at the bottom; the mode draws with y = 0 at the top. */
+static void fw_fill(void *bmp, int x0, int y0, int x1, int y1, int colour)
+{
+    FILLRECT(bmp, x0, 63 - y1, x1, 63 - y0, colour);
+}
+
+int mm_ev_key(void *brain, void *ev)
+{
+    (void)brain;
+    return mm_key(state(), *(int *)((char *)ev + 12), *(int *)((char *)ev + 16));
+}
+
+int mm_ev_enc(void *brain, void *ev)
+{
+    (void)brain;
+    return mm_enc(state(), *(int *)((char *)ev + 12), *(int *)((char *)ev + 16));
+}
+
+void mm_ev_tick(void *ctrl)
+{
+    mm_t *s = state();
+    if (s->dirty_mods) {
+        mm_mods *b = &mm_buf[mm_back];
+        mm_build(s, b);
+        mm_live = b->active ? b : 0;
+        mm_back ^= 1;
+        s->dirty_mods = 0;
+    }
+    s->dirty_config = 0;            /* W3: stored here once storage exists; in RAM until then */
+    if (mm_tick(s))
+        *((unsigned char *)ctrl + 0x20) = 1;
+}
+
+void mm_ev_draw(void *bmp, void *ctrl)
+{
+    mm_t *s = state();
+    mm_canvas c = {fw_fill, bmp};
+    (void)ctrl;
+    if (s->state == MM_OFF)
+        return;
+    FILLRECT(bmp, 0, 0, 127, 63, 0);    /* the mode's screen replaces the stock one */
+    mm_draw(s, &c);
+}
+
+/* W2: called by the per-frame event once it exists, at interrupt level, with the 16 tracks' value arrays. */
+void mm_frame(int16_t *values, int stride)
+{
+    mm_mods *m = mm_live;
+    if (m)
+        mm_apply(m, values, stride, mm_state.dests ? mm_state.dests->bound : 0);
+}
+
+#ifdef LEDSET_AT
+/* W1: the LED event's handler. LedManager's setter (digikit finding 19: logical id, layer, value); the logical id of
+ * key code c is MOD 25 and TRIG n 25 + n. [O] spike S2: the setter and the values on 1.17 / 1.12. */
+typedef void (*ledset_t)(void *mgr, int logical, int layer, int value);
+void mm_ev_key_leds(void *mgr)
+{
+    uint8_t code[1 + MM_TRACKS], value[1 + MM_TRACKS];
+    int n = mm_leds(&mm_state, code, value, 1 + MM_TRACKS);
+    for (int i = 0; i < n; i++)
+        ((ledset_t)LEDSET_AT)(mgr, code[i] == MM_K_MOD ? 25 : code[i] + 1, 1, value[i]);
+}
+#endif

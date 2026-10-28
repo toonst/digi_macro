@@ -1,0 +1,56 @@
+{
+ "id": "macro-mode",
+ "version": "0.1",
+ "title": "MACRO MODE",
+ "category": "Performance",
+ "author": "toonst",
+ "license": "GPL-2.0-or-later",
+ "sources": [
+  "../../src/mm_glue.c",
+  "../../src/mm_logic.c",
+  "../../src/mm_apply.c",
+  "../../src/mm_store.c",
+  "../../src/mm_draw.c",
+  "../../src/mm_dests.c"
+ ],
+ "subscribe": [
+  {
+   "event": "ev_key",
+   "fn": "mm_ev_key",
+   "order": 10
+  },
+  {
+   "event": "ev_enc",
+   "fn": "mm_ev_enc",
+   "order": 10
+  },
+  {
+   "event": "ev_tick",
+   "fn": "mm_ev_tick",
+   "order": 50
+  },
+  {
+   "event": "ev_draw",
+   "fn": "mm_ev_draw",
+   "order": 90
+  }
+ ],
+ "requires": [
+  "core"
+ ],
+ "description": "Macro mode for the Digitone II: hold PAGE and press MOD (or the other way round) and encoders A-H become eight macros, each moving up to four parameters on the tracks you choose. FUNC + an encoder push opens its setup. Development build: macros do not reach the sound yet and the configuration is not stored (docs/STATUS.md).",
+ "device": "digitone-mk2",
+ "os": "1.12",
+ "cflags": [
+  "-DFILLRECT_AT=0x40114b22",
+  "-DMM_DN2",
+  "-fno-tree-loop-distribute-patterns"
+ ],
+ "resources": {
+  "core": "0.1",
+  "names": [
+   "ui:PAGE + MOD",
+   "ui:macro mode"
+  ]
+ }
+}

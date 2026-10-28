@@ -1,0 +1,10 @@
+# Never commit firmware or anything built from it.
+firmware/
+out/
+*.syx
+*.elemod
+*.dtmod
+*.bin
+*.o
+*.pbm
+__pycache__/

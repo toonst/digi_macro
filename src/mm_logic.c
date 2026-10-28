@@ -1,0 +1,260 @@
+/* SPDX-License-Identifier: GPL-2.0-or-later */
+/* macro-mode: states and the input map (PLAN.md 4.1 and 4.2). */
+#include "mm.h"
+
+static int is_taken(const mm_t *s, int code)
+{
+    return code >= 0 && code < 64 && (s->taken[code >> 5] >> (code & 31)) & 1;
+}
+
+static void set_taken(mm_t *s, int code, int on)
+{
+    uint32_t bit;
+    if (code < 0 || code >= 64)
+        return;
+    bit = (uint32_t)1 << (code & 31);
+    if (on)
+        s->taken[code >> 5] |= bit;
+    else
+        s->taken[code >> 5] &= ~bit;
+}
+
+static int clamp(int v, int lo, int hi)
+{
+    return v < lo ? lo : v > hi ? hi : v;
+}
+
+static void enter(mm_t *s)
+{
+    s->state = MM_MACRO;
+    s->pushes = 0;
+    s->popup = 0;
+    s->mod_armed = 0;
+    s->page_armed = 0;
+    s->dirty_screen = 1;
+}
+
+static void leave(mm_t *s)
+{
+    s->state = MM_OFF;
+    s->pushes = 0;
+    s->popup = 0;
+    s->dirty_screen = 1;
+}
+
+static void open_setup(mm_t *s, int macro)
+{
+    s->state = MM_SETUP;
+    s->edit = (uint8_t)macro;
+    s->popup = 0;
+    s->dirty_screen = 1;
+}
+
+static void close_setup(mm_t *s)
+{
+    s->state = MM_MACRO;
+    s->dirty_screen = 1;
+    s->dirty_config = 1;
+}
+
+/* Keys that keep their stock function in macro mode (D6). The trig keys are added on the macro screen. */
+static int passes(int code)
+{
+    switch (code) {
+    case MM_K_PLAY:
+    case MM_K_STOP:
+    case MM_K_RECORD:
+    case MM_K_PTN:
+    case MM_K_SONG:
+    case MM_K_TRK:
+    case MM_K_FUNC:
+        return 1;
+    }
+    return 0;
+}
+
+static int is_trig(int code)
+{
+    return code >= MM_K_TRIG1 && code < MM_K_TRIG1 + MM_TRACKS;
+}
+
+static int is_push(int code)
+{
+    return code >= MM_K_PUSH_A && code < MM_K_PUSH_A + MM_MACROS;
+}
+
+/* A press in macro mode: 1 takes it. */
+static int press_macro(mm_t *s, int code)
+{
+    if (code == MM_K_MOD) {         /* also with PAGE held: PAGE + MOD exits (4.1) */
+        leave(s);
+        return 1;
+    }
+    if (is_push(code)) {
+        int i = code - MM_K_PUSH_A;
+        if (s->func)
+            open_setup(s, i);
+        else
+            s->pushes |= (uint8_t)(1u << i);
+        return 1;
+    }
+    if (code == MM_K_NO && s->pushes) { /* push + NO: back to the centre (D3) */
+        for (int i = 0; i < MM_MACROS; i++)
+            if (s->pushes & (1u << i) && s->m[i].pos) {
+                s->m[i].pos = 0;
+                s->dirty_mods = 1;
+            }
+        s->dirty_screen = 1;
+        return 1;
+    }
+    if (passes(code) || is_trig(code) || code == MM_K_NO || code == MM_K_LEFT || code == MM_K_RIGHT)
+        return 0;
+    return 1;                       /* PAGE (held for the exit chord) and everything else */
+}
+
+/* A press on the setup screen: 1 takes it. */
+static int press_setup(mm_t *s, int code)
+{
+    mm_macro *m = &s->m[s->edit];
+    if (code == MM_K_MOD) {         /* back to the macro screen, PAGE held or not (D8) */
+        close_setup(s);
+        return 1;
+    }
+    if (is_push(code)) {
+        int i = code - MM_K_PUSH_A;
+        if (s->func) {
+            s->edit = (uint8_t)i;
+            s->dirty_config = 1;
+        } else {
+            s->pushes |= (uint8_t)(1u << i);
+            s->sel = (uint8_t)(i & 3);
+        }
+        s->dirty_screen = 1;
+        return 1;
+    }
+    if (code == MM_K_NO) {
+        if (!s->pushes) {
+            close_setup(s);
+            return 1;
+        }
+        for (int i = 0; i < MM_MACROS; i++) { /* push + NO resets that knob */
+            if (!(s->pushes & (1u << i)))
+                continue;
+            if (i < MM_SLOTS)
+                m->slot[i].dest = 0;
+            else
+                m->slot[i - MM_SLOTS].depth = 0;
+        }
+        s->dirty_mods = s->dirty_screen = s->dirty_config = 1;
+        return 1;
+    }
+    if (code == MM_K_LEFT || code == MM_K_RIGHT) {
+        s->sel = (uint8_t)clamp(s->sel + (code == MM_K_RIGHT ? 1 : -1), 0, MM_SLOTS - 1);
+        s->dirty_screen = 1;
+        return 1;
+    }
+    if (is_trig(code)) {
+        m->slot[s->sel].tracks ^= (uint16_t)(1u << (code - MM_K_TRIG1));
+        s->dirty_mods = s->dirty_screen = s->dirty_config = 1;
+        return 1;
+    }
+    if (passes(code))
+        return 0;
+    return 1;
+}
+
+int mm_key(mm_t *s, int code, int flags)
+{
+    if (flags & (MM_F_RELEASE | MM_F_REPEAT)) {
+        int took = is_taken(s, code);
+        if (flags & MM_F_RELEASE) {
+            set_taken(s, code, 0);
+            if (code == MM_K_FUNC)
+                s->func = 0;
+            else if (code == MM_K_MOD)
+                s->mod_armed = 0;
+            else if (code == MM_K_PAGE)
+                s->page_armed = 0;
+            else if (is_push(code))
+                s->pushes &= (uint8_t)~(1u << (code - MM_K_PUSH_A));
+        }
+        return took;                /* a release follows its press (4.1) */
+    }
+    if (!(flags & MM_F_PRESS))
+        return 0;
+
+    int take;
+    if (code == MM_K_FUNC || flags & MM_F_FUNC) /* the firmware's own "FUNC held" bit counts too */
+        s->func = 1;
+    if (s->state == MM_OFF) {
+        take = 0;
+        if (code == MM_K_MOD || code == MM_K_PAGE) {
+            int other = code == MM_K_MOD ? s->page_armed : s->mod_armed;
+            if (other && (!s->can_enter || s->can_enter())) {
+                enter(s);           /* the second key of PAGE + MOD, either order (D15) */
+                take = 1;
+            } else if (code == MM_K_MOD) {
+                s->mod_armed = 1;
+            } else {
+                s->page_armed = 1;
+            }
+        }
+    } else if (s->state == MM_MACRO) {
+        take = press_macro(s, code);
+    } else {
+        take = press_setup(s, code);
+    }
+    set_taken(s, code, take);
+    return take;
+}
+
+static int step(const mm_t *s, int i, int delta)
+{
+    return (s->pushes & (1u << i)) ? delta * MM_COARSE : delta;
+}
+
+int mm_enc(mm_t *s, int enc, int delta)
+{
+    int i = enc - 1;
+    if (s->state == MM_OFF || i < 0 || i >= MM_MACROS || !delta)
+        return 0;                   /* LEVEL (and anything unknown) keeps its stock function */
+    delta = step(s, i, delta);
+    if (s->state == MM_MACRO) {
+        mm_macro *m = &s->m[i];
+        int v = clamp(m->pos + delta, MM_POS_MIN, MM_POS_MAX);
+        if (v != m->pos) {
+            m->pos = (int8_t)v;
+            s->dirty_mods = 1;
+        }
+        s->popup = (uint8_t)(i + 1);
+        s->popup_ticks = MM_POPUP_TICKS;
+        s->dirty_screen = 1;
+        return 1;
+    }
+    mm_macro *m = &s->m[s->edit];
+    if (i < MM_SLOTS) {             /* A..D: destination of slot 1..4 (D7) */
+        mm_slot *sl = &m->slot[i];
+        int n = s->dests ? s->dests->count : 0;
+        int p = clamp(mm_dest_pos(s->dests, sl->dest) + delta, -1, n - 1);
+        sl->dest = p < 0 ? 0 : s->dests->index[p];
+        s->sel = (uint8_t)i;
+    } else {                        /* E..H: depth of slot 1..4 */
+        mm_slot *sl = &m->slot[i - MM_SLOTS];
+        sl->depth = (int8_t)clamp(sl->depth + delta, MM_POS_MIN, MM_POS_MAX);
+        s->sel = (uint8_t)(i - MM_SLOTS);
+    }
+    s->dirty_mods = s->dirty_screen = s->dirty_config = 1;
+    return 1;
+}
+
+int mm_tick(mm_t *s)
+{
+    if (s->popup && s->popup_ticks && !--s->popup_ticks) {
+        s->popup = 0;
+        s->dirty_screen = 1;
+    }
+    if (!s->dirty_screen)
+        return 0;
+    s->dirty_screen = 0;
+    return 1;
+}

@@ -1,0 +1,58 @@
+/* SPDX-License-Identifier: GPL-2.0-or-later */
+/* Writes the screens as PBM files into DIR (tools/check.sh turns them into PNGs in docs/img). */
+#include <stdio.h>
+
+#include "raster.h"
+
+static const uint8_t idx[] = {25, 30, 31, 55};
+static const char *const names[] = {"SMP TUN", "FLT FRQ", "FLT RES", "DEL SND"};
+static const mm_dests dests = {idx, names, 4, 70};
+
+static void save(const raster *r, const char *dir, const char *name)
+{
+    char path[512];
+    snprintf(path, sizeof path, "%s/%s.pbm", dir, name);
+    FILE *f = fopen(path, "w");
+    if (!f) {
+        perror(path);
+        return;
+    }
+    fprintf(f, "P1\n128 64\n");
+    for (int y = 0; y < 64; y++) {
+        for (int x = 0; x < 128; x++)
+            fputc(r->px[y][x] ? '1' : '0', f);
+        fputc('\n', f);
+    }
+    fclose(f);
+}
+
+int main(int argc, char **argv)
+{
+    static raster r;
+    mm_t s;
+    const char *dir = argc > 1 ? argv[1] : ".";
+    memset(&s, 0, sizeof s);
+    s.dests = &dests;
+
+    s.state = MM_MACRO;
+    raster_draw(&r, &s);
+    save(&r, dir, "macro-centre");
+
+    s.m[0].pos = 40;
+    s.m[1].pos = -25;
+    s.m[2].pos = 63;
+    s.m[2].slot[0] = (mm_slot){30, 40, 0x0005};
+    s.m[5].pos = -64;
+    s.popup = 2;
+    raster_draw(&r, &s);
+    save(&r, dir, "macro-turned");
+
+    s.state = MM_SETUP;
+    s.edit = 2;
+    s.sel = 1;
+    s.m[2].slot[1] = (mm_slot){55, -12, 0x0014};
+    s.m[2].slot[2] = (mm_slot){25, 5, 0xffff};
+    raster_draw(&r, &s);
+    save(&r, dir, "setup");
+    return 0;
+}
