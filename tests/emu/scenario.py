@@ -124,7 +124,17 @@ class Run:
 def scenario(r):
     r.tap(NO)                                   # the emulator's FILE SYSTEM OK window
     stock = r.shot('01-main')
-    led_mod_stock = r.led(LED_MOD)
+    r.tap(PLAY)                                 # control: the sequencer runs here, its playhead lights the trig keys
+    lit = set()
+    for _ in range(12):
+        r.step(4 * GAP)
+        lit |= {t for t in range(16) if r.led(LED_TRIG1 + t) not in (0x00, 0x01)}
+    r.tap(STOP)
+    r.tap(STOP)
+    r.step(SETTLE)
+    seq_runs = len(lit) >= 2
+    if not seq_runs:
+        print('SKIP the playhead checks: the sequencer does not step in this emulator mode (its clock is the audio side)')
 
     r.down(PAGE)                                # entry: PAGE held, then MOD
     r.down(MOD)
@@ -162,7 +172,10 @@ def scenario(r):
     r.shot('07-setup-edited')
     reds = [r.led(LED_TRIG1 + t) for t in range(16)]
     r.check(reds[2] == 0x11 and reds[4] == 0x11, 'trig keys 3 and 5 are red: %s' % reds)
-    r.check(all(v == 0x01 for t, v in enumerate(reds) if t not in (2, 4)), 'the other trig keys are off')
+    # off: 0x01, or 0x00 for an LED the firmware has not sent since the state was restored (it sends changes only)
+    r.check(all(v in (0x00, 0x01) for t, v in enumerate(reds) if t not in (2, 4)), 'the other trig keys are off')
+    if seq_runs:
+        playhead_over_setup(r)
 
     r.tap(MOD)                                  # MOD on the setup screen: back to the macro screen (D8)
     back = r.shot('08-back')
@@ -183,7 +196,7 @@ def scenario(r):
     r.tap(MOD)                                  # a second MOD leaves macro mode
     left = r.shot('09-left')
     r.check(left != back, 'MOD leaves macro mode')
-    r.check(r.led(LED_MOD) == led_mod_stock, 'the MOD LED is the firmware\'s again: %02x' % (r.led(LED_MOD) or 0))
+    r.check(r.led(LED_MOD) in (0x01, 0x71), 'the MOD LED is the firmware\'s again: %02x' % (r.led(LED_MOD) or 0))
     frame, mirror, _ = r.values(2, 27)
     r.check(frame == max(0, min(0x7f00, mirror + want)), 'the macro keeps working after leaving the mode (D2)')
 
@@ -195,6 +208,19 @@ def scenario(r):
     r.check(again != left, 'MOD + PAGE enters too')
     r.tap(MOD)
     r.shot('11-left-again')
+
+
+def playhead_over_setup(r):
+    """With PLAY running the setup screen's trig keys keep showing the tracks, not the playhead."""
+    r.tap(PLAY)
+    seen = set()
+    for _ in range(12):
+        r.step(4 * GAP)
+        seen |= {(t, r.led(LED_TRIG1 + t)) for t in range(16)}
+    r.tap(STOP)
+    r.tap(STOP)
+    r.check(all(v == 0x11 for t, v in seen if t in (2, 4)) and all(v in (0x00, 0x01) for t, v in seen if t not in (2, 4)),
+            'with PLAY running the trig keys keep showing the tracks: %s' % sorted(v for v in seen if v[1] not in (0, 1)))
 
 
 def main():

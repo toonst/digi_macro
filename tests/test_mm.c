@@ -364,6 +364,33 @@ static void test_build_saturates_and_cancels(void)
     CHECK(v[25] == MM_RAW_MAX);
 }
 
+static void test_leds_dirty(void)
+{
+    mm_t s;
+    fresh(&s);
+    enter(&s);
+    CHECK(s.dirty_leds);                /* entering lights MOD */
+    s.dirty_leds = 0;
+    mm_enc(&s, 1, 3);
+    CHECK(!s.dirty_leds);               /* a macro turn changes no LED */
+    press(&s, MM_K_FUNC);
+    press(&s, MM_K_PUSH_A);
+    release(&s, MM_K_FUNC);
+    CHECK(s.dirty_leds);                /* the setup screen shows the tracks */
+    s.dirty_leds = 0;
+    press(&s, MM_K_TRIG1);
+    CHECK(s.dirty_leds);
+    s.dirty_leds = 0;
+    press(&s, MM_K_RIGHT);
+    CHECK(s.dirty_leds);                /* another slot, other tracks */
+    s.dirty_leds = 0;
+    press(&s, MM_K_MOD);
+    CHECK(s.dirty_leds);
+    s.dirty_leds = 0;
+    press(&s, MM_K_MOD);
+    CHECK(s.dirty_leds && s.state == MM_OFF); /* leaving gives the LEDs back */
+}
+
 static void test_leds(void)
 {
     mm_t s;
@@ -440,6 +467,7 @@ int main(void)
     test_build_and_apply();
     test_build_saturates_and_cancels();
     test_leds();
+    test_leds_dirty();
     test_blob_round_trip();
     test_labels();
     test_draw(&checks, &failures);

@@ -80,6 +80,7 @@ typedef struct mm {
     uint8_t dirty_screen; /* the frame must be recomposed */
     uint8_t dirty_mods;   /* the per-track lists must be rebuilt */
     uint8_t dirty_config; /* the configuration must be stored */
+    uint8_t dirty_leds;   /* the LEDs the mode holds changed */
     uint8_t pushes;       /* bit i: push i held, its press taken */
     uint8_t func;         /* FUNC held */
     uint8_t mod_armed;    /* MOD held and its press went to the firmware: it can start a chord */
@@ -93,7 +94,7 @@ typedef struct mm {
 /* Input, on the UI task. Each returns 1 when the mode takes the event, 0 when it goes on to the firmware. */
 int mm_key(mm_t *s, int code, int flags);
 int mm_enc(mm_t *s, int enc, int delta);
-/* Once per ev_tick: returns 1 when the frame must be recomposed (and clears dirty_screen). */
+/* Once per ev_tick: returns 1 when the frame must be recomposed (and clears dirty_screen). dirty_leds is the glue's. */
 int mm_tick(mm_t *s);
 
 /* The per-track (destination, delta) lists the frame handler adds (PLAN.md 4.6). */

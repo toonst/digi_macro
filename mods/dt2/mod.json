@@ -12,7 +12,8 @@
   "../../src/mm_store.c",
   "../../src/mm_draw.c",
   "../../src/mm_dests.c",
-  "../../src/frame_dt2.s"
+  "../../src/frame_dt2.s",
+  "../../src/leds_dt2.s"
  ],
  "subscribe": [
   {
@@ -39,16 +40,22 @@
    "event": "ev_frame_params",
    "fn": "mm_ev_frame_params",
    "order": 50
+  },
+  {
+   "event": "ev_key_leds",
+   "fn": "mm_ev_key_leds",
+   "order": 10
   }
  ],
  "requires": [
   "core"
  ],
- "description": "Macro mode for the Digitakt II: hold PAGE and press MOD (or the other way round) and encoders A-H become eight macros, each moving up to four parameters on the tracks you choose. FUNC + an encoder push opens its setup. Development build: the LEDs are not set yet and the configuration is not stored (docs/STATUS.md).",
+ "description": "Macro mode for the Digitakt II: hold PAGE and press MOD (or the other way round) and encoders A-H become eight macros, each moving up to four parameters on the tracks you choose. FUNC + an encoder push opens its setup. Development build: the configuration is not stored yet (docs/STATUS.md).",
  "device": "digitakt-mk2",
  "os": "1.17",
  "cflags": [
   "-DFILLRECT_AT=0x401131ae",
+  "-DLEDSET_AT=0x400308e0",
   "-DMM_DT2",
   "-fno-tree-loop-distribute-patterns"
  ],
@@ -60,7 +67,8 @@
   ]
  },
  "defsym": {
-  "MODS_STOCK": "0x400d9508"
+  "MODS_STOCK": "0x400d9508",
+  "LEDS_CLEAR": "0x4003098e"
  },
  "sites": [
   {
@@ -68,9 +76,16 @@
    "stock": "4eb9400d9508",
    "op": "jsr",
    "target": "mmx_frame"
+  },
+  {
+   "addr": "0x400311a2",
+   "stock": "4ebaf7ea2f02",
+   "op": "jsr",
+   "target": "mmx_leds"
   }
  ],
  "collections": {
-  "ev_frame_params": 4
+  "ev_frame_params": 4,
+  "ev_key_leds": 4
  }
 }

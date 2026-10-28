@@ -31,7 +31,7 @@ static void enter(mm_t *s)
     s->popup = 0;
     s->mod_armed = 0;
     s->page_armed = 0;
-    s->dirty_screen = 1;
+    s->dirty_screen = s->dirty_leds = 1;
 }
 
 static void leave(mm_t *s)
@@ -39,7 +39,7 @@ static void leave(mm_t *s)
     s->state = MM_OFF;
     s->pushes = 0;
     s->popup = 0;
-    s->dirty_screen = 1;
+    s->dirty_screen = s->dirty_leds = 1;
 }
 
 static void open_setup(mm_t *s, int macro)
@@ -47,13 +47,13 @@ static void open_setup(mm_t *s, int macro)
     s->state = MM_SETUP;
     s->edit = (uint8_t)macro;
     s->popup = 0;
-    s->dirty_screen = 1;
+    s->dirty_screen = s->dirty_leds = 1;
 }
 
 static void close_setup(mm_t *s)
 {
     s->state = MM_MACRO;
-    s->dirty_screen = 1;
+    s->dirty_screen = s->dirty_leds = 1;
     s->dirty_config = 1;
 }
 
@@ -129,7 +129,7 @@ static int press_setup(mm_t *s, int code)
             s->pushes |= (uint8_t)(1u << i);
             s->sel = (uint8_t)(i & 3);
         }
-        s->dirty_screen = 1;
+        s->dirty_screen = s->dirty_leds = 1;
         return 1;
     }
     if (code == MM_K_NO) {
@@ -150,12 +150,12 @@ static int press_setup(mm_t *s, int code)
     }
     if (code == MM_K_LEFT || code == MM_K_RIGHT) {
         s->sel = (uint8_t)clamp(s->sel + (code == MM_K_RIGHT ? 1 : -1), 0, MM_SLOTS - 1);
-        s->dirty_screen = 1;
+        s->dirty_screen = s->dirty_leds = 1;
         return 1;
     }
     if (is_trig(code)) {
         m->slot[s->sel].tracks ^= (uint16_t)(1u << (code - MM_K_TRIG1));
-        s->dirty_mods = s->dirty_screen = s->dirty_config = 1;
+        s->dirty_mods = s->dirty_screen = s->dirty_config = s->dirty_leds = 1;
         return 1;
     }
     if (passes(code))
@@ -243,7 +243,7 @@ int mm_enc(mm_t *s, int enc, int delta)
         sl->depth = (int8_t)clamp(sl->depth + delta, MM_POS_MIN, MM_POS_MAX);
         s->sel = (uint8_t)(i - MM_SLOTS);
     }
-    s->dirty_mods = s->dirty_screen = s->dirty_config = 1;
+    s->dirty_mods = s->dirty_screen = s->dirty_config = s->dirty_leds = 1;
     return 1;
 }
 

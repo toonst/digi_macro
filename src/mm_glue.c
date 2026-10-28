@@ -2,8 +2,8 @@
 /* macro-mode on elekloader's hook bus (core-dt2 1.0, core-dn2 0.2; PLAN.md 2.1 and 5): ev_key, ev_enc, ev_tick and
  * ev_draw. The only firmware routine it calls is Bitmap::fillRect, at FILLRECT_AT (mod.json cflags).
  *
- * Still to come, each behind a spike (PLAN.md 6): the LED event (W1, mm_ev_key_leds below is its handler), storage
- * (W3) and the check that no menu or dialog is open (D9); the configuration lives in RAM until W3. */
+ * Still to come (PLAN.md 6): storage (W3) and the check that no menu or dialog is open (D9); the configuration lives
+ * in RAM until W3. */
 #include "mm.h"
 
 #ifndef FILLRECT_AT
@@ -58,7 +58,11 @@ void mm_ev_tick(void *ctrl)
     }
     s->dirty_config = 0;            /* W3: stored here once storage exists; in RAM until then */
     if (mm_tick(s))
-        *((unsigned char *)ctrl + 0x20) = 1;
+        *((unsigned char *)ctrl + 0x20) = 1;  /* recompose the frame */
+    if (s->dirty_leds) {
+        *((unsigned char *)ctrl + 0x21) = 1;  /* run the key-LED frame (docs/findings/s2-leds.md) */
+        s->dirty_leds = 0;
+    }
 }
 
 void mm_ev_draw(void *bmp, void *ctrl)
@@ -82,14 +86,15 @@ void mm_ev_frame_params(int16_t *values, int stride)
 }
 
 #ifdef LEDSET_AT
-/* W1: the LED event's handler. LedManager's setter (digikit finding 19: logical id, layer, value); the logical id of
- * key code c is MOD 25 and TRIG n 25 + n. [O] spike S2: the setter and the values on 1.17 / 1.12. */
+/* W1: ev_key_leds (src/leds_dt2.s). LedManager's setter (mgr, logical id, layer, value): layer 2 lights the LED with
+ * the value, layer 1 turns it off, and either keeps the views' later sets out (docs/findings/s2-leds.md). The logical
+ * id of key code c is MOD 25 and TRIG n 25 + n (digikit finding 19). */
 typedef void (*ledset_t)(void *mgr, int logical, int layer, int value);
 void mm_ev_key_leds(void *mgr)
 {
     uint8_t code[1 + MM_TRACKS], value[1 + MM_TRACKS];
     int n = mm_leds(&mm_state, code, value, 1 + MM_TRACKS);
     for (int i = 0; i < n; i++)
-        ((ledset_t)LEDSET_AT)(mgr, code[i] == MM_K_MOD ? 25 : code[i] + 1, 1, value[i]);
+        ((ledset_t)LEDSET_AT)(mgr, code[i] == MM_K_MOD ? 25 : code[i] + 1, value[i] == MM_LED_OFF ? 1 : 2, value[i]);
 }
 #endif
