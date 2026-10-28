@@ -131,7 +131,7 @@ All decided by the user:
 | D3 | **Push + turn** changes a macro in bigger increments, and **push + NO** resets it to the centre, as for the stock parameters |
 | D4 | The configuration is **global** in the first version. Later it is per pattern or per project, chosen by a setting |
 | D5 | Depth −64 … +63 per slot, 0 = off; at full depth and full turn the offset spans the whole parameter range |
-| D6 | Outside the setup screen the **trig keys keep their usual function**, in whatever mode they are in (in mute mode they stay mute keys). PLAY, STOP, RECORD, PTN, SONG, TRK and FUNC keep theirs too; they act behind the macro screen. The LEVEL/DATA encoder and FUNC + NO are the mode's (D16). Only the setup screen gives the trig keys another function (4.2) |
+| D6 | Outside the setup screen the **trig keys keep their usual function**, in whatever mode they are in (in mute mode they stay mute keys). PLAY, STOP, RECORD, PTN, SONG, TRK and FUNC keep theirs too; they act behind the macro screen. The LEVEL/DATA encoder, its push and FUNC + NO are the mode's (D16); the page keys leave the mode and open their page. Only the setup screen gives the trig keys another function (4.2) |
 | D7 | The setup screen works like the stock modulation setups: **A** = slot 1 destination, **E** = slot 1 depth, **B / F** = slot 2, **C / G** = slot 3, **D / H** = slot 4 |
 | D8 | On the setup screen **MOD goes back** to the macro screen, as NO does; a second MOD press, on the macro screen, exits macro mode |
 | D9 | Macro mode can be entered from the main screen and the parameter pages (no menu or dialog open) |
@@ -180,15 +180,18 @@ All decided by the user:
 
 | Input | MACRO | SETUP(k) |
 | --- | --- | --- |
-| Turn A–H | Move macro A–H: −64 … +63, one step per detent | A–D: destination of slot 1–4; E–H: depth of slot 1–4 (D7). The turned slot becomes the selected one (D12) |
-| Push A–H held + turn | Bigger steps, the stock step (S1 measures it) | The same, on that knob |
+| Turn A–H | Move macro A–H: −64 … +63, through the firmware's encoder filter with the stock 0–127 parameters' configuration | A–D: destination of slot 1–4, in a list as the stock modulation setups show it (the choice applies while turning); E–H: depth of slot 1–4 (D7). The turned slot becomes the selected one (D12) |
+| Push A–H held + turn | Bigger steps, as the stock knobs (the filter's pushed mode) | The same, on that knob |
 | Push A–H held + NO | Reset that macro to the centre | Reset that knob: destination to none, depth to 0 |
+| Push A–H alone | Taken (for push + turn, push + NO); it never opens SETUP | Selects that slot |
 | FUNC + push A–H | Open SETUP for that macro | Switch to that macro's setup |
 | LEFT / RIGHT | Pass | Step the selected slot |
 | Trig 1–16 | Pass: their usual function, in their current mode (D6) | Toggle that track in the selected slot's mask |
-| NO alone | Pass | Back to MACRO (the configuration is saved) |
+| NO alone | Pass | Close the destination list; else back to MACRO (the configuration is saved) |
 | FUNC + NO | Every macro to the centre; the pattern is not reloaded (D16) | The same, staying on SETUP |
 | Turn LEVEL/DATA | Every macro moves by the turn (D16) | The edited macro moves (its fader) |
+| Push LEVEL/DATA | Every macro to the centre | The edited macro to the centre |
+| TRIG, SRC, FLTR, AMP, FX | Leave, and pass on: the firmware opens that page | The same (the configuration is saved) |
 | MOD | Exit, on the press (4.1) | Back to MACRO, on the press (D8) |
 | PAGE held + MOD | Exit | Back to MACRO, as MOD alone |
 | PAGE | Taken (held for the exit chord) | Taken (held for the exit chord) |
@@ -226,7 +229,7 @@ Both copy the stock Digitakt II 1.17 screens ([s4-screens](docs/findings/s4-scre
 
 ### 4.5 LEDs
 
-- In MACRO and SETUP the MOD LED is blue.
+- In MACRO and SETUP the MOD LED is blue, and the other page keys (TRIG … FX) are dark: macro mode is the page.
 - In SETUP the trig LEDs are red for the selected slot's tracks, and off for the others. The sequencer's playhead
   does not show there.
 - In MACRO the trig LEDs stay the firmware's.

@@ -15,7 +15,7 @@ static int *nchecks, *nfail;
     } while (0)
 
 static const mm_dest table[] = {
-    {25, MM_G_SRC, 0x400, 0x7c00, "TUNE"}, {30, MM_G_FLTR, 0, 0, "FREQ"}, {55, MM_G_FX, 0, 0, "DEL"}};
+    {25, MM_G_SRC, 0x400, 0x7c00, "TUNE", 0}, {30, MM_G_FLTR, 0, 0, "FREQ", 0}, {55, MM_G_FX, 0, 0, "DEL", 0}};
 static const mm_dests dests = {table, 3, 70};
 static raster r;
 
@@ -82,9 +82,11 @@ static void setup_screen(void)
         CHECK(r.px[15][x] && !r.px[16][x] && r.px[63][x]);
         CHECK(r.px[40][31 + 28 * j] && r.px[56][31 + 28 * j]); /* the depth knob */
     }
-    CHECK(r.px[23][46] && r.px[39][72]);        /* slot 2's heading is inverted */
-    CHECK(!r.px[23][18] && !r.px[39][44] && !r.px[23][74]); /* the others are not */
-    CHECK(raster_count(&r, 6, 26, 10, 30) > 4); /* the macro's letter */
+    CHECK(r.px[19][46] && r.px[35][72]);        /* slot 2's heading is inverted */
+    CHECK(!r.px[19][18] && !r.px[35][44] && !r.px[19][74]); /* the others are not */
+    for (int x = 46; x <= 72; x++)              /* with free rows above the depth knob */
+        CHECK(!r.px[36][x] && !r.px[37][x] && !r.px[38][x] && !r.px[39][x]);
+    CHECK(raster_count(&r, 6, 22, 10, 26) > 4); /* the macro's letter */
     CHECK(r.px[40][3] && r.px[55][13] && r.px[56][1] && r.px[56][15]); /* its fader */
     CHECK(raster_count(&r, 6, 41, 10, 46) > 10 && raster_count(&r, 6, 49, 10, 54) == 0); /* filled up from the middle */
     s.m[2].pos = -64;
@@ -92,7 +94,27 @@ static void setup_screen(void)
     CHECK(raster_count(&r, 6, 41, 10, 46) == 0 && raster_count(&r, 6, 49, 10, 54) > 10);
     s.sel = 3;
     raster_draw(&r, &s);
-    CHECK(r.px[23][102] && r.px[39][127] && !r.px[23][46]);
+    CHECK(r.px[19][102] && r.px[35][127] && !r.px[19][46]);
+
+    s.sel = 1;                                  /* the destination list, open on slot 2 (FX DEL selected) */
+    s.list = 2;
+    s.list_top = 0;
+    raster_draw(&r, &s);
+    CHECK(r.out_of_bounds == 0);
+    CHECK(raster_count(&r, 30, 0, 98, 4) > 60); /* the title stays */
+    CHECK(r.px[13][12] && r.px[40][0] && r.px[40][24] && !r.px[13][0]); /* the box, open at the bottom */
+    CHECK(raster_count(&r, 4, 32, 20, 34) == 17); /* its wave */
+    CHECK(raster_count(&r, 0, 40, 23, 63) == 24); /* below its text only its left side (x 0) */
+    /* lines: None, sep, TUNE (SRC), sep, FREQ (FLTR), sep, DEL (FX): the selection is the last visible row */
+    CHECK(raster_count(&r, 28, 17, 40, 21) > 8); /* META */
+    CHECK(r.px[26][32] && !r.px[26][33] && r.px[26][118]); /* a dotted separator */
+    CHECK(r.px[58][45] && r.px[63][122] && !r.px[51][45]); /* DEL inverted, on the last row */
+    CHECK(r.px[14][124] && r.px[14][127]);      /* the scroll bar's thumb at the top */
+    s.m[2].slot[1].dest = 0;                    /* a top past the selection is drawn from the selection */
+    s.list_top = 5;
+    raster_draw(&r, &s);
+    CHECK(r.px[16][45] && r.px[14][124]);     /* None inverted, the thumb back at the top */
+    s.list = 0;
 }
 
 void test_draw(int *checks_out, int *failures_out)

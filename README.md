@@ -15,18 +15,21 @@ modulations. Requirements: [SPEC.md](SPEC.md); plan and decisions: [PLAN.md](PLA
 | | Macro screen | Setup screen |
 | --- | --- | --- |
 | Enter | Hold PAGE and press MOD, or hold MOD and press PAGE | FUNC + push an encoder (A–H) |
-| Encoders A–H | Move that macro (−64 … +63); push and turn for bigger steps | A–D: destination of parameter 1–4; E–H: its depth |
+| Encoders A–H | Move that macro (−64 … +63), with the stock knobs' feel; push and turn for bigger steps | A–D: destination of parameter 1–4, from a list as in the stock modulation setups; E–H: its depth |
 | Push + NO | The macro back to the centre | That knob back: destination none, depth 0 |
-| Trig keys | Their usual function | The tracks of the selected parameter (red) |
+| Trig keys | Their usual function | The tracks of the selected parameter (red; all of them for a new one) |
 | LEFT / RIGHT | Their usual function | Select a parameter |
-| NO | Its usual function | Back to the macro screen |
+| NO | Its usual function | Close the destination list; else back to the macro screen |
 | LEVEL/DATA | Move all eight macros together | Move the macro being edited |
-| FUNC + NO | All eight macros back to the centre (the pattern is not reloaded) | The same |
+| FUNC + NO, or push LEVEL/DATA | All eight macros back to the centre (the pattern is not reloaded) | FUNC + NO: the same; LEVEL/DATA: the macro being edited |
+| TRIG, SRC, FLTR, AMP, FX | Leave macro mode and open that page | The same |
 | MOD | Leave macro mode (also with PAGE held) | Back to the macro screen |
 
-PLAY, STOP, RECORD, PTN, SONG, TRK and FUNC keep their stock function throughout.
+PLAY, STOP, RECORD, PTN, SONG, TRK and FUNC keep their stock function throughout. While the mode is on, the MOD key
+is lit blue and the other page keys are dark.
 
 ![The macro screen](docs/img/macro-turned.png) ![The setup screen of macro C](docs/img/setup.png)
+![The destination list](docs/img/setup-list.png)
 
 ## Building
 

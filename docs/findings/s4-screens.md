@@ -27,8 +27,17 @@ The macro screen keeps the header and draws the page box (MAC) and the knob grid
 screen draws the MODULATION SETUP layout with MACRO MODE as the source's name, the macro's letter for the icon and its
 position on the fader. `src/mm_draw.c` has the coordinates.
 
+## The destination list **[D]**
+
+Turning a destination knob of the stock MODULATION SETUP opens a list in place of the columns (dumped from
+AFTERTOUCH on the Digitakt II): a box `x 0–24` from row 13, open at the bottom, with `MOD1` / `DEST` and a wave in the
+narrow font; one line every 7 rows from row 17, the page (META, SRC, …) at `x 28` in the narrow font on a page's
+first line and the long name at `x 46`; a dotted line between pages; the selected line inverted, `x 45–122`; a
+scroll bar at `x 124–127`. The choice applies while turning; NO closes the list. The mode draws the same, with the
+macro's slot for MOD1.
+
 ## Open **[O]**
 
-- How the stock setup screen marks the selected column (the mod inverts its heading).
+- How the stock setup screen marks the selected column (the mod inverts its heading, rows 19–35).
 - The Digitone II's stock pages use the same header and page box (seen in the emulator); its MODULATION SETUP was
   not dumped.

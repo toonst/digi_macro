@@ -73,12 +73,47 @@ static int fw_can_enter(void)
 }
 #endif
 
+#ifdef KEY_DOWN_AT
+/* The firmware's key-down query (digikit finding 58): 1 while key code c is down, from the panel's own mask. */
+static int fw_key_down(int code)
+{
+    return ((int (*)(int))KEY_DOWN_AT)(code) & 1;
+}
+#endif
+
+#ifdef ENC_FILTER_AT
+/* The firmware's encoder filter (docs/findings/s1-input.md): every stock knob turns through it, so the mode's knobs
+ * step as the stock ones do (a lead-in after the knob rests, more per count as it turns faster, coarser while
+ * pushed). The macro, depth and LEVEL knobs go the way the stock 0..127 parameters do (filter(block, knob, count, x2
+ * pushed, ENC_CFG_PARAM): raw units, 256 a step); the destination knobs as the stock modulation setup's
+ * (ENC_LIST_AT(block, event, ENC_CFG_LIST): steps, x8 pushed). The state is a block of the firmware's own class,
+ * built once with its constructor, which also starts the timer that refills it. */
+typedef int (*enc_filter_t)(void *block, int knob, int count, const void *cfg, int pushed);
+typedef int (*enc_list_t)(void *block, void *ev, const void *cfg);
+static uint8_t mm_enc_block[ENC_BLOCK_SIZE] __attribute__((aligned(4)));
+static uint8_t mm_enc_ready;
+
+static void enc_block(void)
+{
+    if (!mm_enc_ready) {
+        ((void (*)(void *))ENC_BLOCK_AT)(mm_enc_block);
+        mm_enc_ready = 1;
+    }
+}
+#endif
+
 static mm_t *state(void)
 {
     if (!mm_state.dests) {
-        mm_state.dests = mm_device_dests();
+        mm_init(&mm_state, mm_device_dests());
 #ifdef VIEW_TOP_BASE
         mm_state.can_enter = fw_can_enter;
+#endif
+#ifdef KEY_DOWN_AT
+        mm_state.key_down = fw_key_down;
+#endif
+#ifdef ENC_FILTER_AT
+        mm_state.enc_scaled = 1;
 #endif
     }
     return &mm_state;
@@ -108,13 +143,34 @@ int mm_ev_key(void *brain, void *ev)
 
 int mm_ev_enc(void *brain, void *ev)
 {
+    mm_t *s = state();
+    int enc = *(int *)((char *)ev + 12);
     (void)brain;
-    return mm_enc(state(), *(int *)((char *)ev + 12), *(int *)((char *)ev + 16));
+#ifdef ENC_FILTER_AT
+    if (s->state != MM_OFF && enc >= 1 && enc <= MM_ENC_LEVEL) {
+        int pushed = *((uint8_t *)ev + 20), steps;
+        enc_block();
+        if (s->state == MM_SETUP && enc <= MM_SLOTS) {
+            steps = ((enc_list_t)ENC_LIST_AT)(mm_enc_block, ev, (const void *)ENC_CFG_LIST);
+        } else {
+            int count = *(int *)((char *)ev + 16) * (pushed ? 2 : 1);
+            int raw = ((enc_filter_t)ENC_FILTER_AT)(mm_enc_block, enc - 1, count, (const void *)ENC_CFG_PARAM, pushed);
+            steps = raw >= 0 ? raw >> 8 : -(-raw >> 8);
+        }
+        if (steps)
+            mm_enc(s, enc, steps);
+        return 1;                   /* the mode's knob, moved or not */
+    }
+#endif
+    return mm_enc(s, enc, *(int *)((char *)ev + 16));
 }
 
 void mm_ev_tick(void *ctrl)
 {
     mm_t *s = state();
+#ifdef ENC_FILTER_AT
+    enc_block();
+#endif
     if (s->dirty_mods) {
         mm_mods *b = &mm_buf[mm_back];
         mm_build(s, b);
@@ -168,13 +224,15 @@ void mm_ev_frame_params(int16_t *values, int stride)
 #ifdef LEDSET_AT
 /* W1: ev_key_leds (src/leds.s). LedManager's setter (mgr, logical id, layer, value): layer 2 lights the LED with
  * the value, layer 1 turns it off, and either keeps the views' later sets out (docs/findings/s2-leds.md). The logical
- * id of key code c is MOD 25 and TRIG n 25 + n (digikit finding 19). */
+ * id of key code c is c + 19 for the page keys (TRIG 20 .. MOD 25) and c + 1 for the trig keys (digikit finding 19,
+ * devices/digit*-ii-leds.toml: the same on both). */
 typedef void (*ledset_t)(void *mgr, int logical, int layer, int value);
 void mm_ev_key_leds(void *mgr)
 {
-    uint8_t code[1 + MM_TRACKS], value[1 + MM_TRACKS];
-    int n = mm_leds(&mm_state, code, value, 1 + MM_TRACKS);
+    uint8_t code[MM_MAX_LEDS], value[MM_MAX_LEDS];
+    int n = mm_leds(&mm_state, code, value, MM_MAX_LEDS);
     for (int i = 0; i < n; i++)
-        ((ledset_t)LEDSET_AT)(mgr, code[i] == MM_K_MOD ? 25 : code[i] + 1, value[i] == MM_LED_OFF ? 1 : 2, value[i]);
+        ((ledset_t)LEDSET_AT)(mgr, code[i] <= MM_K_MOD ? code[i] + 19 : code[i] + 1, value[i] == MM_LED_OFF ? 1 : 2,
+                              value[i]);
 }
 #endif

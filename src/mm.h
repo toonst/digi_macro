@@ -13,12 +13,14 @@
 #define MM_POS_MIN (-64) /* macro position and slot depth: -64 .. +63, 0 = centre / off (D5) */
 #define MM_POS_MAX 63
 #define MM_RAW_MAX 0x7f00 /* a parameter's raw range is 0 .. 0x7f00 (digikit finding 02) */
-#define MM_COARSE 8       /* push + turn step (D3); [O] spike S1 measures the stock one */
+#define MM_COARSE 8       /* push + turn step (D3) without the firmware's encoder filter (the host tests) */
 #define MM_POPUP_TICKS 30 /* how long a turned knob shows its value: about 1 s of ev_tick */
 #define MM_MAX_PAIRS (MM_MACROS * MM_SLOTS)
 
 /* Key codes: the panel's, the same on both devices (digikit devices/digitakt-ii-leds.toml, digitone-ii-leds.toml). */
 enum {
+    MM_K_TRIG = 1,    /* the page keys: TRIG, SRC, FLTR, AMP, FX (1 .. 5) and MOD */
+    MM_K_FX = 5,
     MM_K_MOD = 6,
     MM_K_YES = 10,
     MM_K_UP = 11,
@@ -36,6 +38,7 @@ enum {
     MM_K_SONG = 24,
     MM_K_TRIG1 = 25,  /* .. 40: TRIG 16 */
     MM_K_PUSH_A = 41, /* .. 48: encoder H pushed */
+    MM_K_LEVEL = 49,  /* LEVEL/DATA pushed */
 };
 #define MM_ENC_LEVEL 9 /* [O] spike S1: the ev_enc id of LEVEL/DATA; it moves every macro at once */
 
@@ -70,6 +73,7 @@ typedef struct {
     uint8_t group;    /* MM_G_*: the page it is on, the setup screen's column heading */
     uint16_t lo, hi;  /* the raw range the frame value is held in; hi 0 means 0 .. MM_RAW_MAX */
     const char *name; /* the firmware's short name, up to 5 characters; 0 names it by index */
+    const char *full; /* the firmware's long name, for the destination list; 0: the short one */
 } mm_dest;
 
 typedef struct {
@@ -96,7 +100,17 @@ typedef struct mm {
     mm_macro m[MM_MACROS];
     const mm_dests *dests;
     int (*can_enter)(void); /* D9: 0 when a menu or dialog is open; a null pointer allows entry */
+    /* The firmware's key state, 1 while key code c is down. With it, FUNC, the pushes and the entry chord are read
+     * from the panel, not from releases, which the firmware does not always pass on (FUNC's, after FUNC + NO). */
+    int (*key_down)(int code);
+    uint8_t enc_scaled;   /* encoder deltas arrive in steps, push already applied (the firmware's encoder filter) */
+    uint8_t list;         /* SETUP: slot + 1 whose destination list is open, 0 = none */
+    uint8_t list_top;     /* the list's first visible line */
 } mm_t;
+
+#define MM_LIST_ROWS 7    /* the destination list's visible lines */
+/* A fresh state: every macro at the centre, every slot on all tracks. */
+void mm_init(mm_t *s, const mm_dests *dests);
 
 /* Input, on the UI task. Each returns 1 when the mode takes the event, 0 when it goes on to the firmware. */
 int mm_key(mm_t *s, int code, int flags);
@@ -123,6 +137,7 @@ void mm_build(const mm_t *s, mm_mods *out);
 void mm_apply(const mm_mods *mods, int16_t *values, int stride, int bound);
 
 /* LEDs the mode holds: up to cap (key code, value) pairs; 0 when the mode is off (W1). */
+#define MM_MAX_LEDS (1 + (MM_K_FX - MM_K_TRIG + 1) + MM_TRACKS)
 int mm_leds(const mm_t *s, uint8_t *code, uint8_t *value, int cap);
 
 /* The stored configuration (W3): a versioned blob, MM_BLOB_SIZE bytes. */
@@ -139,6 +154,10 @@ int mm_record_pick(const mm_t *s, const uint8_t *a, const uint8_t *b, uint32_t *
 
 /* Destinations. */
 int mm_dest_pos(const mm_dests *d, int dest);       /* its place in the list, -1 for none or unknown */
+/* The destination list's lines: none, then per page a separator and its destinations. */
+int mm_dest_lines(const mm_dests *d);
+int mm_dest_line(const mm_dests *d, int dest);      /* the line of a destination (0 for none) */
+int mm_line_dest(const mm_dests *d, int line, int *group_first); /* the destination on a line, -1 on a separator */
 void mm_dest_label(const mm_dests *d, int dest, char *buf); /* 8 bytes */
 const char *mm_dest_group(const mm_dests *d, int dest);     /* the column heading: SRC, FLTR, ...; META for none */
 

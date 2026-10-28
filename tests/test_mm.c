@@ -16,8 +16,8 @@ static int failures, checks;
     } while (0)
 
 static const mm_dest table[] = {
-    {25, MM_G_SRC, 0x400, 0x7c00, "TUNE"}, {26, MM_G_NONE, 0, 0, 0}, {30, MM_G_FLTR, 0, 0, "FREQ"},
-    {55, MM_G_FX, 0, 0, "DEL"},            {64, MM_G_FX, 0, 0x6400, 0},
+    {25, MM_G_SRC, 0x400, 0x7c00, "TUNE", 0}, {26, MM_G_NONE, 0, 0, 0, 0}, {30, MM_G_FLTR, 0, 0, "FREQ", 0},
+    {55, MM_G_FX, 0, 0, "DEL", 0},            {64, MM_G_FX, 0, 0x6400, 0, 0},
 };
 static const mm_dests dests = {table, 5, 70};
 
@@ -135,7 +135,7 @@ static void test_pass_through(void)
         CHECK(repeat(&s, pass[i]) == 0);
         CHECK(release(&s, pass[i]) == 0);
     }
-    int taken[] = {MM_K_YES, MM_K_UP, MM_K_DOWN, 1, 2, 3, 4, 5, 7, 8, 9, 18, 49, 50, 52};
+    int taken[] = {MM_K_YES, MM_K_UP, MM_K_DOWN, 7, 8, 9, 18, 50, 52};
     for (unsigned i = 0; i < sizeof taken / sizeof taken[0]; i++) {
         CHECK(press(&s, taken[i]) == 1);
         CHECK(repeat(&s, taken[i]) == 1);
@@ -457,19 +457,22 @@ static void test_leds_dirty(void)
 static void test_leds(void)
 {
     mm_t s;
-    uint8_t code[20], val[20];
+    uint8_t code[MM_MAX_LEDS], val[MM_MAX_LEDS];
     fresh(&s);
-    CHECK(mm_leds(&s, code, val, 20) == 0);
+    CHECK(mm_leds(&s, code, val, MM_MAX_LEDS) == 0);
     enter(&s);
-    CHECK(mm_leds(&s, code, val, 20) == 1 && code[0] == MM_K_MOD && val[0] == MM_LED_BLUE);
+    CHECK(mm_leds(&s, code, val, MM_MAX_LEDS) == 6 && code[0] == MM_K_MOD && val[0] == MM_LED_BLUE);
+    for (int k = 1; k <= 5; k++)                /* the page keys go dark: the page macro mode came from too */
+        CHECK(code[k] == MM_K_TRIG + k - 1 && val[k] == MM_LED_OFF);
     press(&s, MM_K_FUNC);
     press(&s, MM_K_PUSH_A);
     release(&s, MM_K_FUNC);
     s.m[0].slot[0].tracks = 0x8001;
-    CHECK(mm_leds(&s, code, val, 20) == 17);
-    CHECK(code[1] == MM_K_TRIG1 && val[1] == MM_LED_RED);
-    CHECK(val[2] == MM_LED_OFF);
-    CHECK(code[16] == MM_K_TRIG1 + 15 && val[16] == MM_LED_RED);
+    CHECK(mm_leds(&s, code, val, MM_MAX_LEDS) == 22);
+    CHECK(code[6] == MM_K_TRIG1 && val[6] == MM_LED_RED);
+    CHECK(val[7] == MM_LED_OFF);
+    CHECK(code[21] == MM_K_TRIG1 + 15 && val[21] == MM_LED_RED);
+    CHECK(mm_leds(&s, code, val, 3) == 3);      /* no more than asked for */
 }
 
 static void test_blob_round_trip(void)
@@ -530,6 +533,165 @@ static void test_labels(void)
     CHECK(!strcmp(buf, "P99"));
 }
 
+/* The panel as the firmware's key-down query sees it: it can know a key is up when no release came. */
+static uint8_t panel[64];
+static int panel_down(int code) { return code >= 0 && code < 64 && panel[code]; }
+static int hold(mm_t *s, int code) { panel[code] = 1; return press(s, code); }
+static int lift(mm_t *s, int code) { panel[code] = 0; return release(s, code); }
+static void lift_silently(int code) { panel[code] = 0; }  /* a release the firmware does not pass on */
+
+static void test_lost_func_release(void)
+{
+    mm_t s;
+    memset(panel, 0, sizeof panel);
+    fresh(&s);
+    s.key_down = panel_down;
+    hold(&s, MM_K_FUNC);                        /* FUNC + NO outside the mode: the firmware reloads the pattern */
+    CHECK(hold(&s, MM_K_NO) == 0);
+    lift(&s, MM_K_NO);
+    lift_silently(MM_K_FUNC);                   /* and keeps FUNC's release */
+    hold(&s, MM_K_PAGE);                        /* entry still works */
+    CHECK(hold(&s, MM_K_MOD) == 1);
+    lift(&s, MM_K_MOD);
+    lift(&s, MM_K_PAGE);
+    CHECK(s.state == MM_MACRO);
+    CHECK(hold(&s, MM_K_PUSH_A) == 1);          /* a push alone does not open the setup */
+    CHECK(s.state == MM_MACRO && s.pushes == 1);
+    lift_silently(MM_K_PUSH_A);
+    s.m[2].pos = 9;
+    CHECK(hold(&s, MM_K_NO) == 0);              /* nor is NO taken for a push that is up */
+    lift(&s, MM_K_NO);
+    CHECK(s.m[2].pos == 9);
+    hold(&s, MM_K_FUNC);                        /* FUNC + push: the setup */
+    hold(&s, MM_K_PUSH_A + 1);
+    lift(&s, MM_K_PUSH_A + 1);
+    lift_silently(MM_K_FUNC);
+    CHECK(s.state == MM_SETUP && s.edit == 1);
+    CHECK(hold(&s, MM_K_NO) == 1);              /* NO goes back */
+    lift(&s, MM_K_NO);
+    CHECK(s.state == MM_MACRO && s.m[2].pos == 9);
+}
+
+static void test_lost_chord_release(void)
+{
+    mm_t s;
+    memset(panel, 0, sizeof panel);
+    fresh(&s);
+    s.key_down = panel_down;
+    hold(&s, MM_K_PAGE);
+    lift_silently(MM_K_PAGE);                   /* PAGE is up, though no release came */
+    CHECK(hold(&s, MM_K_MOD) == 0);             /* so MOD alone does not enter */
+    CHECK(s.state == MM_OFF);
+}
+
+static void test_page_keys_leave(void)
+{
+    mm_t s;
+    fresh(&s);
+    enter(&s);
+    s.dirty_leds = 0;
+    CHECK(press(&s, 3) == 0);                   /* FLTR: leaves and opens its page */
+    CHECK(release(&s, 3) == 0);
+    CHECK(s.state == MM_OFF && s.dirty_leds);
+    enter(&s);
+    press(&s, MM_K_FUNC);
+    press(&s, MM_K_PUSH_A);
+    release(&s, MM_K_FUNC);
+    s.dirty_config = 0;
+    CHECK(press(&s, MM_K_TRIG) == 0);           /* from the setup screen too, storing it */
+    CHECK(s.state == MM_OFF && s.dirty_config && !s.list);
+    CHECK(press(&s, 2) == 0 && s.state == MM_OFF); /* off: the firmware's */
+}
+
+static void test_level_push(void)
+{
+    mm_t s;
+    fresh(&s);
+    enter(&s);
+    for (int k = 0; k < MM_MACROS; k++)
+        s.m[k].pos = (int8_t)(k - 4);
+    CHECK(press(&s, MM_K_LEVEL) == 1);          /* every macro to the centre */
+    CHECK(release(&s, MM_K_LEVEL) == 1);
+    for (int k = 0; k < MM_MACROS; k++)
+        CHECK(s.m[k].pos == 0);
+    s.m[1].pos = 5;
+    s.m[2].pos = 6;
+    press(&s, MM_K_FUNC);
+    press(&s, MM_K_PUSH_A + 2);
+    release(&s, MM_K_FUNC);
+    CHECK(press(&s, MM_K_LEVEL) == 1);          /* on the setup screen, the edited one */
+    CHECK(s.m[2].pos == 0 && s.m[1].pos == 5 && s.state == MM_SETUP);
+}
+
+static void test_destination_list(void)
+{
+    mm_t s;
+    fresh(&s);
+    enter(&s);
+    press(&s, MM_K_FUNC);
+    press(&s, MM_K_PUSH_A);
+    release(&s, MM_K_FUNC);
+    release(&s, MM_K_PUSH_A);
+    CHECK(mm_enc(&s, 2, 1) == 1);               /* B turns: its list opens, the choice applies at once */
+    CHECK(s.list == 2 && s.m[0].slot[1].dest == 25 && s.dirty_mods);
+    mm_enc(&s, 2, 1);
+    CHECK(s.m[0].slot[1].dest == 26 && s.list_top == 0);
+    mm_enc(&s, 2, 10);                          /* to the end: 64 is line 9, so the top follows */
+    CHECK(s.m[0].slot[1].dest == 64 && s.list_top == 9 - (MM_LIST_ROWS - 1));
+    mm_enc(&s, 2, -100);                        /* back to none, at the top */
+    CHECK(s.m[0].slot[1].dest == 0 && s.list_top == 0);
+    mm_enc(&s, 3, 1);                           /* another slot's knob: its list */
+    CHECK(s.list == 3 && s.sel == 2);
+    mm_enc(&s, 7, 1);                           /* a depth knob closes it */
+    CHECK(!s.list);
+    mm_enc(&s, 1, 1);
+    CHECK(press(&s, MM_K_NO) == 1);             /* NO closes the list, and stays on the setup screen */
+    CHECK(!s.list && s.state == MM_SETUP && s.m[0].slot[0].dest == 25);
+    release(&s, MM_K_NO);
+    CHECK(press(&s, MM_K_NO) == 1 && s.state == MM_MACRO); /* a second NO goes back */
+}
+
+static void test_list_lines(void)
+{
+    int first;
+    /* none; SRC: 25; (no page): 26; FLTR: 30; FX: 55, 64 */
+    CHECK(mm_dest_lines(&dests) == 10);
+    CHECK(mm_dest_line(&dests, 0) == 0 && mm_dest_line(&dests, 25) == 2 && mm_dest_line(&dests, 64) == 9);
+    CHECK(mm_line_dest(&dests, 0, &first) == 0 && first);
+    CHECK(mm_line_dest(&dests, 1, &first) == -1 && mm_line_dest(&dests, 7, &first) == -1);
+    CHECK(mm_line_dest(&dests, 8, &first) == 55 && first);
+    CHECK(mm_line_dest(&dests, 9, &first) == 64 && !first);
+    CHECK(mm_line_dest(&dests, 10, &first) == -1);
+}
+
+static void test_init_and_old_records(void)
+{
+    mm_t a, b;
+    uint8_t blob[MM_BLOB_SIZE];
+    mm_init(&a, &dests);
+    CHECK(a.dests == &dests && a.state == MM_OFF);
+    for (int k = 0; k < MM_MACROS; k++)
+        for (int j = 0; j < MM_SLOTS; j++)
+            CHECK(a.m[k].slot[j].tracks == 0xffff); /* every track until the setup says less */
+    fresh(&b);                                   /* a record from before: unused slots on no track */
+    b.m[3].slot[1] = (mm_slot){30, 5, 0};        /* a used slot keeps its (empty) choice */
+    mm_encode(&b, blob);
+    mm_init(&a, &dests);
+    CHECK(mm_decode(&a, blob, MM_BLOB_SIZE) == 0);
+    CHECK(a.m[0].slot[0].tracks == 0xffff && a.m[3].slot[1].tracks == 0);
+}
+
+static void test_scaled_encoders(void)
+{
+    mm_t s;
+    fresh(&s);
+    s.enc_scaled = 1;                           /* the firmware's filter already applied the push */
+    enter(&s);
+    press(&s, MM_K_PUSH_A);
+    mm_enc(&s, 1, 3);
+    CHECK(s.m[0].pos == 3);
+}
+
 void test_draw(int *checks_out, int *failures_out);
 
 int main(void)
@@ -555,6 +717,14 @@ int main(void)
     test_build_saturates_and_cancels();
     test_level_moves_all();
     test_func_no_centres_all();
+    test_lost_func_release();
+    test_lost_chord_release();
+    test_page_keys_leave();
+    test_level_push();
+    test_destination_list();
+    test_list_lines();
+    test_init_and_old_records();
+    test_scaled_encoders();
     test_leds();
     test_leds_dirty();
     test_blob_round_trip();

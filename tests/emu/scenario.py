@@ -26,18 +26,16 @@ LEVEL = 9                     # the LEVEL/DATA encoder
 
 # Per device (docs/findings): the frame's per-track values and the mirror they glide to (block + 0x22, stride in
 # bytes), where the kit's Sound buffers are, the view on top of the stack on the main screen (D9), the
-# configuration's two card sectors, the scenario's destination (its place in src/mm_dests.c's list is the detents of
-# B that pick it), and indices with a non-zero default, to check the Sound arrays against.
+# configuration's two card sectors, and indices with a non-zero default, to check the Sound arrays against.
 DEVICES = {
-    'dt2': dict(frame=0x80005b72, mirror=0x80003362, stride=142, view_top=0x40216f14, card=0x2df0e00, dest=34, turns=2, probe=(36, 59),
+    'dt2': dict(frame=0x80005b72, mirror=0x80003362, stride=142, view_top=0x40216f14, card=0x2df0e00, probe=(36, 59),
                 # the Sound pointers at 0x8000470c (the array at +0x14)
                 sounds=lambda r: [r.peek32(0x8000470c + 4 * t) + 0x14 for t in range(16)]),
-    'dn2': dict(frame=0x80006906, mirror=0x80003b12, stride=202, view_top=0x402008e8, card=0x7ff000, dest=67, turns=1, probe=(67, 90),
+    'dn2': dict(frame=0x80006906, mirror=0x80003b12, stride=202, view_top=0x402008e8, card=0x7ff000, probe=(67, 90),
                 # the kit at *0x800052a0, track t's Sound at + 0x34 + 0x48b t (digikit finding 02, read on 1.11)
                 sounds=lambda r: [r.peek32(0x800052a0) + 0x34 + 0x48b * t + 0x14 for t in range(16)]),
 }
 DEV = DEVICES['dt2']
-DEST = DEV['dest']
 
 
 def delta(pos, depth):
@@ -154,6 +152,22 @@ class Run:
         word = int(self.cmd('peek %x' % (addr & ~3)), 16)
         return (word >> (24 - 8 * (addr & 3))) & 0xff
 
+    def addr(self, field, *index):
+        """The device address of a field of the mode's state (tools/check.sh puts the layout in the map)."""
+        return self.syms['mm_state'] + self.syms['layout'][field]
+
+    def pos(self, k):
+        L = self.syms['layout']
+        v = self.peek8(self.syms['mm_state'] + L['m'] + L['macro'] * k + L['pos'])
+        return v - 256 if v > 127 else v
+
+    def slot(self, k, j):
+        """(destination, depth, tracks) of slot j of macro k."""
+        L = self.syms['layout']
+        a = self.syms['mm_state'] + L['m'] + L['macro'] * k + L['slot'] + L['slot_size'] * j
+        depth = self.peek8(a + L['depth'])
+        return self.peek8(a + L['dest']), depth - 256 if depth > 127 else depth, self.peek16(a + L['tracks'])
+
     def check(self, ok, what):
         self.n += 1
         if not ok:
@@ -188,6 +202,57 @@ def settle_boot(r):
     r.step(SETTLE)
 
 
+LED_PAGE1 = 19                # TRIG .. FX page keys: LED indices 19 .. 23
+LEVEL_PUSH = 49
+CONFIG = {}                   # the slot the first run sets up, for the restart part
+
+
+def chord(r, first, second):
+    r.down(first)
+    r.down(second)
+    r.up(second)
+    r.up(first)
+
+
+def spin(r, enc, total, burst=8):
+    """Turn a knob by total counts in fast bursts: the firmware's encoder filter, which the mode's knobs go through
+    as the stock ones do, swallows slow single counts (its lead-in) and moves more per count as the turn speeds up."""
+    left = total
+    while left:
+        n = max(-burst, min(burst, left))
+        r.turn(enc, n)
+        r.step(4_000_000)
+        left -= n
+    r.step(GAP)
+
+
+def spin_until(r, enc, sign, done, tries=40):
+    for _ in range(tries):
+        if done():
+            return True
+        spin(r, enc, 8 * sign)
+    return done()
+
+
+def affected(tracks):
+    return [t for t in (0, 2, 4) if tracks >> t & 1]
+
+
+def check_frame(r, macro, slot, what):
+    """The frame values of tracks 1, 3 and 5 at the slot's destination: mirror + the macro's offset where the slot
+    applies, the mirror elsewhere; the kit keeps the mirror."""
+    pos = r.pos(macro)
+    dest, depth, tracks = r.slot(macro, slot)
+    want = delta(pos, depth)
+    for t in (0, 2, 4):
+        frame, mirror, kit = r.values(t, dest)
+        exp = max(0, min(0x7f00, mirror + want)) if tracks >> t & 1 else mirror
+        r.check(frame == exp, '%s: track %d, index %d: frame %04x, mirror %04x, expected %04x (pos %d, depth %d)'
+                % (what, t + 1, dest, frame, mirror, exp, pos, depth))
+        if kit is not None:
+            r.check(kit == mirror, '%s: track %d, the kit keeps %04x (mirror %04x)' % (what, t + 1, kit, mirror))
+
+
 def scenario(r):
     settle_boot(r)
     r.read_sounds()
@@ -204,116 +269,135 @@ def scenario(r):
     if not seq_runs:
         print('SKIP the playhead checks: the sequencer does not step in this emulator mode (its clock is the audio side)')
 
-    if r.syms:                                  # D9: not with a menu open
-        r.tap(8)                                # SETTINGS
-        menu = r.shot('01-settings')
-        r.down(PAGE)
-        r.down(MOD)
-        r.up(MOD)
-        r.up(PAGE)
-        r.shot('01-settings-chord')             # MOD itself is the firmware's: it closes the menu for its page
-        r.check(menu != stock and r.mode() == 0, 'PAGE + MOD does not start macro mode with a menu open (D9)')
-        r.tap(NO)
-        r.tap(NO)
-        r.step(SETTLE)
+    r.tap(8)                                    # D9: not with a menu open (SETTINGS)
+    menu = r.shot('01-settings')
+    chord(r, PAGE, MOD)
+    r.shot('01-settings-chord')                 # MOD itself is the firmware's: it closes the menu for its page
+    r.check(menu != stock and r.mode() == 0, 'PAGE + MOD does not start macro mode with a menu open (D9)')
+    r.tap(NO)
+    r.tap(NO)
+    r.tap(2)                                    # back on the SRC page
+    r.step(SETTLE)
 
-    r.down(PAGE)                                # entry: PAGE held, then MOD
-    r.down(MOD)
-    r.up(MOD)
-    r.up(PAGE)
+    pages = [r.led(LED_PAGE1 + i) for i in range(5)]
+    chord(r, PAGE, MOD)                         # entry: PAGE held, then MOD
     macro = r.shot('02-macro')
-    r.check(macro != stock, 'PAGE + MOD shows the macro screen')
+    r.check(r.mode() == 1 and macro != stock, 'PAGE + MOD shows the macro screen')
     r.check(r.led(LED_MOD) == 0x41, 'the MOD LED is blue: %02x' % (r.led(LED_MOD) or 0))
+    now = [r.led(LED_PAGE1 + i) for i in range(5)]
+    r.check(any(v not in (0, 1) for v in pages) and all(v in (0, 1) for v in now),
+            'the page macro mode came from is no longer lit: page LEDs %s, then %s' % (pages, now))
 
-    r.turn(1, 10)
-    r.turn(3, -6)
+    spin(r, 1, 40)
+    spin(r, 3, -40)
     turned = r.shot('03-turned')
-    r.check(turned != macro, 'turning A and C moves their knobs')
+    r.check(r.pos(0) > 0 and r.pos(2) < 0 and turned != macro, 'turning A and C moves them: %d, %d' % (r.pos(0), r.pos(2)))
 
-    r.down(PUSH_A + 1)                          # push B + turn: bigger steps
-    r.turn(2, 2)
+    spin(r, 4, 16)                              # from rest, the same turn: D plain, B pushed
+    r.down(PUSH_A + 1)
+    spin(r, 2, 16)
     r.up(PUSH_A + 1)
     r.shot('04-coarse')
+    r.check(r.pos(1) > r.pos(3) >= 0, 'B pushed moves further than D for the same turn: %d, %d' % (r.pos(1), r.pos(3)))
 
     r.down(PUSH_A)                              # push A + NO: A back to the centre
     r.tap(NO)
     r.up(PUSH_A)
-    r.shot('05-reset-a')
+    r.check(r.pos(0) == 0 and r.pos(1) != 0 and r.mode() == 1, 'push A + NO centres A only')
+    r.tap(PUSH_A)
+    r.check(r.mode() == 1, 'a push alone does not open the setup')
 
     r.down(FUNC)                                # FUNC + push C: the setup of macro C
     r.tap(PUSH_A + 2)
     r.up(FUNC)
     setup = r.shot('06-setup')
-    r.check(setup not in (macro, turned), 'FUNC + push C opens the setup screen')
+    r.check(r.mode() == 2 and setup not in (macro, turned), 'FUNC + push C opens the setup screen')
+    r.check(r.slot(2, 1)[2] == 0xffff, 'a fresh slot is on every track: %04x' % r.slot(2, 1)[2])
 
-    r.turn(2, DEV['turns'])                     # B: slot 2 destination
-    r.turn(6, 12)                               # F: slot 2 depth
-    r.tap(TRIG1 + 2)
+    ok = spin_until(r, 2, 1, lambda: r.slot(2, 1)[0] != 0)  # B: slot 2's destination, in its list
+    dest = r.slot(2, 1)[0]
+    lst = r.shot('06-list')
+    r.check(ok and r.peek8(r.addr('list')) == 2 and lst != setup, 'turning B opens its list and picks index %d' % dest)
+    r.tap(NO)
+    r.check(r.peek8(r.addr('list')) == 0 and r.mode() == 2 and r.slot(2, 1)[0] == dest,
+            'NO closes the list and keeps the choice')
+    r.check(spin_until(r, 6, 1, lambda: r.slot(2, 1)[1] >= 10), 'F sets slot 2\'s depth: %d' % r.slot(2, 1)[1])
+    r.tap(TRIG1 + 2)                            # tracks 3 and 5 off
     r.tap(TRIG1 + 4)
     r.shot('07-setup-edited')
+    tracks = r.slot(2, 1)[2]
     reds = [r.led(LED_TRIG1 + t) for t in range(16)]
-    r.check(reds[2] == 0x11 and reds[4] == 0x11, 'trig keys 3 and 5 are red: %s' % reds)
+    r.check(tracks == 0xffff & ~0b10100, 'trig 3 and 5 take their tracks out: %04x' % tracks)
     # off: 0x01, or 0x00 for an LED the firmware has not sent since the state was restored (it sends changes only)
-    r.check(all(v in (0x00, 0x01) for t, v in enumerate(reds) if t not in (2, 4)), 'the other trig keys are off')
+    r.check(all((v == 0x11) == (t not in (2, 4)) for t, v in enumerate(reds)) and all(v in (0, 1) for v in (reds[2], reds[4])),
+            'the trig keys show the slot\'s tracks: %s' % reds)
     if seq_runs:
-        playhead_over_setup(r)
+        playhead_over_setup(r, tracks)
 
-    r.turn(LEVEL, 6)                            # LEVEL on SETUP: only the edited macro (C, at -6) moves
-    frame, mirror, _ = r.values(2, DEST)
-    r.check(frame == mirror, 'LEVEL +6 on the setup of C brings C to the centre: frame %04x = mirror %04x' % (frame, mirror))
+    before = [r.pos(k) for k in range(8)]       # LEVEL on the setup screen: the edited macro only
+    spin(r, LEVEL, 24)
+    after = [r.pos(k) for k in range(8)]
+    r.check(after[2] > before[2] and all(after[k] == before[k] for k in range(8) if k != 2),
+            'LEVEL on the setup of C moves C only: %s -> %s' % (before, after))
     r.shot('07-setup-level')
-    r.turn(LEVEL, -6)
-
-    r.tap(MOD)                                  # MOD on the setup screen: back to the macro screen (D8)
+    r.tap(NO)                                   # NO goes back (the list is closed)
     back = r.shot('08-back')
-    r.check(back not in (stock, setup), 'MOD goes back from the setup screen to the macro screen')
+    r.check(r.mode() == 1 and back not in (stock, setup), 'NO goes back from the setup screen to the macro screen')
 
-    want = delta(-6, 12)                        # macro C at -6: DEST by depth +12 on tracks 3 and 5 only
-    for t in (2, 4, 0):
-        frame, mirror, kit = r.values(t, DEST)
-        exp = max(0, min(0x7f00, mirror + want)) if t in (2, 4) else mirror
-        r.check(frame == exp, 'track %d, index %d: frame %04x, mirror %04x, expected %04x' % (t + 1, DEST, frame, mirror, exp))
-        if kit is not None:
-            r.check(kit == mirror, 'track %d, index %d: the kit keeps %04x (mirror %04x)' % (t + 1, DEST, kit, mirror))
-    r.turn(3, 6)                                # C back to the centre: the frame values follow the mirror again
-    for t in (2, 4):
-        frame, mirror, _ = r.values(t, DEST)
-        r.check(frame == mirror, 'track %d at the centre: frame %04x = mirror %04x' % (t + 1, frame, mirror))
-    r.turn(3, -6)
+    spin_until(r, 3, -1, lambda: r.pos(2) <= -6)
+    CONFIG.update(dest=dest, depth=r.slot(2, 1)[1], tracks=tracks)
+    check_frame(r, 2, 1, 'C at %d' % r.pos(2))
+    r.down(PUSH_A + 2)
+    r.tap(NO)
+    r.up(PUSH_A + 2)
+    check_frame(r, 2, 1, 'C at the centre')
 
-    r.turn(LEVEL, 6)                            # LEVEL moves every macro: C back to the centre
-    frame, mirror, _ = r.values(2, DEST)
-    r.check(frame == mirror, 'LEVEL +6 brings C from -6 to the centre: frame %04x = mirror %04x' % (frame, mirror))
+    spin_until(r, 3, -1, lambda: r.pos(2) <= -6)
+    before = [r.pos(k) for k in range(8)]       # LEVEL on the macro screen: every macro
+    spin(r, LEVEL, 24)
+    after = [r.pos(k) for k in range(8)]
+    moved = {after[k] - before[k] for k in range(8) if -64 < after[k] < 63}
+    r.check(len(moved) == 1 and moved.pop() > 0, 'LEVEL moves every macro alike: %s -> %s' % (before, after))
     r.shot('08-level')
-    r.turn(LEVEL, -6)
-    frame, mirror, _ = r.values(2, DEST)
-    r.check(frame == max(0, min(0x7f00, mirror + want)), 'LEVEL -6 takes C back to -6: frame %04x' % frame)
+    r.tap(LEVEL_PUSH)
+    r.check(all(r.pos(k) == 0 for k in range(8)) and r.mode() == 1, 'LEVEL pushed centres every macro')
 
+    spin_until(r, 3, -1, lambda: r.pos(2) <= -6)
     before = r.shot('08-before-reload')
     r.down(FUNC)                                # FUNC + NO: every macro to the centre, no pattern reload
     r.tap(NO)
     r.up(FUNC)
-    frame, mirror, _ = r.values(2, DEST)
-    r.check(frame == mirror, 'FUNC + NO centres the macros: frame %04x = mirror %04x' % (frame, mirror))
-    centred = r.shot('08-func-no')
-    r.check(centred != before and r.mode() in (1, None), 'FUNC + NO stays on the macro screen')
-    r.turn(3, -6)
+    r.check(all(r.pos(k) == 0 for k in range(8)) and r.mode() == 1, 'FUNC + NO centres the macros and stays')
+    check_frame(r, 2, 1, 'after FUNC + NO')
+    r.shot('08-func-no')
 
-    r.tap(MOD)                                  # a second MOD leaves macro mode
-    left = r.shot('09-left')
-    r.check(left != back, 'MOD leaves macro mode')
-    r.check(r.led(LED_MOD) in (0x01, 0x71), 'the MOD LED is the firmware\'s again: %02x' % (r.led(LED_MOD) or 0))
-    frame, mirror, _ = r.values(2, DEST)
-    r.check(frame == max(0, min(0x7f00, mirror + want)), 'the macro keeps working after leaving the mode (D2)')
-
-    r.down(MOD)                                 # the other order: MOD held, then PAGE
-    r.down(PAGE)
-    r.up(PAGE)
-    r.up(MOD)
-    again = r.shot('10-mod-then-page')
-    r.check(again != left, 'MOD + PAGE enters too')
+    spin_until(r, 3, -1, lambda: r.pos(2) <= -6)
+    r.tap(3)                                    # a page key: leaves and opens its page
+    fltr = r.shot('09-fltr')
+    r.check(r.mode() == 0 and fltr != back, 'FLTR leaves macro mode and opens its page')
+    check_frame(r, 2, 1, 'after leaving (D2)')
+    chord(r, MOD, PAGE)                         # the other order: MOD held, then PAGE
+    r.check(r.mode() == 1, 'MOD + PAGE enters too')
     r.tap(MOD)
-    r.shot('11-left-again')
+    r.check(r.mode() == 0 and r.led(LED_MOD) in (0x01, 0x71), 'MOD leaves; the MOD LED is the firmware\'s: %02x'
+            % (r.led(LED_MOD) or 0))
+
+    r.down(FUNC)                                # FUNC + NO outside: the firmware reloads the pattern (and keeps FUNC's
+    r.tap(NO)                                   # release)
+    r.up(FUNC)
+    r.step(SETTLE)
+    r.shot('10-reloaded')
+    chord(r, PAGE, MOD)
+    r.check(r.mode() == 1, 'after a pattern reload PAGE + MOD enters again')
+    r.tap(PUSH_A)
+    r.check(r.mode() == 1, 'and a push alone does not open the setup')
+    r.down(FUNC)
+    r.tap(PUSH_A)
+    r.up(FUNC)
+    r.tap(NO)
+    r.check(r.mode() == 1, 'FUNC + push and NO: into the setup and back')
+    r.tap(MOD)
+    r.shot('11-left')
     r.check(r.cmd('card-save %s' % (r.out / 'card.bin')).startswith('ok'), 'the card written so far is saved')
 
 
@@ -321,26 +405,21 @@ def after_restart(r):
     """A cold boot with the card of the first run: the configuration comes back, the positions do not (D14)."""
     settle_boot(r)
     r.read_sounds()
-    r.down(PAGE)
-    r.down(MOD)
-    r.up(MOD)
-    r.up(PAGE)
+    chord(r, PAGE, MOD)
     r.shot('20-after-restart')
-    frame, mirror, _ = r.values(2, DEST)
-    r.check(frame == mirror, 'after the restart every macro is at the centre: frame %04x = mirror %04x' % (frame, mirror))
-    r.turn(3, -6)
-    want = delta(-6, 12)
-    for t in (2, 4, 0):
-        frame, mirror, _ = r.values(t, DEST)
-        exp = max(0, min(0x7f00, mirror + want)) if t in (2, 4) else mirror
-        r.check(frame == exp, 'after the restart, track %d: frame %04x, expected %04x (the stored slot)' % (t + 1, frame, exp))
+    dest, depth, tracks = r.slot(2, 1)
+    r.check((dest, depth, tracks) == (CONFIG['dest'], CONFIG['depth'], CONFIG['tracks']),
+            'after the restart slot 2 of C is back: %s' % ((dest, depth, tracks),))
+    r.check(all(r.pos(k) == 0 for k in range(8)), 'and every macro is at the centre')
+    spin_until(r, 3, -1, lambda: r.pos(2) <= -6)
+    check_frame(r, 2, 1, 'after the restart')
     r.down(FUNC)
     r.tap(PUSH_A + 2)
     r.up(FUNC)
     r.shot('21-setup-after-restart')
 
 
-def playhead_over_setup(r):
+def playhead_over_setup(r, tracks):
     """With PLAY running the setup screen's trig keys keep showing the tracks, not the playhead."""
     r.tap(PLAY)
     seen = set()
@@ -349,8 +428,8 @@ def playhead_over_setup(r):
         seen |= {(t, r.led(LED_TRIG1 + t)) for t in range(16)}
     r.tap(STOP)
     r.tap(STOP)
-    r.check(all(v == 0x11 for t, v in seen if t in (2, 4)) and all(v in (0x00, 0x01) for t, v in seen if t not in (2, 4)),
-            'with PLAY running the trig keys keep showing the tracks: %s' % sorted(v for v in seen if v[1] not in (0, 1)))
+    r.check(all((v == 0x11) == bool(tracks >> t & 1) for t, v in seen),
+            'with PLAY running the trig keys keep showing the tracks: %s' % sorted(seen))
 
 
 def main():
@@ -360,12 +439,11 @@ def main():
     ap.add_argument('--build', required=True)
     ap.add_argument('--out', required=True)
     ap.add_argument('--device', choices=sorted(DEVICES), default='dt2')
-    ap.add_argument('--map', help='the build\'s symbol map (tools/check.sh writes out/check/macro-<dev>.map.json)')
+    ap.add_argument('--map', required=True, help='the build\'s symbol map (tools/check.sh writes out/check/macro-<dev>.map.json)')
     a = ap.parse_args()
-    global DEV, DEST
+    global DEV
     DEV = DEVICES[a.device]
-    DEST = DEV['dest']
-    syms = json.load(open(a.map)) if a.map else None
+    syms = json.load(open(a.map))
     out = pathlib.Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     state = out / 'build.state'
@@ -388,7 +466,7 @@ def main():
     (out / 'card-mm.bin').write_bytes(ours)
     r = Run([a.runner, a.stock, a.build, str(state2), str(out / 'card-mm.bin')], out)
     r.syms = syms
-    r.check(len(ours) == 520, 'the first run wrote one of the two record sectors (%d bytes)' % len(ours))
+    r.check(len(ours) in (520, 1040), 'the first run wrote the record sectors and nothing else of ours (%d bytes)' % len(ours))
     try:
         after_restart(r)
     finally:

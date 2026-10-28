@@ -220,18 +220,81 @@ static void draw_macro(const mm_t *s, const mm_canvas *c)
 #define SEP_X(j) (17 + 28 * (j))
 #define SLOT_X(j) (SEP_X(j) + 14)
 
+/* The destination list, as the stock modulation setups open it while a destination knob turns: a box naming the
+ * slot on the left, then the pages and the destinations' long names, the selected one inverted, a scroll bar. */
+#define LIST_Y(r) (17 + 7 * (r))
+
+static void draw_list(const mm_t *s, const mm_canvas *c)
+{
+    const mm_slot *sl = &s->m[s->edit].slot[s->list - 1];
+    int lines = mm_dest_lines(s->dests), sel = mm_dest_line(s->dests, sl->dest), top = s->list_top;
+    char buf[5] = {'M', 'O', 'D', (char)('0' + s->list), 0};
+    c->fill(c->ctx, 1, 13, 23, 13, 1);            /* the box, open at the bottom */
+    c->fill(c->ctx, 0, 14, 0, H - 1, 1);
+    c->fill(c->ctx, 24, 14, 24, H - 1, 1);
+    own_text(c, 12 - text_width(buf) / 2, 17, buf); /* the narrow font, as the stock's box and page column */
+    own_text(c, 12 - text_width("DEST") / 2, 24, "DEST");
+    for (int x = 4; x <= 20; x++)                 /* the wave under it */
+        c->fill(c->ctx, x, x % 4 == 0 ? 34 : x % 4 == 2 ? 32 : 33, x, x % 4 == 0 ? 34 : x % 4 == 2 ? 32 : 33, 1);
+    if (sel < top)                                 /* the selection is always in view */
+        top = sel;
+    if (sel > top + MM_LIST_ROWS - 1)
+        top = sel - (MM_LIST_ROWS - 1);
+    for (int r = 0; r < MM_LIST_ROWS && top + r < lines; r++) {
+        int line = top + r, first, y = LIST_Y(r);
+        int dest = mm_line_dest(s->dests, line, &first);
+        if (dest < 0) {                            /* a separator between pages */
+            for (int x = 32; x <= 118; x += 2)
+                c->fill(c->ctx, x, y + 2, x, y + 2, 1);
+            continue;
+        }
+        if (first)
+            own_text(c, 28, y, mm_dest_group(s->dests, dest));
+        if (dest) {
+            int p = mm_dest_pos(s->dests, dest);
+            const mm_dest *d = &s->dests->d[p];
+            if (d->full || d->name) {
+                text(c, 46, y, 0, d->full ? d->full : d->name);
+            } else {
+                char label[8];
+                mm_dest_label(s->dests, dest, label);
+                text(c, 46, y, 0, label);
+            }
+        } else {
+            text(c, 46, y, 0, "None");
+        }
+        if (line == sel)
+            c->fill(c->ctx, 45, y - 1, 122, y + 5 > H - 1 ? H - 1 : y + 5, -1);
+    }
+    {                                              /* the scroll bar */
+        int span = lines > MM_LIST_ROWS ? lines - MM_LIST_ROWS : 1;
+        int thumb = 14 + (H - 1 - 4 - 14) * (top < span ? top : span) / span;
+        for (int y = 14; y < H; y++)
+            c->fill(c->ctx, 125 + (y & 1), y, 125 + (y & 1), y, 1);
+        c->fill(c->ctx, 124, thumb, 127, thumb + 4, 0);
+        c->fill(c->ctx, 124, thumb, 127, thumb, 1);
+        c->fill(c->ctx, 124, thumb + 4, 127, thumb + 4, 1);
+        c->fill(c->ctx, 124, thumb, 124, thumb + 4, 1);
+        c->fill(c->ctx, 127, thumb, 127, thumb + 4, 1);
+    }
+}
+
 static void draw_setup(const mm_t *s, const mm_canvas *c)
 {
     char buf[8];
     const mm_macro *m = &s->m[s->edit];
     text(c, 64, 0, 1, "MODULATION SETUP");
     text(c, 64, 6, 1, "MACRO MODE");
+    if (s->list) {
+        draw_list(s, c);
+        return;
+    }
     for (int j = 0; j < MM_SLOTS; j++)          /* the dotted separators */
         for (int y = 15; y < H; y += 2)
             c->fill(c->ctx, SEP_X(j), y, SEP_X(j), y, 1);
 
     buf[0] = (char)('A' + s->edit), buf[1] = 0;  /* the macro, where the stock shows the source's icon */
-    text(c, 8, 26, 1, buf);
+    text(c, 8, 22, 1, buf);
     rect(c, 3, 40, 13, 55);                       /* its position as a fader, filled from the middle */
     for (int y = 42; y < 55; y += 2)
         c->fill(c->ctx, 5, y, 5, y, 1), c->fill(c->ctx, 11, y, 11, y, 1);
@@ -251,14 +314,14 @@ static void draw_setup(const mm_t *s, const mm_canvas *c)
     for (int j = 0; j < MM_SLOTS; j++) {
         const mm_slot *sl = &m->slot[j];
         int cx = SLOT_X(j);
-        text(c, cx, 25, 1, mm_dest_group(s->dests, sl->dest));  /* A..D: the destination */
+        text(c, cx, 21, 1, mm_dest_group(s->dests, sl->dest));  /* A..D: the destination */
         mm_dest_label(s->dests, sl->dest, buf);
-        text(c, cx, 33, 1, buf);
+        text(c, cx, 29, 1, buf);
         knob(c, cx, 48, sl->depth);                              /* E..H: the depth */
         fmt_signed(sl->depth, buf);
         text(c, cx, 59, 1, buf);
         if (j == s->sel)                                         /* the selected slot: its heading inverted */
-            c->fill(c->ctx, SEP_X(j) + 1, 23, SEP_X(j) + 27 > W - 1 ? W - 1 : SEP_X(j) + 27, 39, -1);
+            c->fill(c->ctx, SEP_X(j) + 1, 19, SEP_X(j) + 27 > W - 1 ? W - 1 : SEP_X(j) + 27, 35, -1);
     }
 }
 

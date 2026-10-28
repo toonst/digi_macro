@@ -11,9 +11,39 @@ same on the Digitone II with core-dn2 0.2):
 | Input | What arrives |
 | --- | --- |
 | Encoders A–H | `ev_enc` ids 1–8 |
-| LEVEL/DATA | `ev_enc` id 9 (the emulator's panel encoder 9): turning it by +6 and −6 moves macro C from −6 to the centre and back |
+| LEVEL/DATA | `ev_enc` id 9 (the emulator's panel encoder 9); pushed, key code 49 |
 | Pushes A–H | `ev_key` codes 41–48 |
 | FUNC + NO | `ev_key` NO with FUNC held; taking the press keeps the stock reload from running: the macros go to the centre and the screen stays the macro screen |
+
+## The encoder filter **[D]**
+
+Every stock knob turns through one filter (digikit finding 03 has it on the Digitone II 1.11 at `0x4011336e`): after
+the knob rests it swallows the first counts, then moves more per count the faster it turns. Found here by its
+constants (a per-knob counter refilled to 48, a threshold of 24, `3 |count|` taken off, an `lsl #8`):
+
+| | DT2 1.17 | DN2 1.12 |
+| --- | --- | --- |
+| `filter(block, knob, count, cfg, pushed)` | `0x40111cda` (61 callers) | `0x4011364e` (71) |
+| `list_filter(block, event, cfg)`: knob, count x8 when pushed, then `filter` | `0x40111e42` | `0x401137b6` |
+| The block's constructor (252 bytes; it starts a timer that refills the counters) | `0x40111b68` | `0x401134dc` |
+| The configuration of the stock 0–127 parameters (LEV, VOL, the sends, amp): raw units of 256 a step, the count x2 when pushed | `0x44d2e654` | `0x44508e40` |
+| The configuration the MODULATION SETUP passes for its destination knobs: steps | `0x44d2e600` | `0x44508dec` |
+
+An encoder event has the knob at `+12`, the count at `+16` and a "pushed" byte at `+20` (helpers `0x40111a4e`,
+`0x40111aaa`, `0x40111ac8`). A parameter's configuration is the word at `+16` of its run-time descriptor,
+`0x4293c040 + 0x44 id` on the Digitakt II (`0x400c892e(id)`): LEV, VOL, the sends and the amp envelope have
+`0x44d2e654`, FREQ and TUNE `0x44d2e670`.
+
+The mode builds one block with the constructor and turns its macro, depth and LEVEL knobs through `filter` with the
+parameters' configuration, its destination knobs through `list_filter` with the setup's. Measured: the same 38 turns
+(1 to 32 counts) move the stock LEV knob (DT2) or Delay Send (DN2) and macro A by exactly the same steps.
+
+## Held keys **[D]**
+
+The firmware does not always pass a key's release on: after FUNC + NO (the pattern reload) the FUNC release never
+reaches `ev_key`, so a "FUNC held" flag kept from presses and releases stays set. The mode reads held keys from the
+firmware's key-down query instead, `int key_down(code)` (DT2 `0x4011e150`, DN2 `0x4011fac4`; digikit finding 58): FUNC,
+the pushes and the entry chord's first key.
 
 ## Menus and dialogs (D9) **[D]**
 
@@ -31,4 +61,3 @@ that view is on top.
 
 ## Open **[O]**
 
-- The stock step of push + turn (`MM_COARSE` is 8 for now).

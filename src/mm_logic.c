@@ -49,6 +49,31 @@ static void offset_all(mm_t *s, int delta)
     s->dirty_screen = 1;
 }
 
+static int is_page(int code)
+{
+    return code >= MM_K_TRIG && code <= MM_K_FX;
+}
+
+void mm_init(mm_t *s, const mm_dests *dests)
+{
+    uint8_t *p = (uint8_t *)s;
+    for (unsigned i = 0; i < sizeof *s; i++)
+        p[i] = 0;
+    s->dests = dests;
+    for (int k = 0; k < MM_MACROS; k++)
+        for (int j = 0; j < MM_SLOTS; j++)
+            s->m[k].slot[j].tracks = (uint16_t)((1u << MM_TRACKS) - 1); /* every track until the setup says less */
+}
+
+/* The destination list of the setup screen: shown while a destination knob turns, closed by NO (as the stock). */
+static void close_list(mm_t *s)
+{
+    if (s->list) {
+        s->list = 0;
+        s->dirty_screen = 1;
+    }
+}
+
 static void enter(mm_t *s)
 {
     s->state = MM_MACRO;
@@ -61,6 +86,9 @@ static void enter(mm_t *s)
 
 static void leave(mm_t *s)
 {
+    if (s->state == MM_SETUP)
+        s->dirty_config = 1;        /* leaving from the setup screen stores it too */
+    s->list = 0;
     s->state = MM_OFF;
     s->pushes = 0;
     s->popup = 0;
@@ -77,6 +105,7 @@ static void open_setup(mm_t *s, int macro)
 
 static void close_setup(mm_t *s)
 {
+    s->list = 0;
     s->state = MM_MACRO;
     s->dirty_screen = s->dirty_leds = 1;
     s->dirty_config = 1;
@@ -117,13 +146,13 @@ static int press_macro(mm_t *s, int code)
     }
     if (is_push(code)) {
         int i = code - MM_K_PUSH_A;
-        if (s->func)
+        if (s->func)                /* only FUNC + push opens the setup; a push alone is for coarse steps and NO */
             open_setup(s, i);
         else
             s->pushes |= (uint8_t)(1u << i);
         return 1;
     }
-    if (code == MM_K_NO && s->func) {
+    if ((code == MM_K_NO && s->func) || code == MM_K_LEVEL) { /* FUNC + NO (reload), LEVEL/DATA pushed */
         centre_all(s);
         return 1;
     }
@@ -149,6 +178,20 @@ static int press_setup(mm_t *s, int code)
         close_setup(s);
         return 1;
     }
+    if (s->list && (code == MM_K_NO || code == MM_K_YES)) {
+        close_list(s);              /* the choice was applied while turning */
+        return 1;
+    }
+    if (code == MM_K_LEVEL) {       /* LEVEL/DATA pushed: the edited macro to the centre */
+        if (m->pos) {
+            m->pos = 0;
+            s->dirty_mods = 1;
+        }
+        s->dirty_screen = 1;
+        return 1;
+    }
+    if (is_push(code))
+        close_list(s);
     if (is_push(code)) {
         int i = code - MM_K_PUSH_A;
         if (s->func) {
@@ -182,6 +225,7 @@ static int press_setup(mm_t *s, int code)
         return 1;
     }
     if (code == MM_K_LEFT || code == MM_K_RIGHT) {
+        close_list(s);
         s->sel = (uint8_t)clamp(s->sel + (code == MM_K_RIGHT ? 1 : -1), 0, MM_SLOTS - 1);
         s->dirty_screen = s->dirty_leds = 1;
         return 1;
@@ -217,9 +261,22 @@ int mm_key(mm_t *s, int code, int flags)
         return 0;
 
     int take;
-    if (code == MM_K_FUNC || flags & MM_F_FUNC) /* the firmware's own "FUNC held" bit counts too */
+    if (s->key_down) {              /* what is held now, from the panel: a release the firmware kept is no matter */
+        s->func = (uint8_t)(code == MM_K_FUNC || flags & MM_F_FUNC || s->key_down(MM_K_FUNC));
+        for (int i = 0; i < MM_MACROS; i++)
+            if (MM_K_PUSH_A + i != code && !s->key_down(MM_K_PUSH_A + i))
+                s->pushes &= (uint8_t)~(1u << i);
+        if (code != MM_K_MOD && !s->key_down(MM_K_MOD))
+            s->mod_armed = 0;
+        if (code != MM_K_PAGE && !s->key_down(MM_K_PAGE))
+            s->page_armed = 0;
+    } else if (code == MM_K_FUNC || flags & MM_F_FUNC) { /* the firmware's own "FUNC held" bit counts too */
         s->func = 1;
-    if (s->state == MM_OFF) {
+    }
+    if (s->state != MM_OFF && is_page(code)) {
+        leave(s);                   /* a page key leaves macro mode, as for any page, and opens its page */
+        take = 0;
+    } else if (s->state == MM_OFF) {
         take = 0;
         if (code == MM_K_MOD || code == MM_K_PAGE) {
             int other = code == MM_K_MOD ? s->page_armed : s->mod_armed;
@@ -243,7 +300,7 @@ int mm_key(mm_t *s, int code, int flags)
 
 static int step(const mm_t *s, int i, int delta)
 {
-    return (s->pushes & (1u << i)) ? delta * MM_COARSE : delta;
+    return (s->pushes & (1u << i)) && !s->enc_scaled ? delta * MM_COARSE : delta;
 }
 
 int mm_enc(mm_t *s, int enc, int delta)
@@ -281,13 +338,23 @@ int mm_enc(mm_t *s, int enc, int delta)
         return 1;
     }
     mm_macro *m = &s->m[s->edit];
-    if (i < MM_SLOTS) {             /* A..D: destination of slot 1..4 (D7) */
+    if (i < MM_SLOTS) {             /* A..D: destination of slot 1..4 (D7), in the list */
         mm_slot *sl = &m->slot[i];
         int n = s->dests ? s->dests->count : 0;
         int p = clamp(mm_dest_pos(s->dests, sl->dest) + delta, -1, n - 1);
+        int line;
         sl->dest = p < 0 ? 0 : s->dests->d[p].index;
         s->sel = (uint8_t)i;
+        if (s->list != i + 1)
+            s->list_top = 0;
+        s->list = (uint8_t)(i + 1);
+        line = mm_dest_line(s->dests, sl->dest);
+        if (line < s->list_top + 1)     /* keep the line and the separator above it in view */
+            s->list_top = (uint8_t)(line > 0 ? line - 1 : 0);
+        if (line > s->list_top + MM_LIST_ROWS - 1)
+            s->list_top = (uint8_t)(line - (MM_LIST_ROWS - 1));
     } else {                        /* E..H: depth of slot 1..4 */
+        close_list(s);
         mm_slot *sl = &m->slot[i - MM_SLOTS];
         sl->depth = (int8_t)clamp(sl->depth + delta, MM_POS_MIN, MM_POS_MAX);
         s->sel = (uint8_t)(i - MM_SLOTS);

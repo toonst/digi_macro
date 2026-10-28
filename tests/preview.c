@@ -5,8 +5,8 @@
 #include "raster.h"
 
 static const mm_dest table[] = {
-    {25, MM_G_SRC, 0x400, 0x7c00, "TUNE"}, {36, MM_G_FLTR, 0, 0, "FREQ"},
-    {37, MM_G_FLTR, 0, 0, "RESO"},         {55, MM_G_FX, 0, 0, "DEL"},
+    {25, MM_G_SRC, 0x400, 0x7c00, "TUNE", "Tune"}, {36, MM_G_FLTR, 0, 0, "FREQ", "Frequency"},
+    {37, MM_G_FLTR, 0, 0, "RESO", "Resonance"}, {55, MM_G_FX, 0, 0, "DEL", "Delay Send"},
 };
 static const mm_dests dests = {table, 4, 70};
 
@@ -56,5 +56,10 @@ int main(int argc, char **argv)
     s.m[2].slot[2] = (mm_slot){25, 5, 0xffff};
     raster_draw(&r, &s);
     save(&r, dir, "setup");
+
+    s.list = 2;                                 /* B turned: slot 2's destination list */
+    s.list_top = 0;
+    raster_draw(&r, &s);
+    save(&r, dir, "setup-list");
     return 0;
 }

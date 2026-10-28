@@ -51,6 +51,8 @@ int mm_decode(mm_t *s, const uint8_t *in, int len)
             sl->dest = (uint8_t)(mm_dest_pos(s->dests, dest) < 0 ? 0 : dest); /* a destination this OS lacks: none */
             sl->depth = (int8_t)in[o++];
             sl->tracks = (uint16_t)(in[o] << 8 | in[o + 1]);
+            if (!sl->dest && !sl->tracks)   /* an unused slot of an older record: every track, as a fresh one */
+                sl->tracks = (uint16_t)((1u << MM_TRACKS) - 1);
             o += 2;
         }
     s->dirty_mods = 1;
@@ -128,4 +130,50 @@ const char *mm_dest_group(const mm_dests *d, int dest)
     int p = mm_dest_pos(d, dest);
     int g = p >= 0 ? d->d[p].group : MM_G_NONE;
     return groups[g < MM_G_COUNT ? g : MM_G_NONE];
+}
+
+/* The destination list (the setup screen's popup, as the stock modulation setups have): line 0 is none, then each
+ * page's destinations after a separator line. */
+static int new_group(const mm_dests *d, int i)
+{
+    return i == 0 || d->d[i].group != d->d[i - 1].group;
+}
+
+int mm_dest_lines(const mm_dests *d)
+{
+    int n = 1;
+    for (int i = 0; d && i < d->count; i++)
+        n += new_group(d, i) + 1;
+    return n;
+}
+
+int mm_dest_line(const mm_dests *d, int dest)
+{
+    int line = 1;
+    if (!d || !dest)
+        return 0;
+    for (int i = 0; i < d->count; i++) {
+        line += new_group(d, i);
+        if (d->d[i].index == dest)
+            return line;
+        line++;
+    }
+    return 0;
+}
+
+int mm_line_dest(const mm_dests *d, int line, int *group_first)
+{
+    int l = 1;
+    *group_first = 1;
+    if (line == 0)
+        return 0;
+    for (int i = 0; d && i < d->count; i++) {
+        if (new_group(d, i) && l++ == line)
+            return -1;
+        if (l++ == line) {
+            *group_first = new_group(d, i);
+            return d->d[i].index;
+        }
+    }
+    return -1;
 }

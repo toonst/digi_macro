@@ -108,14 +108,19 @@ if [[ -n "$DT2_SYX$DN2_SYX" ]]; then
         el -m elekloader.patch --stock "$syx" --mod "$OUT/$dev-core"/*.elemod --mod "$OUT/$dev-mod"/*.elemod \
             --out "$OUT/macro-$dev.syx" --version MMDV | tail -2
         # where the mod's symbols landed, for the emulator scenarios
-        el - "$syx" "$OUT/$dev-core"/*.elemod "$OUT/$dev-mod"/*.elemod "$OUT/macro-$dev.map.json" <<'PY'
-import json, sys
+        "${CROSS}gcc" "${FLAGS[@]}" -c tests/emu/layout.c -o "$OUT/$dev-layout.o"
+        el - "$syx" "$OUT/$dev-core"/*.elemod "$OUT/$dev-mod"/*.elemod "$OUT/macro-$dev.map.json" \
+            "$OUT/$dev-layout.o" "${CROSS}nm" <<'PY'
+import json, subprocess, sys
 from elekloader import patch
-stock, core, mod, out = sys.argv[1:5]
+stock, core, mod, out, layout, nm = sys.argv[1:7]
 _, manifest = patch.build(stock, [core, mod], 'MMDV', log=lambda *a: None)
 secs = manifest['link']['layout']['sections']
 m = json.load(open(mod))
 syms = {k: secs['macro-mode ' + v[0]] + v[1] for k, v in m['symbols'].items() if v[0] in ('.run', '.bss')}
+syms['layout'] = {l.split()[2][6:]: int(l.split()[0], 16)
+                  for l in subprocess.run([nm, layout], capture_output=True, text=True).stdout.splitlines()
+                  if ' A MMOFF_' in l}
 json.dump(syms, open(out, 'w'), indent=1, sort_keys=True)
 PY
     done

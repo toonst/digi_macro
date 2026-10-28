@@ -83,6 +83,10 @@ int mm_leds(const mm_t *s, uint8_t *code, uint8_t *value, int cap)
         return 0;
     code[n] = MM_K_MOD;
     value[n++] = MM_LED_BLUE;
+    for (int k = MM_K_TRIG; k <= MM_K_FX && n < cap; k++) { /* the page macro mode came from no longer shows lit */
+        code[n] = (uint8_t)k;
+        value[n++] = MM_LED_OFF;
+    }
     if (s->state == MM_SETUP) {     /* the selected slot's tracks, red; the playhead does not show */
         uint16_t tracks = s->m[s->edit].slot[s->sel].tracks;
         for (int t = 0; t < MM_TRACKS && n < cap; t++) {

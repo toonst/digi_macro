@@ -63,6 +63,13 @@
   "-DVIEW_TOP_BASE=0x40216f14",
   "-DTEXT_AT=0x40113dc8",
   "-DTEXT_FONT=0x44d2e70c",
+  "-DKEY_DOWN_AT=0x4011e150",
+  "-DENC_BLOCK_AT=0x40111b68",
+  "-DENC_BLOCK_SIZE=252",
+  "-DENC_FILTER_AT=0x40111cda",
+  "-DENC_LIST_AT=0x40111e42",
+  "-DENC_CFG_LIST=0x44d2e600",
+  "-DENC_CFG_PARAM=0x44d2e654",
   "-fno-tree-loop-distribute-patterns"
  ],
  "resources": {

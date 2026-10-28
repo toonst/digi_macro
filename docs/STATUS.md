@@ -1,7 +1,7 @@
 # Status
 
 Against [PLAN.md](../PLAN.md) section 7. Measured on the Digitakt II 1.17 and the Digitone II 1.12 in digikit's
-emulator with `tests/emu/scenario.py` (32 checks each, all passing); host tests with `tools/check.sh`.
+emulator with `tests/emu/scenario.py` (61 checks each, all passing); host tests with `tools/check.sh`.
 
 | Part | State |
 | --- | --- |
@@ -17,7 +17,6 @@ Still open:
 
 | Where | Now | To do |
 | --- | --- | --- |
-| `MM_COARSE` | Push + turn moves 8 steps | The stock step (S1) |
 | `MM_LED_*` | Blue `0x41`, red `0x11`, off `0x01` | Colours on a unit (S2) |
 | Machine-dependent source parameters (all of DN2's), LFO parameters | Not offered | S6 |
 | Audio | The zero-DSP runner makes no sound | Coupled emulator or a unit |
