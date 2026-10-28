@@ -21,4 +21,5 @@ void mm_layout(void)
     OFF(depth, offsetof(mm_slot, depth));
     OFF(tracks, offsetof(mm_slot, tracks));
     OFF(list, offsetof(mm_t, list));
+    OFF(name, offsetof(mm_macro, name));
 }

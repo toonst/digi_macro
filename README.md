@@ -14,8 +14,9 @@ modulations. Requirements: [SPEC.md](SPEC.md); plan and decisions: [PLAN.md](PLA
 
 | | Macro screen | Setup screen |
 | --- | --- | --- |
-| Enter | Hold PAGE and press MOD, or hold MOD and press PAGE | FUNC + push an encoder (A–H) |
-| Encoders A–H | Move that macro (−64 … +63), with the stock knobs' feel; push and turn for bigger steps | A–D: destination of parameter 1–4, from a list as in the stock modulation setups; E–H: its depth |
+| Enter | Hold PAGE and press MOD, or hold MOD and press PAGE (the header shows "Macro Mode") | FUNC + push an encoder (A–H) |
+| Name a macro | FUNC + push and hold its encoder: the stock naming screen (5 characters) | The same |
+| Encoders A–H | Move that macro (−64 … +63), with the stock knobs' feel; push and turn for bigger steps | A–D: destination of parameter 1–4, from a list as in the stock modulation setups; E–H: its depth (−128.00 … 127.99, push for whole steps) |
 | Push + NO | The macro back to the centre | That knob back: destination none, depth 0 |
 | Trig keys | Their usual function | The tracks of the selected parameter (red; all of them for a new one) |
 | LEFT / RIGHT | Their usual function | Select a parameter |
@@ -23,10 +24,12 @@ modulations. Requirements: [SPEC.md](SPEC.md); plan and decisions: [PLAN.md](PLA
 | LEVEL/DATA | Move all eight macros together | Move the macro being edited |
 | FUNC + NO, or push LEVEL/DATA | All eight macros back to the centre (the pattern is not reloaded) | FUNC + NO: the same; LEVEL/DATA: the macro being edited |
 | TRIG, SRC, FLTR, AMP, FX | Leave macro mode and open that page | The same |
+| TRK + trig key | Leave macro mode and select that track, on the page macro mode was entered from | The same |
 | MOD | Leave macro mode (also with PAGE held) | Back to the macro screen |
 
 PLAY, STOP, RECORD, PTN, SONG, TRK and FUNC keep their stock function throughout. While the mode is on, the MOD key
-is lit blue and the other page keys are dark.
+is lit blue and the other page keys are dark. A firmware screen that opens over the mode (the firmware update's
+confirmation, a dialog) takes the screen and the keys as on any page.
 
 ![The macro screen](docs/img/macro-turned.png) ![The setup screen of macro C](docs/img/setup.png)
 ![The destination list](docs/img/setup-list.png)

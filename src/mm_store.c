@@ -26,22 +26,27 @@ int mm_encode(const mm_t *s, uint8_t *out)
         for (int j = 0; j < MM_SLOTS; j++) {
             const mm_slot *sl = &s->m[k].slot[j];
             out[o++] = sl->dest;
+            out[o++] = (uint8_t)((uint16_t)sl->depth >> 8);
             out[o++] = (uint8_t)sl->depth;
             out[o++] = (uint8_t)(sl->tracks >> 8);
             out[o++] = (uint8_t)sl->tracks;
         }
+    for (int k = 0; k < MM_MACROS; k++)
+        for (int i = 0; i < MM_NAME_LEN; i++)
+            out[o++] = (uint8_t)s->m[k].name[i];  /* zero-padded */
     uint16_t c = crc16(out, o);
     out[o++] = (uint8_t)(c >> 8);
     out[o++] = (uint8_t)c;
     return o;
 }
 
+/* Versions 1 (depth -64 .. +63 in a byte, no names) and 2. len is what the buffer holds; the version gives the size. */
 int mm_decode(mm_t *s, const uint8_t *in, int len)
 {
-    if (len != MM_BLOB_SIZE || in[0] != 'M' || in[1] != 'M' || in[2] != MM_BLOB_VERSION || in[3] != MM_MACROS ||
-        in[4] != MM_SLOTS)
+    int v = len >= 5 ? in[2] : 0, size = v == 1 ? MM_BLOB_V1_SIZE : v == 2 ? MM_BLOB_SIZE : 0;
+    if (!size || len < size || in[0] != 'M' || in[1] != 'M' || in[3] != MM_MACROS || in[4] != MM_SLOTS)
         return -1;
-    if (crc16(in, len - 2) != (uint16_t)(in[len - 2] << 8 | in[len - 1]))
+    if (crc16(in, size - 2) != (uint16_t)(in[size - 2] << 8 | in[size - 1]))
         return -1;
     int o = 5;
     for (int k = 0; k < MM_MACROS; k++)
@@ -49,14 +54,38 @@ int mm_decode(mm_t *s, const uint8_t *in, int len)
             mm_slot *sl = &s->m[k].slot[j];
             int dest = in[o++];
             sl->dest = (uint8_t)(mm_dest_pos(s->dests, dest) < 0 ? 0 : dest); /* a destination this OS lacks: none */
-            sl->depth = (int8_t)in[o++];
+            if (v == 1) {
+                int d = (int8_t)in[o++] * 2 * MM_DEPTH_ONE;  /* -64 .. +63 was the full range */
+                sl->depth = (int16_t)(d > MM_DEPTH_MAX ? MM_DEPTH_MAX : d);
+            } else {
+                sl->depth = (int16_t)(in[o] << 8 | in[o + 1]);
+                o += 2;
+            }
             sl->tracks = (uint16_t)(in[o] << 8 | in[o + 1]);
             if (!sl->dest && !sl->tracks)   /* an unused slot of an older record: every track, as a fresh one */
                 sl->tracks = (uint16_t)((1u << MM_TRACKS) - 1);
             o += 2;
         }
-    s->dirty_mods = 1;
+    for (int k = 0; k < MM_MACROS; k++) {
+        for (int i = 0; i < MM_NAME_LEN; i++)
+            s->m[k].name[i] = v >= 2 ? (char)in[o++] : 0;
+        s->m[k].name[MM_NAME_LEN] = 0;
+    }
+    s->dirty_mods = s->dirty_screen = 1;
     return 0;
+}
+
+void mm_set_name(mm_t *s, int macro, const char *name)
+{
+    char *n = s->m[macro].name;
+    int i = 0;
+    for (; i < MM_NAME_LEN && name && name[i]; i++)
+        n[i] = name[i];
+    while (i > 0 && n[i - 1] == ' ')
+        i--;
+    for (; i <= MM_NAME_LEN; i++)
+        n[i] = 0;
+    s->dirty_screen = s->dirty_config = 1;
 }
 
 static uint32_t be32(const uint8_t *p)

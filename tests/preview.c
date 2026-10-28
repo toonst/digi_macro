@@ -43,8 +43,9 @@ int main(int argc, char **argv)
     s.m[0].pos = 40;
     s.m[1].pos = -25;
     s.m[2].pos = 63;
-    s.m[2].slot[0] = (mm_slot){36, 40, 0x0005};
+    s.m[2].slot[0] = (mm_slot){36, 40 * 512, 0x0005};
     s.m[5].pos = -64;
+    mm_set_name(&s, 3, "BASS");                 /* a named macro */
     s.popup = 2;
     raster_draw(&r, &s);
     save(&r, dir, "macro-turned");
@@ -52,8 +53,8 @@ int main(int argc, char **argv)
     s.state = MM_SETUP;
     s.edit = 2;
     s.sel = 1;
-    s.m[2].slot[1] = (mm_slot){55, -12, 0x0014};
-    s.m[2].slot[2] = (mm_slot){25, 5, 0xffff};
+    s.m[2].slot[1] = (mm_slot){55, -12 * 512, 0x0014};
+    s.m[2].slot[2] = (mm_slot){25, 5 * 512 + 77, 0xffff};
     raster_draw(&r, &s);
     save(&r, dir, "setup");
 

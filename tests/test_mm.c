@@ -31,6 +31,13 @@ static int press(mm_t *s, int code) { return mm_key(s, code, MM_F_PRESS); }
 static int release(mm_t *s, int code) { return mm_key(s, code, MM_F_RELEASE); }
 static int repeat(mm_t *s, int code) { return mm_key(s, code, MM_F_PRESS | MM_F_REPEAT); }
 
+/* The panel as the firmware's key-down query sees it: it can know a key is up when no release came. */
+static uint8_t panel[64];
+static int panel_down(int code) { return code >= 0 && code < 64 && panel[code]; }
+static int hold(mm_t *s, int code) { panel[code] = 1; return press(s, code); }
+static int lift(mm_t *s, int code) { panel[code] = 0; return release(s, code); }
+static void lift_silently(int code) { panel[code] = 0; }  /* a release the firmware does not pass on */
+
 static void enter(mm_t *s)
 {
     press(s, MM_K_PAGE);
@@ -209,14 +216,19 @@ static void test_setup_open_edit_and_back(void)
     enter(&s);
     press(&s, MM_K_FUNC);
     CHECK(press(&s, MM_K_PUSH_A + 2) == 1);   /* FUNC + push C */
-    CHECK(s.state == MM_SETUP && s.edit == 2);
+    CHECK(s.state == MM_MACRO);               /* a hold would name it: the setup opens as the push is let go */
     release(&s, MM_K_PUSH_A + 2);
+    CHECK(s.state == MM_SETUP && s.edit == 2);
     CHECK(release(&s, MM_K_FUNC) == 0);
     CHECK(mm_enc(&s, 2, 3) == 1);       /* B: slot 2 destination, three steps */
     CHECK(s.m[2].slot[1].dest == 30);
     CHECK(s.sel == 1);
-    mm_enc(&s, 6, -12);                 /* F: slot 2 depth */
-    CHECK(s.m[2].slot[1].depth == -12);
+    mm_enc(&s, 6, -12);                 /* F: slot 2 depth, whole units without the firmware's filter */
+    CHECK(s.m[2].slot[1].depth == -12 * MM_DEPTH_ONE);
+    s.enc_scaled = 1;                   /* with it, 1/256 units, as the stock depths */
+    mm_enc(&s, 6, 3);
+    CHECK(s.m[2].slot[1].depth == -12 * MM_DEPTH_ONE + 3);
+    s.enc_scaled = 0;
     CHECK(press(&s, MM_K_TRIG1 + 2) == 1);
     CHECK(press(&s, MM_K_TRIG1 + 4) == 1);
     CHECK(release(&s, MM_K_TRIG1 + 4) == 1);
@@ -243,7 +255,9 @@ static void test_setup_dest_bounds(void)
     mm_enc(&s, 1, -100);
     CHECK(s.m[0].slot[0].dest == 0);    /* none */
     mm_enc(&s, 5, 1000);
-    CHECK(s.m[0].slot[0].depth == MM_POS_MAX);
+    CHECK(s.m[0].slot[0].depth == MM_DEPTH_MAX);  /* 127.99 */
+    mm_enc(&s, 5, -1000);
+    CHECK(s.m[0].slot[0].depth == MM_DEPTH_MIN);  /* -128.00 */
 }
 
 static void test_setup_mod_goes_back_twice_to_leave(void)
@@ -294,17 +308,19 @@ static void test_setup_push_no_left_right_func_switch(void)
     CHECK(s.sel == 3);
     press(&s, MM_K_FUNC);
     press(&s, MM_K_PUSH_A + 5);         /* FUNC + push F: the setup of macro F */
+    release(&s, MM_K_PUSH_A + 5);
     CHECK(s.state == MM_SETUP && s.edit == 5);
 }
 
 static void test_slot_delta(void)
 {
-    CHECK(mm_slot_delta(0, 63) == 0);
+    CHECK(mm_slot_delta(0, 63 * 512) == 0);
     CHECK(mm_slot_delta(63, 0) == 0);
-    CHECK(mm_slot_delta(-64, -64) == MM_RAW_MAX);
-    CHECK(mm_slot_delta(63, 63) == (63 * 63 * MM_RAW_MAX) >> 12);
-    CHECK(mm_slot_delta(-63, 63) == -mm_slot_delta(63, 63));
-    CHECK(mm_slot_delta(1, 1) == MM_RAW_MAX >> 12);
+    CHECK(mm_slot_delta(-64, MM_DEPTH_MIN) == MM_RAW_MAX); /* full turn, full depth: the whole range */
+    CHECK(mm_slot_delta(63, 63 * 512) == (63 * 63 * MM_RAW_MAX) >> 12); /* depth 126.00, as 63 was before */
+    CHECK(mm_slot_delta(-63, 63 * 512) == -mm_slot_delta(63, 63 * 512));
+    CHECK(mm_slot_delta(1, 512) == MM_RAW_MAX >> 12);
+    CHECK(mm_slot_delta(64, MM_DEPTH_ONE / 100 + 1) > 0); /* 0.01 still moves at full turn */
 }
 
 static void test_build_and_apply(void)
@@ -313,17 +329,17 @@ static void test_build_and_apply(void)
     static mm_mods mods;
     fresh(&s);
     s.m[0].pos = 16;
-    s.m[0].slot[0] = (mm_slot){30, 63, 0x0005};  /* tracks 1 and 3 */
-    s.m[0].slot[1] = (mm_slot){30, 63, 0x0001};  /* the same destination on track 1: merged */
+    s.m[0].slot[0] = (mm_slot){30, 32256, 0x0005};  /* tracks 1 and 3 */
+    s.m[0].slot[1] = (mm_slot){30, 32256, 0x0001};  /* the same destination on track 1: merged */
     s.m[1].pos = 0;                              /* at the centre: nothing */
-    s.m[1].slot[0] = (mm_slot){55, 63, 0xffff};
+    s.m[1].slot[0] = (mm_slot){55, 32256, 0xffff};
     s.m[2].pos = -64;
-    s.m[2].slot[0] = (mm_slot){64, 32, 0x0004};  /* track 3 */
+    s.m[2].slot[0] = (mm_slot){64, 16384, 0x0004};  /* track 3 */
     s.m[3].pos = 10;
-    s.m[3].slot[0] = (mm_slot){90, 63, 0xffff};  /* at or above the bound: never applied */
+    s.m[3].slot[0] = (mm_slot){90, 32256, 0xffff};  /* at or above the bound: never applied */
     mm_build(&s, &mods);
     CHECK(mods.active == 0x0005);
-    CHECK(mods.t[0].n == 1 && mods.t[0].dest[0] == 30 && mods.t[0].delta[0] == 2 * mm_slot_delta(16, 63));
+    CHECK(mods.t[0].n == 1 && mods.t[0].dest[0] == 30 && mods.t[0].delta[0] == 2 * mm_slot_delta(16, 63 * 512));
     CHECK(mods.t[2].n == 2);
     CHECK(mods.t[1].n == 0);
 
@@ -332,8 +348,8 @@ static void test_build_and_apply(void)
         values[i] = 0x4000;
     values[2 * 71 + 64] = 0x0100;
     mm_apply(&mods, values, 71, 70);
-    CHECK(values[30] == 0x4000 + 2 * mm_slot_delta(16, 63));
-    CHECK(values[2 * 71 + 30] == 0x4000 + mm_slot_delta(16, 63));
+    CHECK(values[30] == 0x4000 + 2 * mm_slot_delta(16, 63 * 512));
+    CHECK(values[2 * 71 + 30] == 0x4000 + mm_slot_delta(16, 63 * 512));
     CHECK(values[2 * 71 + 64] == 0);            /* saturated at 0 */
     CHECK(values[1 * 71 + 30] == 0x4000);       /* track 2 is in no mask */
     CHECK(values[3 * 71 + 90 % 71] == 0x4000);
@@ -351,12 +367,12 @@ static void test_build_saturates_and_cancels(void)
     fresh(&s);
     for (int k = 0; k < 4; k++) {
         s.m[k].pos = 63;
-        s.m[k].slot[0] = (mm_slot){25, 63, 1};
+        s.m[k].slot[0] = (mm_slot){25, 32256, 1};
     }
     s.m[4].pos = 20;
-    s.m[4].slot[0] = (mm_slot){26, 30, 1};
+    s.m[4].slot[0] = (mm_slot){26, 15360, 1};
     s.m[5].pos = -20;
-    s.m[5].slot[0] = (mm_slot){26, 30, 1};
+    s.m[5].slot[0] = (mm_slot){26, 15360, 1};
     mm_build(&s, &mods);
     CHECK(mods.t[0].n == 1);                    /* 26 cancels out */
     CHECK(mods.t[0].delta[0] == MM_RAW_MAX);
@@ -438,6 +454,7 @@ static void test_leds_dirty(void)
     CHECK(!s.dirty_leds);               /* a macro turn changes no LED */
     press(&s, MM_K_FUNC);
     press(&s, MM_K_PUSH_A);
+    release(&s, MM_K_PUSH_A);
     release(&s, MM_K_FUNC);
     CHECK(s.dirty_leds);                /* the setup screen shows the tracks */
     s.dirty_leds = 0;
@@ -466,6 +483,7 @@ static void test_leds(void)
         CHECK(code[k] == MM_K_TRIG + k - 1 && val[k] == MM_LED_OFF);
     press(&s, MM_K_FUNC);
     press(&s, MM_K_PUSH_A);
+    release(&s, MM_K_PUSH_A);
     release(&s, MM_K_FUNC);
     s.m[0].slot[0].tracks = 0x8001;
     CHECK(mm_leds(&s, code, val, MM_MAX_LEDS) == 22);
@@ -481,19 +499,136 @@ static void test_blob_round_trip(void)
     uint8_t blob[MM_BLOB_SIZE];
     fresh(&a);
     fresh(&b);
-    a.m[3].slot[2] = (mm_slot){55, -40, 0xa5a5};
+    a.m[3].slot[2] = (mm_slot){55, -12345, 0xa5a5};
+    mm_set_name(&a, 5, "BASS ");
     a.m[7].slot[3] = (mm_slot){99, 5, 1};       /* not in this list: decodes to none */
     a.m[7].pos = 12;                            /* positions are not stored (D14) */
     CHECK(mm_encode(&a, blob) == MM_BLOB_SIZE);
     CHECK(mm_decode(&b, blob, MM_BLOB_SIZE) == 0);
-    CHECK(b.m[3].slot[2].dest == 55 && b.m[3].slot[2].depth == -40 && b.m[3].slot[2].tracks == 0xa5a5);
+    CHECK(b.m[3].slot[2].dest == 55 && b.m[3].slot[2].depth == -12345 && b.m[3].slot[2].tracks == 0xa5a5);
+    CHECK(!strcmp(b.m[5].name, "BASS") && b.m[4].name[0] == 0);
     CHECK(b.m[7].slot[3].dest == 0 && b.m[7].pos == 0);
     blob[10] ^= 1;
     CHECK(mm_decode(&b, blob, MM_BLOB_SIZE) == -1);
     blob[10] ^= 1;
     blob[2] = MM_BLOB_VERSION + 1;              /* a future version is refused */
     CHECK(mm_decode(&b, blob, MM_BLOB_SIZE) == -1);
+    blob[2] = MM_BLOB_VERSION;
     CHECK(mm_decode(&b, blob, MM_BLOB_SIZE - 1) == -1);
+}
+
+/* A record of version 1, as an earlier build stored it: depth -64 .. +63 in a byte, no names. */
+static void test_blob_version_1(void)
+{
+    uint8_t v1[MM_BLOB_V1_SIZE];
+    mm_t b;
+    int o = 0;
+    v1[o++] = 'M', v1[o++] = 'M', v1[o++] = 1, v1[o++] = MM_MACROS, v1[o++] = MM_SLOTS;
+    for (int k = 0; k < MM_MACROS; k++)
+        for (int j = 0; j < MM_SLOTS; j++) {
+            int set = k == 2 && j == 1;
+            v1[o++] = set ? 30 : 0;
+            v1[o++] = (uint8_t)(set ? -12 : k == 3 && j == 0 ? 63 : 0);
+            v1[o++] = 0, v1[o++] = set ? 0x14 : 0;
+        }
+    uint16_t c = 0xffff;                        /* CRC-16/CCITT, as mm_store.c */
+    for (int i = 0; i < o; i++) {
+        c ^= (uint16_t)(v1[i] << 8);
+        for (int bit = 0; bit < 8; bit++)
+            c = (uint16_t)(c & 0x8000 ? (c << 1) ^ 0x1021 : c << 1);
+    }
+    v1[o++] = (uint8_t)(c >> 8), v1[o++] = (uint8_t)c;
+    CHECK(o == MM_BLOB_V1_SIZE);
+    fresh(&b);
+    CHECK(mm_decode(&b, v1, sizeof v1) == 0);
+    CHECK(b.m[2].slot[1].dest == 30 && b.m[2].slot[1].depth == -12 * 512 && b.m[2].slot[1].tracks == 0x14);
+    CHECK(b.m[3].slot[0].depth == 63 * 512);    /* the same offset as before: full was 64, now 128.00 */
+    CHECK(b.m[0].slot[0].tracks == 0xffff && b.m[2].name[0] == 0);
+    CHECK(mm_slot_delta(-6, b.m[2].slot[1].depth) == ((-6 * -12 * MM_RAW_MAX) >> 12));
+}
+
+static void test_trk_trig_selects_track(void)
+{
+    mm_t s;
+    fresh(&s);
+    enter(&s);
+    CHECK(press(&s, MM_K_TRK) == 0);            /* TRK held: its usual function */
+    CHECK(press(&s, MM_K_TRIG1 + 3) == 0);      /* + trig 4: leaves, and the firmware selects track 4 */
+    CHECK(s.state == MM_OFF);
+    release(&s, MM_K_TRIG1 + 3);
+    release(&s, MM_K_TRK);
+    enter(&s);
+    CHECK(press(&s, MM_K_TRIG1 + 3) == 0 && s.state == MM_MACRO); /* a trig key alone stays */
+    release(&s, MM_K_TRIG1 + 3);
+    press(&s, MM_K_FUNC);
+    press(&s, MM_K_PUSH_A);
+    release(&s, MM_K_PUSH_A);
+    release(&s, MM_K_FUNC);
+    press(&s, MM_K_TRK);                        /* from the setup screen too */
+    CHECK(press(&s, MM_K_TRIG1) == 0 && s.state == MM_OFF);
+}
+
+static void test_release_without_flags(void)
+{
+    mm_t s;
+    fresh(&s);
+    enter(&s);
+    press(&s, MM_K_FUNC);
+    CHECK(mm_key(&s, MM_K_FUNC, 0) == 0);     /* FUNC's release comes with no flag set */
+    CHECK(!s.func);
+    press(&s, MM_K_PUSH_A);
+    release(&s, MM_K_PUSH_A);
+    CHECK(s.state == MM_MACRO);               /* so a push after it is not FUNC + push */
+    CHECK(press(&s, MM_K_PAGE) == 1);
+    CHECK(mm_key(&s, MM_K_PAGE, 0) == 1);     /* a taken press's flagless release is taken too */
+    CHECK(mm_key(&s, MM_K_PUSH_A, MM_F_PRESS | MM_F_REPEAT) == 0); /* a repeat of a press not taken */
+}
+
+static void test_announce(void)
+{
+    mm_t s;
+    fresh(&s);
+    enter(&s);
+    CHECK(s.announce);                          /* the glue shows "Macro Mode" in the header */
+}
+
+static void test_func_hold_names(void)
+{
+    mm_t s;
+    memset(panel, 0, sizeof panel);
+    fresh(&s);
+    s.key_down = panel_down;
+    hold(&s, MM_K_PAGE);
+    hold(&s, MM_K_MOD);
+    lift(&s, MM_K_MOD);
+    lift(&s, MM_K_PAGE);
+    hold(&s, MM_K_FUNC);
+    hold(&s, MM_K_PUSH_A + 3);                  /* FUNC + push D, held */
+    for (int t = 0; t < MM_HOLD_TICKS - 1; t++)
+        mm_tick(&s);
+    CHECK(!s.name_req && s.state == MM_MACRO);
+    mm_tick(&s);
+    CHECK(s.name_req == 4 && s.state == MM_MACRO); /* the glue opens the naming screen for D */
+    lift(&s, MM_K_PUSH_A + 3);
+    lift(&s, MM_K_FUNC);
+    CHECK(s.state == MM_MACRO);                 /* and letting go does not open the setup */
+    s.name_req = 0;
+    mm_set_name(&s, 3, "LEAD!!");               /* five characters at most */
+    CHECK(!strcmp(s.m[3].name, "LEAD!") && s.dirty_config);
+
+    hold(&s, MM_K_FUNC);                        /* short: the setup */
+    hold(&s, MM_K_PUSH_A + 1);
+    mm_tick(&s);
+    lift(&s, MM_K_PUSH_A + 1);
+    CHECK(s.state == MM_SETUP && s.edit == 1 && !s.name_req);
+    hold(&s, MM_K_PUSH_A + 2);                  /* on the setup screen: short switches */
+    lift_silently(MM_K_PUSH_A + 2);             /* (a release that never came: the tick sees it) */
+    mm_tick(&s);
+    CHECK(s.state == MM_SETUP && s.edit == 2);
+    hold(&s, MM_K_PUSH_A + 5);                  /* held names */
+    for (int t = 0; t < MM_HOLD_TICKS; t++)
+        mm_tick(&s);
+    CHECK(s.name_req == 6 && s.edit == 2);
 }
 
 static void test_record(void)
@@ -533,12 +668,6 @@ static void test_labels(void)
     CHECK(!strcmp(buf, "P99"));
 }
 
-/* The panel as the firmware's key-down query sees it: it can know a key is up when no release came. */
-static uint8_t panel[64];
-static int panel_down(int code) { return code >= 0 && code < 64 && panel[code]; }
-static int hold(mm_t *s, int code) { panel[code] = 1; return press(s, code); }
-static int lift(mm_t *s, int code) { panel[code] = 0; return release(s, code); }
-static void lift_silently(int code) { panel[code] = 0; }  /* a release the firmware does not pass on */
 
 static void test_lost_func_release(void)
 {
@@ -596,6 +725,7 @@ static void test_page_keys_leave(void)
     enter(&s);
     press(&s, MM_K_FUNC);
     press(&s, MM_K_PUSH_A);
+    release(&s, MM_K_PUSH_A);
     release(&s, MM_K_FUNC);
     s.dirty_config = 0;
     CHECK(press(&s, MM_K_TRIG) == 0);           /* from the setup screen too, storing it */
@@ -618,6 +748,7 @@ static void test_level_push(void)
     s.m[2].pos = 6;
     press(&s, MM_K_FUNC);
     press(&s, MM_K_PUSH_A + 2);
+    release(&s, MM_K_PUSH_A + 2);
     release(&s, MM_K_FUNC);
     CHECK(press(&s, MM_K_LEVEL) == 1);          /* on the setup screen, the edited one */
     CHECK(s.m[2].pos == 0 && s.m[1].pos == 5 && s.state == MM_SETUP);
@@ -630,6 +761,7 @@ static void test_destination_list(void)
     enter(&s);
     press(&s, MM_K_FUNC);
     press(&s, MM_K_PUSH_A);
+    release(&s, MM_K_PUSH_A);
     release(&s, MM_K_FUNC);
     release(&s, MM_K_PUSH_A);
     CHECK(mm_enc(&s, 2, 1) == 1);               /* B turns: its list opens, the choice applies at once */
@@ -725,6 +857,11 @@ int main(void)
     test_list_lines();
     test_init_and_old_records();
     test_scaled_encoders();
+    test_blob_version_1();
+    test_trk_trig_selects_track();
+    test_announce();
+    test_release_without_flags();
+    test_func_hold_names();
     test_leds();
     test_leds_dirty();
     test_blob_round_trip();

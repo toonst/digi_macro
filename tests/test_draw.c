@@ -60,6 +60,10 @@ static void macro_screen(void)
     s.m[2].slot[1].dest = 30;                   /* a set knob shows its first destination */
     raster_draw(&r, &s);
     CHECK(raster_count(&r, 85 - 12, 32, 85 + 12, 36) > 20);
+    before = raster_count(&r, 85 - 12, 32, 85 + 12, 36);
+    mm_set_name(&s, 2, "BASS");                 /* a name wins */
+    raster_draw(&r, &s);
+    CHECK(raster_count(&r, 85 - 12, 32, 85 + 12, 36) != before);
 }
 
 static void setup_screen(void)
@@ -71,8 +75,8 @@ static void setup_screen(void)
     s.edit = 2;
     s.sel = 1;
     s.m[2].pos = 40;
-    s.m[2].slot[0] = (mm_slot){30, 40, 0x0005};
-    s.m[2].slot[1] = (mm_slot){55, -12, 0xffff};
+    s.m[2].slot[0] = (mm_slot){30, 40 * 512, 0x0005};
+    s.m[2].slot[1] = (mm_slot){55, -12 * 512, 0xffff};
     raster_draw(&r, &s);
     CHECK(r.out_of_bounds == 0);
     CHECK(raster_count(&r, 30, 0, 98, 4) > 60); /* MODULATION SETUP */

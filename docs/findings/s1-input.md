@@ -45,6 +45,20 @@ reaches `ev_key`, so a "FUNC held" flag kept from presses and releases stays set
 firmware's key-down query instead, `int key_down(code)` (DT2 `0x4011e150`, DN2 `0x4011fac4`; digikit finding 58): FUNC,
 the pushes and the entry chord's first key.
 
+## Key event flags **[D]**
+
+From the mode's key log (`mm_keylog`, read by the scenario): bit 0 is "down". A press has `0x01` (`0x03` with FUNC
+held), a held key repeats with `0x09` (`0x0b`), and a release has bit 0 clear: `0x10` for most keys, but FUNC's and
+PAGE's come with no bit set at all (`0x00`). The mode first treated only `0x10` as a release, so FUNC looked held for
+good after any FUNC chord: a push alone opened the setup, and NO there reset the macros (the round-1 report).
+
+## Views FUNC and TRK put on **[D]**
+
+While FUNC is held the firmware puts `QuickMuteMenuView` on top (DT2 `0x401f9208`, DN2 `0x401e1eb4`), while TRK is
+held `TrackSelectionView` (DT2 `0x401f9ec8`, DN2 `0x401e2b68`). The mode keeps the keys under both (FUNC + push,
+TRK + trig) and its screen under the first; any other view over it (a dialog, the firmware update's confirmation,
+the naming screen) gets the keys, the knobs and the screen, as on any page.
+
 ## Menus and dialogs (D9) **[D]**
 
 The view controller sits at Brain `+0x40`; its view stack is a list whose sentinel is at `+0x14` (the sentinel's

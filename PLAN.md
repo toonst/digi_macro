@@ -130,7 +130,7 @@ All decided by the user:
 | D2 | Macros **keep their state** when the mode is left |
 | D3 | **Push + turn** changes a macro in bigger increments, and **push + NO** resets it to the centre, as for the stock parameters |
 | D4 | The configuration is **global** in the first version. Later it is per pattern or per project, chosen by a setting |
-| D5 | Depth −64 … +63 per slot, 0 = off; at full depth and full turn the offset spans the whole parameter range |
+| D5 | Depth per slot as the stock modulation setups: −128.00 … +127.99 (1/256 steps), 0 = off; at full depth and full turn the offset spans the whole parameter range. Macro positions stay whole steps, −64 … +63, as the stock 0–127 parameters |
 | D6 | Outside the setup screen the **trig keys keep their usual function**, in whatever mode they are in (in mute mode they stay mute keys). PLAY, STOP, RECORD, PTN, SONG, TRK and FUNC keep theirs too; they act behind the macro screen. The LEVEL/DATA encoder, its push and FUNC + NO are the mode's (D16); the page keys leave the mode and open their page. Only the setup screen gives the trig keys another function (4.2) |
 | D7 | The setup screen works like the stock modulation setups: **A** = slot 1 destination, **E** = slot 1 depth, **B / F** = slot 2, **C / G** = slot 3, **D / H** = slot 4 |
 | D8 | On the setup screen **MOD goes back** to the macro screen, as NO does; a second MOD press, on the macro screen, exits macro mode |
@@ -184,7 +184,9 @@ All decided by the user:
 | Push A–H held + turn | Bigger steps, as the stock knobs (the filter's pushed mode) | The same, on that knob |
 | Push A–H held + NO | Reset that macro to the centre | Reset that knob: destination to none, depth to 0 |
 | Push A–H alone | Taken (for push + turn, push + NO); it never opens SETUP | Selects that slot |
-| FUNC + push A–H | Open SETUP for that macro | Switch to that macro's setup |
+| FUNC + push A–H, let go | Open SETUP for that macro | Switch to that macro's setup |
+| FUNC + push A–H, held (about 0.5 s) | Name that macro: the firmware's naming screen, as a MIDI machine's parameter (5 characters); the name labels its knob | The same |
+| TRK + trig | Leave; the firmware selects that track on the page underneath | The same |
 | LEFT / RIGHT | Pass | Step the selected slot |
 | Trig 1–16 | Pass: their usual function, in their current mode (D6) | Toggle that track in the selected slot's mask |
 | NO alone | Pass | Close the destination list; else back to MACRO (the configuration is saved) |

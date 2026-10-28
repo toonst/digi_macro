@@ -84,9 +84,8 @@ static int q10(int n)
 /* The stock knob: a circle of radius 8 and a pointer from the centre; up is the centre of a bipolar value
  * (-64 .. +63), the travel +-135 degrees. */
 #define KNOB_R 8
-static void knob(const mm_canvas *c, int cx, int cy, int v)
+static void knob(const mm_canvas *c, int cx, int cy, int a) /* a: the pointer's angle, -135 .. 135 degrees */
 {
-    int a = v * 135 / 64;
     int len = KNOB_R - 1;
     circle(c, cx, cy, KNOB_R);
     line(c, cx, cy, cx + q10(isin(a) * len), cy - q10(icos(a) * len));
@@ -145,12 +144,18 @@ static void own_text(const mm_canvas *c, int x, int y, const char *s)
 }
 
 /* s with its top row at ytop, from x or centred on it */
-static void text(const mm_canvas *c, int x, int ytop, int centre, const char *s)
+static void text(const mm_canvas *c, int x, int ytop, int flags, const char *s)
 {
     if (c->text)
-        c->text(c->ctx, x, ytop, centre, s);
+        c->text(c->ctx, x, ytop, flags, s);
     else
-        own_text(c, centre ? x - text_width(s) / 2 : x, ytop, s);
+        own_text(c, flags & MM_TEXT_CENTRE ? x - text_width(s) / 2 : x, ytop, s);
+}
+
+/* the narrow font: the stock page box, the destination list */
+static void small(const mm_canvas *c, int x, int ytop, int flags, const char *s)
+{
+    text(c, x, ytop, flags | MM_TEXT_SMALL, s);
 }
 
 static void fmt_signed(int v, char *buf)
@@ -170,9 +175,39 @@ static void fmt_signed(int v, char *buf)
     buf[i] = 0;
 }
 
-/* What a knob of the macro screen is called: its first slot's destination once set, else its letter. */
+/* A depth as the stock modulation setups show one: two decimals ("0.03", "127.00"), one where six characters would
+ * not hold them ("-128.0"). */
+static void fmt_depth(int v, char *buf)
+{
+    int h = ((v < 0 ? -v : v) * 100 + 128) / 256, i = 0, n = 0;
+    char tmp[4];
+    if (v < 0 && h)
+        buf[i++] = '-';
+    int w = h / 100;
+    do
+        tmp[n++] = (char)('0' + w % 10);
+    while ((w /= 10) && n < 3);
+    while (n)
+        buf[i++] = tmp[--n];
+    buf[i++] = '.';
+    buf[i++] = (char)('0' + h / 10 % 10);
+    buf[i++] = (char)('0' + h % 10);
+    if (i > 6)
+        i = 6;
+    buf[i] = 0;
+}
+
+/* What a knob of the macro screen is called: its name once given, else its first slot's destination once set, else
+ * its letter. */
 static void macro_label(const mm_t *s, int k, char *buf)
 {
+    if (s->m[k].name[0]) {
+        int i = 0;
+        for (; i < MM_NAME_LEN && s->m[k].name[i]; i++)
+            buf[i] = s->m[k].name[i];
+        buf[i] = 0;
+        return;
+    }
     for (int j = 0; j < MM_SLOTS; j++)
         if (s->m[k].slot[j].dest) {
             mm_dest_label(s->dests, s->m[k].slot[j].dest, buf);
@@ -203,15 +238,15 @@ static void draw_macro(const mm_t *s, const mm_canvas *c)
     c->fill(c->ctx, 1, 36, 13, 36, 1);
     c->fill(c->ctx, 0, 14, 0, 35, 1);
     c->fill(c->ctx, 14, 14, 14, 35, 1);
-    own_text(c, 7 - text_width("MAC") / 2, 22, "MAC"); /* the stock box's narrow font: 3-pixel letters, 1 pixel free */
+    small(c, 7, 22, MM_TEXT_CENTRE, "MAC");     /* the stock box's narrow font: 3-pixel letters, 1 pixel free */
     for (int k = 0; k < MM_MACROS; k++) {
         int col = k & 3, row = k >> 2;
-        knob(c, COL_X(col), ROW_Y(row), s->m[k].pos);
+        knob(c, COL_X(col), ROW_Y(row), s->m[k].pos * 135 / 64);
         if (s->popup == k + 1)
             fmt_signed(s->m[k].pos, buf);
         else
             macro_label(s, k, buf);
-        text(c, COL_X(col), LABEL_Y(row), 1, buf);
+        text(c, COL_X(col), LABEL_Y(row), MM_TEXT_CENTRE, buf);
     }
 }
 
@@ -232,8 +267,8 @@ static void draw_list(const mm_t *s, const mm_canvas *c)
     c->fill(c->ctx, 1, 13, 23, 13, 1);            /* the box, open at the bottom */
     c->fill(c->ctx, 0, 14, 0, H - 1, 1);
     c->fill(c->ctx, 24, 14, 24, H - 1, 1);
-    own_text(c, 12 - text_width(buf) / 2, 17, buf); /* the narrow font, as the stock's box and page column */
-    own_text(c, 12 - text_width("DEST") / 2, 24, "DEST");
+    small(c, 12, 17, MM_TEXT_CENTRE, buf);       /* all in the narrow font, as the stock's list */
+    small(c, 12, 24, MM_TEXT_CENTRE, "DEST");
     for (int x = 4; x <= 20; x++)                 /* the wave under it */
         c->fill(c->ctx, x, x % 4 == 0 ? 34 : x % 4 == 2 ? 32 : 33, x, x % 4 == 0 ? 34 : x % 4 == 2 ? 32 : 33, 1);
     if (sel < top)                                 /* the selection is always in view */
@@ -249,19 +284,19 @@ static void draw_list(const mm_t *s, const mm_canvas *c)
             continue;
         }
         if (first)
-            own_text(c, 28, y, mm_dest_group(s->dests, dest));
+            small(c, 28, y, 0, mm_dest_group(s->dests, dest));
         if (dest) {
             int p = mm_dest_pos(s->dests, dest);
             const mm_dest *d = &s->dests->d[p];
             if (d->full || d->name) {
-                text(c, 46, y, 0, d->full ? d->full : d->name);
+                small(c, 46, y, 0, d->full ? d->full : d->name);
             } else {
                 char label[8];
                 mm_dest_label(s->dests, dest, label);
-                text(c, 46, y, 0, label);
+                small(c, 46, y, 0, label);
             }
         } else {
-            text(c, 46, y, 0, "None");
+            small(c, 46, y, 0, "None");
         }
         if (line == sel)
             c->fill(c->ctx, 45, y - 1, 122, y + 5 > H - 1 ? H - 1 : y + 5, -1);
@@ -283,8 +318,8 @@ static void draw_setup(const mm_t *s, const mm_canvas *c)
 {
     char buf[8];
     const mm_macro *m = &s->m[s->edit];
-    text(c, 64, 0, 1, "MODULATION SETUP");
-    text(c, 64, 6, 1, "MACRO MODE");
+    text(c, 64, 0, MM_TEXT_CENTRE, "MODULATION SETUP");
+    text(c, 64, 6, MM_TEXT_CENTRE, "MACRO MODE");
     if (s->list) {
         draw_list(s, c);
         return;
@@ -294,7 +329,7 @@ static void draw_setup(const mm_t *s, const mm_canvas *c)
             c->fill(c->ctx, SEP_X(j), y, SEP_X(j), y, 1);
 
     buf[0] = (char)('A' + s->edit), buf[1] = 0;  /* the macro, where the stock shows the source's icon */
-    text(c, 8, 22, 1, buf);
+    text(c, 8, 22, MM_TEXT_CENTRE, buf);
     rect(c, 3, 40, 13, 55);                       /* its position as a fader, filled from the middle */
     for (int y = 42; y < 55; y += 2)
         c->fill(c->ctx, 5, y, 5, y, 1), c->fill(c->ctx, 11, y, 11, y, 1);
@@ -309,17 +344,17 @@ static void draw_setup(const mm_t *s, const mm_canvas *c)
             c->fill(c->ctx, 6, 47, 10, 48, 1);
     }
     fmt_signed(m->pos, buf);
-    text(c, 8, 59, 1, buf);
+    text(c, 8, 59, MM_TEXT_CENTRE, buf);
 
     for (int j = 0; j < MM_SLOTS; j++) {
         const mm_slot *sl = &m->slot[j];
         int cx = SLOT_X(j);
-        text(c, cx, 21, 1, mm_dest_group(s->dests, sl->dest));  /* A..D: the destination */
+        text(c, cx, 21, MM_TEXT_CENTRE, mm_dest_group(s->dests, sl->dest));  /* A..D: the destination */
         mm_dest_label(s->dests, sl->dest, buf);
-        text(c, cx, 29, 1, buf);
-        knob(c, cx, 48, sl->depth);                              /* E..H: the depth */
-        fmt_signed(sl->depth, buf);
-        text(c, cx, 59, 1, buf);
+        text(c, cx, 29, MM_TEXT_CENTRE, buf);
+        knob(c, cx, 48, (int32_t)sl->depth * 135 / 32768);      /* E..H: the depth */
+        fmt_depth(sl->depth, buf);
+        text(c, cx, 59, MM_TEXT_CENTRE, buf);
         if (j == s->sel)                                         /* the selected slot: its heading inverted */
             c->fill(c->ctx, SEP_X(j) + 1, 19, SEP_X(j) + 27 > W - 1 ? W - 1 : SEP_X(j) + 27, 35, -1);
     }

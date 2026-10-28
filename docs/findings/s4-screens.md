@@ -36,6 +36,41 @@ first line and the long name at `x 46`; a dotted line between pages; the selecte
 scroll bar at `x 124–127`. The choice applies while turning; NO closes the list. The mode draws the same, with the
 macro's slot for MOD1.
 
+## Fonts **[D]**
+
+The narrow font (3-pixel letters, lowercase too) is a firmware font object: DT2 `0x44d2e6f4`, DN2 `0x44508ee0`, `0x18`
+below the main one on both. The stock list, its box and the parameter pages' box use it; drawn with it, the mode's
+list is pixel for pixel the stock AFTERTOUCH list.
+
+## The header's message **[D]**
+
+A page shows its title in the header as it opens ("Filter (1/2)"); `UIStates` (a singleton, DT2 `*0x44f370c0`, its
+getter `0x401998c0`; DN2 `*0x446488c8`, `0x4018b2a4`) holds the message at `+72` (a std::string) and its time at
+`+76`. `0x4005b23a(ui, fmt, ...)` (DN2 `0x400562e6`) sets it, as the stock does for "Ptn reloaded from …". The mode
+shows "Macro Mode" when it is entered.
+
+The firmware returns pointers in d0, where this compiler's m68k ABI reads a pointer result from a0: calling the getter
+as returning a pointer gave a stale a0 (the view controller) and froze the UI. The glue calls routines that return a
+pointer as returning a number.
+
+## The naming screen **[D]**
+
+`NameView` (vtable DT2 `0x4021d5ac`, DN2 `0x40206f78`) is the firmware's naming screen. A MIDI machine opens it to name
+a parameter (FUNC + hold a knob) with its second constructor, DT2 `0x40117c70`, DN2 `0x401195e4`:
+`(view, &title, &name, 0, 5, 0, &done)`, title "MIDI PARAM NAME", 5 characters, `done` a
+`std::function<void(std::string)>` called with the new name on YES. The view is made as `std::make_shared` makes it
+(`operator new` DT2 `0x4011ebd0`, 0xb0 bytes: the control block, vtable DT2 `0x401ef190` / DN2 `0x401e0fd8`, then the
+view) and pushed with `0x4011c08a(Brain + 0x40, &shared_ptr, 0)` (DN2 `0x4011d9fe`). A std::string is one pointer to
+its characters (`0x401e7e7a(&str, cstr, &alloc)` builds one, `0x401e63ca` frees it). The mode opens it the same way,
+titled "MACRO NAME", with a std::function whose functor (the macro) is stored in place.
+
+## Depths **[D]**
+
+The stock modulation depths run −128.00 … 127.00 (turned to the ends on AFTERTOUCH), in 1/256 steps (a slow turn moved
+0.03), shown with two decimals in six characters (`-128.0`). Their knobs turn through the encoder filter with the
+configuration `0x44d2e670` (DN2 `0x44508e5c`), the count x12 when pushed (whole steps then). The mode's depths are
+the same.
+
 ## Open **[O]**
 
 - How the stock setup screen marks the selected column (the mod inverts its heading, rows 19–35).

@@ -10,8 +10,15 @@
 #define MM_MACROS 8
 #define MM_SLOTS 4
 #define MM_TRACKS 16
-#define MM_POS_MIN (-64) /* macro position and slot depth: -64 .. +63, 0 = centre / off (D5) */
+#define MM_POS_MIN (-64) /* macro position: -64 .. +63, 0 = centre (D5) */
 #define MM_POS_MAX 63
+/* Slot depth as the stock modulation setups have it: -128.00 .. +127.99 in 1/256 steps, 0 = off; at full depth and
+ * full turn the offset spans the parameter range. */
+#define MM_DEPTH_MIN (-32768)
+#define MM_DEPTH_MAX 32767
+#define MM_DEPTH_ONE 256  /* 1.00 */
+#define MM_NAME_LEN 5     /* a macro's name, as a MIDI machine parameter's */
+#define MM_HOLD_TICKS 15  /* FUNC + push held this long (about 0.5 s of ev_tick) names the macro */
 #define MM_RAW_MAX 0x7f00 /* a parameter's raw range is 0 .. 0x7f00 (digikit finding 02) */
 #define MM_COARSE 8       /* push + turn step (D3) without the firmware's encoder filter (the host tests) */
 #define MM_POPUP_TICKS 30 /* how long a turned knob shows its value: about 1 s of ev_tick */
@@ -28,7 +35,7 @@ enum {
     MM_K_LEFT = 13,
     MM_K_DOWN = 14,
     MM_K_RIGHT = 15,
-    MM_K_TRK = 16,
+    MM_K_TRK = 16,    /* held with a trig key: selects that track */
     MM_K_FUNC = 17,
     MM_K_RECORD = 19,
     MM_K_PLAY = 20,
@@ -57,13 +64,14 @@ enum { MM_OFF = 0, MM_MACRO, MM_SETUP };
 
 typedef struct {
     uint8_t dest;    /* value-array index; 0 = none */
-    int8_t depth;    /* -64 .. +63, 0 = off */
+    int16_t depth;   /* MM_DEPTH_MIN .. MM_DEPTH_MAX, 1/256 units, 0 = off */
     uint16_t tracks; /* bit t: track t + 1 */
 } mm_slot;
 
 typedef struct {
     int8_t pos; /* -64 .. +63, 0 = centre */
     mm_slot slot[MM_SLOTS];
+    char name[MM_NAME_LEN + 1]; /* "" until named */
 } mm_macro;
 
 /* The destinations a slot can take, in the order the encoder steps through them (W4, spike S6). */
@@ -106,6 +114,11 @@ typedef struct mm {
     uint8_t enc_scaled;   /* encoder deltas arrive in steps, push already applied (the firmware's encoder filter) */
     uint8_t list;         /* SETUP: slot + 1 whose destination list is open, 0 = none */
     uint8_t list_top;     /* the list's first visible line */
+    uint8_t trk;          /* TRK held (without key_down) */
+    uint8_t announce;     /* the mode was entered: the glue shows its title in the header, as a page's */
+    uint8_t name_arm;     /* macro + 1 of a FUNC + push still held: short, its setup; held, its name */
+    uint8_t name_ticks;
+    uint8_t name_req;     /* macro + 1 to name: the glue opens the firmware's naming screen */
 } mm_t;
 
 #define MM_LIST_ROWS 7    /* the destination list's visible lines */
@@ -141,10 +154,13 @@ void mm_apply(const mm_mods *mods, int16_t *values, int stride, int bound);
 int mm_leds(const mm_t *s, uint8_t *code, uint8_t *value, int cap);
 
 /* The stored configuration (W3): a versioned blob, MM_BLOB_SIZE bytes. */
-#define MM_BLOB_VERSION 1
-#define MM_BLOB_SIZE (5 + MM_MACROS * MM_SLOTS * 4 + 2)
+#define MM_BLOB_VERSION 2
+#define MM_BLOB_SIZE (5 + MM_MACROS * MM_SLOTS * 5 + MM_MACROS * MM_NAME_LEN + 2)
+#define MM_BLOB_V1_SIZE (5 + MM_MACROS * MM_SLOTS * 4 + 2) /* version 1: depth -64 .. +63 in a byte, no names */
 int mm_encode(const mm_t *s, uint8_t *out);         /* -> MM_BLOB_SIZE */
 int mm_decode(mm_t *s, const uint8_t *in, int len); /* 0, or -1 (unknown version, bad size or check) */
+/* A macro's name from the naming screen: up to MM_NAME_LEN characters, trailing spaces dropped. */
+void mm_set_name(mm_t *s, int macro, const char *name);
 
 /* A card sector holding the blob (W3): "MMCF", a sequence number, the blob; two copies, the newer valid one wins. */
 #define MM_RECORD_SIZE 512
@@ -162,12 +178,15 @@ void mm_dest_label(const mm_dests *d, int dest, char *buf); /* 8 bytes */
 const char *mm_dest_group(const mm_dests *d, int dest);     /* the column heading: SRC, FLTR, ...; META for none */
 
 /* Screens: fill(ctx, x0, y0, x1, y1, colour) with y = 0 the top row, corners inclusive; colour 0 clears, 1 sets,
- * -1 inverts. text(ctx, x, ytop, centre, s) writes s in the firmware's 5-pixel font, its top row at ytop, starting at
- * x or centred on it; without it the mode uses its own 3 x 5 font. The macro screen leaves rows 0 .. MM_HEADER - 1
- * (the stock header: pattern, name, tempo) to the firmware. */
+ * -1 inverts. text(ctx, x, ytop, flags, s) writes s with its top row at ytop, from x or centred on it
+ * (MM_TEXT_CENTRE), in the firmware's 5-pixel font or, with MM_TEXT_SMALL, its narrow one (3-pixel letters: the
+ * stock page box, the lists); without it the mode uses its own 3 x 5 font. The macro screen leaves rows
+ * 0 .. MM_HEADER - 1 (the stock header: pattern, name, tempo) to the firmware. */
 #define MM_HEADER 10
+#define MM_TEXT_CENTRE 1
+#define MM_TEXT_SMALL 2
 typedef void mm_fill_fn(void *ctx, int x0, int y0, int x1, int y1, int colour);
-typedef void mm_text_fn(void *ctx, int x, int ytop, int centre, const char *s);
+typedef void mm_text_fn(void *ctx, int x, int ytop, int flags, const char *s);
 typedef struct {
     mm_fill_fn *fill;
     void *ctx;

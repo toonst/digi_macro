@@ -35,7 +35,8 @@ From digikit's port file `devices/ports/dt2-1.17.toml`, checked in the disassemb
 ## The record **[D]**
 
 512 bytes: `"MMCF"`, a big-endian sequence number, then the configuration blob of `src/mm_store.c` (`"MM"`, its version,
-8 × 4 slots, a CRC-16). At the first `ev_tick` the mod reads both sectors and loads the valid copy with the higher
+8 × 4 slots, the macros' names, a CRC-16). Version 2 has 16-bit depths and the names; a version 1 record loads with
+each depth step as 2.00 (the same offset) and no names. At the first `ev_tick` the mod reads both sectors and loads the valid copy with the higher
 sequence number (`mm_record_pick`); a write goes to the other copy with the number one higher, so a power cut during a
 write leaves the previous configuration. It writes when the setup screen closes, not on every turn: one sector per
 visit. Positions are not kept (D14).

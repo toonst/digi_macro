@@ -77,6 +77,7 @@ static void close_list(mm_t *s)
 static void enter(mm_t *s)
 {
     s->state = MM_MACRO;
+    s->announce = 1;
     s->pushes = 0;
     s->popup = 0;
     s->mod_armed = 0;
@@ -86,6 +87,7 @@ static void enter(mm_t *s)
 
 static void leave(mm_t *s)
 {
+    s->name_arm = 0;
     if (s->state == MM_SETUP)
         s->dirty_config = 1;        /* leaving from the setup screen stores it too */
     s->list = 0;
@@ -137,6 +139,25 @@ static int is_push(int code)
     return code >= MM_K_PUSH_A && code < MM_K_PUSH_A + MM_MACROS;
 }
 
+/* A FUNC + push let go before the hold: the setup of that macro (from the macro screen) or a switch to it. */
+static void func_push_short(mm_t *s)
+{
+    int i = s->name_arm - 1;
+    s->name_arm = 0;
+    if (s->state == MM_MACRO) {
+        open_setup(s, i);
+    } else if (s->state == MM_SETUP) {
+        s->edit = (uint8_t)i;
+        s->list = 0;
+        s->dirty_config = s->dirty_screen = s->dirty_leds = 1;
+    }
+}
+
+static int trk_held(const mm_t *s)
+{
+    return s->key_down ? s->key_down(MM_K_TRK) : s->trk;
+}
+
 /* A press in macro mode: 1 takes it. */
 static int press_macro(mm_t *s, int code)
 {
@@ -146,10 +167,11 @@ static int press_macro(mm_t *s, int code)
     }
     if (is_push(code)) {
         int i = code - MM_K_PUSH_A;
-        if (s->func)                /* only FUNC + push opens the setup; a push alone is for coarse steps and NO */
-            open_setup(s, i);
-        else
-            s->pushes |= (uint8_t)(1u << i);
+        if (s->func) {              /* only FUNC + push: short, the setup; held, the macro's name (4.2) */
+            s->name_arm = (uint8_t)(i + 1);
+            s->name_ticks = 0;
+        }
+        s->pushes |= (uint8_t)(1u << i);
         return 1;
     }
     if ((code == MM_K_NO && s->func) || code == MM_K_LEVEL) { /* FUNC + NO (reload), LEVEL/DATA pushed */
@@ -194,13 +216,13 @@ static int press_setup(mm_t *s, int code)
         close_list(s);
     if (is_push(code)) {
         int i = code - MM_K_PUSH_A;
-        if (s->func) {
-            s->edit = (uint8_t)i;
-            s->dirty_config = 1;
+        if (s->func) {              /* short, that macro's setup; held, its name */
+            s->name_arm = (uint8_t)(i + 1);
+            s->name_ticks = 0;
         } else {
-            s->pushes |= (uint8_t)(1u << i);
             s->sel = (uint8_t)(i & 3);
         }
+        s->pushes |= (uint8_t)(1u << i);
         s->dirty_screen = s->dirty_leds = 1;
         return 1;
     }
@@ -242,9 +264,11 @@ static int press_setup(mm_t *s, int code)
 
 int mm_key(mm_t *s, int code, int flags)
 {
-    if (flags & (MM_F_RELEASE | MM_F_REPEAT)) {
+    /* Bit 0 is "down": a release has it clear (FUNC's and PAGE's come with no other bit set, others with 0x10), a held
+     * key repeats with it set and 0x08 (digikit's emulator, tests/emu: the mode's key log). */
+    if (!(flags & MM_F_PRESS) || flags & MM_F_REPEAT) {
         int took = is_taken(s, code);
-        if (flags & MM_F_RELEASE) {
+        if (!(flags & MM_F_PRESS)) {
             set_taken(s, code, 0);
             if (code == MM_K_FUNC)
                 s->func = 0;
@@ -252,14 +276,16 @@ int mm_key(mm_t *s, int code, int flags)
                 s->mod_armed = 0;
             else if (code == MM_K_PAGE)
                 s->page_armed = 0;
-            else if (is_push(code))
+            else if (code == MM_K_TRK)
+                s->trk = 0;
+            else if (is_push(code)) {
                 s->pushes &= (uint8_t)~(1u << (code - MM_K_PUSH_A));
+                if (s->name_arm == code - MM_K_PUSH_A + 1)
+                    func_push_short(s);
+            }
         }
         return took;                /* a release follows its press (4.1) */
     }
-    if (!(flags & MM_F_PRESS))
-        return 0;
-
     int take;
     if (s->key_down) {              /* what is held now, from the panel: a release the firmware kept is no matter */
         s->func = (uint8_t)(code == MM_K_FUNC || flags & MM_F_FUNC || s->key_down(MM_K_FUNC));
@@ -273,9 +299,11 @@ int mm_key(mm_t *s, int code, int flags)
     } else if (code == MM_K_FUNC || flags & MM_F_FUNC) { /* the firmware's own "FUNC held" bit counts too */
         s->func = 1;
     }
-    if (s->state != MM_OFF && is_page(code)) {
-        leave(s);                   /* a page key leaves macro mode, as for any page, and opens its page */
-        take = 0;
+    if (code == MM_K_TRK)
+        s->trk = 1;
+    if (s->state != MM_OFF && (is_page(code) || (is_trig(code) && trk_held(s)))) {
+        leave(s);                   /* a page key leaves macro mode, as for any page, and opens its page; TRK + trig */
+        take = 0;                   /* selects that track on the page macro mode was entered from */
     } else if (s->state == MM_OFF) {
         take = 0;
         if (code == MM_K_MOD || code == MM_K_PAGE) {
@@ -356,7 +384,9 @@ int mm_enc(mm_t *s, int enc, int delta)
     } else {                        /* E..H: depth of slot 1..4 */
         close_list(s);
         mm_slot *sl = &m->slot[i - MM_SLOTS];
-        sl->depth = (int8_t)clamp(sl->depth + delta, MM_POS_MIN, MM_POS_MAX);
+        /* scaled: the firmware's filter gives 1/256 units, as for the stock depths; else whole units */
+        sl->depth = (int16_t)clamp(sl->depth + (s->enc_scaled ? delta : delta * MM_DEPTH_ONE), MM_DEPTH_MIN,
+                                   MM_DEPTH_MAX);
         s->sel = (uint8_t)(i - MM_SLOTS);
     }
     s->dirty_mods = s->dirty_screen = s->dirty_config = s->dirty_leds = 1;
@@ -365,6 +395,14 @@ int mm_enc(mm_t *s, int enc, int delta)
 
 int mm_tick(mm_t *s)
 {
+    if (s->name_arm) {              /* FUNC + push: held long enough names the macro */
+        if (s->key_down && !s->key_down(MM_K_PUSH_A + s->name_arm - 1)) {
+            func_push_short(s);     /* let go, though no release came */
+        } else if (++s->name_ticks >= MM_HOLD_TICKS) {
+            s->name_req = s->name_arm;
+            s->name_arm = 0;
+        }
+    }
     if (s->popup && s->popup_ticks && !--s->popup_ticks) {
         s->popup = 0;
         s->dirty_screen = 1;

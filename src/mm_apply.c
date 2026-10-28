@@ -4,10 +4,10 @@
 
 int32_t mm_slot_delta(int pos, int depth)
 {
-    /* |pos * depth| <= 4096: at full turn and full depth the delta spans the parameter range. */
-    int32_t pd = (int32_t)pos * depth;
-    int32_t d = pd * MM_RAW_MAX;
-    return d >= 0 ? d >> 12 : -((-d) >> 12);  /* symmetric: -p gives exactly -(p) */
+    /* |pos * depth| <= 64 * 32768: at full turn and full depth (128.00) the delta spans the parameter range,
+     * pos * depth * MM_RAW_MAX / 2^21, with MM_RAW_MAX = 0x7f << 8 so that it stays in 32 bits. */
+    int32_t d = (int32_t)pos * depth * (MM_RAW_MAX >> 8);
+    return d >= 0 ? d >> 13 : -((-d) >> 13);  /* symmetric: -p gives exactly -(p) */
 }
 
 void mm_build(const mm_t *s, mm_mods *out)

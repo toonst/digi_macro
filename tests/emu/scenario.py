@@ -29,9 +29,11 @@ LEVEL = 9                     # the LEVEL/DATA encoder
 # configuration's two card sectors, and indices with a non-zero default, to check the Sound arrays against.
 DEVICES = {
     'dt2': dict(frame=0x80005b72, mirror=0x80003362, stride=142, view_top=0x40216f14, card=0x2df0e00, probe=(36, 59),
+                name_view=0x4021d5ac, ui_states=0x44f370c0,
                 # the Sound pointers at 0x8000470c (the array at +0x14)
                 sounds=lambda r: [r.peek32(0x8000470c + 4 * t) + 0x14 for t in range(16)]),
     'dn2': dict(frame=0x80006906, mirror=0x80003b12, stride=202, view_top=0x402008e8, card=0x7ff000, probe=(67, 90),
+                name_view=0x40206f78, ui_states=0x446488c8,
                 # the kit at *0x800052a0, track t's Sound at + 0x34 + 0x48b t (digikit finding 02, read on 1.11)
                 sounds=lambda r: [r.peek32(0x800052a0) + 0x34 + 0x48b * t + 0x14 for t in range(16)]),
 }
@@ -39,8 +41,9 @@ DEV = DEVICES['dt2']
 
 
 def delta(pos, depth):
-    d = pos * depth * 0x7f00
-    return d >> 12 if d >= 0 else -((-d) >> 12)
+    """mm_slot_delta: depth in 1/256 units, full turn and full depth (128.00) the whole range."""
+    d = pos * depth * 0x7f
+    return d >> 13 if d >= 0 else -((-d) >> 13)
 
 
 def oled_png(frame, scale=4):
@@ -165,8 +168,18 @@ class Run:
         """(destination, depth, tracks) of slot j of macro k."""
         L = self.syms['layout']
         a = self.syms['mm_state'] + L['m'] + L['macro'] * k + L['slot'] + L['slot_size'] * j
-        depth = self.peek8(a + L['depth'])
-        return self.peek8(a + L['dest']), depth - 256 if depth > 127 else depth, self.peek16(a + L['tracks'])
+        depth = self.peek16(a + L['depth'])
+        return self.peek8(a + L['dest']), depth - 65536 if depth > 32767 else depth, self.peek16(a + L['tracks'])
+
+    def name(self, k):
+        L = self.syms['layout']
+        a = self.syms['mm_state'] + L['m'] + L['macro'] * k + L['name']
+        return bytes(self.peek8(a + i) for i in range(6)).split(b'\0')[0].decode()
+
+    def header(self):
+        """The header's message (UIStates + 72, a std::string: one pointer to its characters)."""
+        p = self.peek32(self.peek32(DEV['ui_states']) + 72)
+        return bytes(self.peek8(p + i) for i in range(24)).split(b'\0')[0].decode('latin1')
 
     def check(self, ok, what):
         self.n += 1
@@ -284,6 +297,7 @@ def scenario(r):
     macro = r.shot('02-macro')
     r.check(r.mode() == 1 and macro != stock, 'PAGE + MOD shows the macro screen')
     r.check(r.led(LED_MOD) == 0x41, 'the MOD LED is blue: %02x' % (r.led(LED_MOD) or 0))
+    r.check(r.header() == 'Macro Mode', 'the header shows the mode\'s title, as a page\'s: %r' % r.header())
     now = [r.led(LED_PAGE1 + i) for i in range(5)]
     r.check(any(v not in (0, 1) for v in pages) and all(v in (0, 1) for v in now),
             'the page macro mode came from is no longer lit: page LEDs %s, then %s' % (pages, now))
@@ -321,7 +335,14 @@ def scenario(r):
     r.tap(NO)
     r.check(r.peek8(r.addr('list')) == 0 and r.mode() == 2 and r.slot(2, 1)[0] == dest,
             'NO closes the list and keeps the choice')
-    r.check(spin_until(r, 6, 1, lambda: r.slot(2, 1)[1] >= 10), 'F sets slot 2\'s depth: %d' % r.slot(2, 1)[1])
+    r.down(PUSH_A + 5)                          # F pushed: whole steps (1.00), as the stock depths
+    ok = spin_until(r, 6, 1, lambda: r.slot(2, 1)[1] >= 10 * 256)
+    r.up(PUSH_A + 5)
+    r.check(ok and r.slot(2, 1)[1] % 256 == 0, 'F pushed sets slot 2\'s depth in whole steps: %.2f' % (r.slot(2, 1)[1] / 256))
+    before = r.slot(2, 1)[1]
+    spin(r, 6, 64, burst=16)                    # unpushed: hundredths
+    r.check(r.slot(2, 1)[1] != before and r.slot(2, 1)[1] % 256, 'F alone moves by hundredths: %.2f -> %.2f'
+            % (before / 256, r.slot(2, 1)[1] / 256))
     r.tap(TRIG1 + 2)                            # tracks 3 and 5 off
     r.tap(TRIG1 + 4)
     r.shot('07-setup-edited')
@@ -371,6 +392,29 @@ def scenario(r):
     check_frame(r, 2, 1, 'after FUNC + NO')
     r.shot('08-func-no')
 
+    r.down(FUNC)                                # FUNC + hold push D: the firmware's naming screen, for D
+    r.down(PUSH_A + 3)
+    for _ in range(6):
+        r.step(GAP)
+    r.up(PUSH_A + 3)
+    r.up(FUNC)
+    r.step(GAP)
+    naming = r.shot('08-naming')
+    r.check(top_view(r) == DEV['name_view'] and r.mode() == 1, 'FUNC + hold push D opens the naming screen')
+    r.tap(11)                                   # UP: a character
+    r.tap(10)                                   # YES: saved
+    r.step(GAP)
+    named = r.shot('08-named')
+    r.check(top_view(r) == DEV['view_top'] and len(r.name(3)) == 1 and named != naming,
+            'YES names D (%r) and the macro screen is back' % r.name(3))
+    CONFIG['name'] = r.name(3)
+
+    r.down(16)                                  # TRK + trig 4: leaves, and the firmware selects track 4
+    r.tap(TRIG1 + 3)
+    r.up(16)
+    r.check(r.mode() == 0, 'TRK + a trig key leaves macro mode')
+    chord(r, PAGE, MOD)
+
     spin_until(r, 3, -1, lambda: r.pos(2) <= -6)
     r.tap(3)                                    # a page key: leaves and opens its page
     fltr = r.shot('09-fltr')
@@ -410,6 +454,7 @@ def after_restart(r):
     dest, depth, tracks = r.slot(2, 1)
     r.check((dest, depth, tracks) == (CONFIG['dest'], CONFIG['depth'], CONFIG['tracks']),
             'after the restart slot 2 of C is back: %s' % ((dest, depth, tracks),))
+    r.check(r.name(3) == CONFIG['name'], 'and D\'s name: %r' % r.name(3))
     r.check(all(r.pos(k) == 0 for k in range(8)), 'and every macro is at the centre')
     spin_until(r, 3, -1, lambda: r.pos(2) <= -6)
     check_frame(r, 2, 1, 'after the restart')
