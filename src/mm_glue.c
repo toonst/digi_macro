@@ -23,7 +23,7 @@ mm_mods *volatile mm_live;
 /* The firmware's Brain, as ev_key last handed it over (its view controller is at +0x40). */
 void *mm_brain;
 
-/* Setups per project or per pattern (docs/findings/s7-project-storage.md); not static, for the emulator scenarios. */
+/* Setups per project or per kit (docs/findings/s7-project-storage.md); not static, for the emulator scenarios. */
 mm_scope mm_scopes;
 
 #ifdef CARD_WRITE_AT
@@ -222,47 +222,53 @@ static void open_name_view(int macro)
 }
 #endif
 
-#ifdef PROJECT_RAM
-/* The project's records (docs/findings/s7-project-storage.md; src/project_dt2.s, project_dn2.s): the firmware's save
- * and load of each pattern's record (the Digitakt II's) or kit's (the Digitone II's, whose kit n is pattern n's)
- * call these, with the RAM the record comes from or goes to. The setup goes at PROJECT_PAD in the saved record, bytes
- * the firmware writes nothing to. Records that are no pattern's (a copy outside the project's table) get none. */
-static int table_index(const uint8_t *ram)
+#ifdef KIT_RAM
+/* The project's kits (docs/findings/s7-project-storage.md; src/kit.s): the firmware's save and load of a kit record
+ * call these, with the record and the kit's RAM. The project's kits are a table (KIT_RAM, KIT_STRIDE; kit n is
+ * pattern n's); the setup goes at KIT_PAD in the record, after its end mark, where the firmware writes nothing. A kit
+ * that is not in the table gets none. */
+static int kit_index(const uint8_t *ram)
 {
-    uint32_t off = (uint32_t)ram - PROJECT_RAM;
-    if ((uint32_t)ram < PROJECT_RAM || off % PROJECT_STRIDE || off / PROJECT_STRIDE >= MM_PATTERNS)
+    uint32_t off = (uint32_t)ram - KIT_RAM;
+    if ((uint32_t)ram < KIT_RAM || off % KIT_STRIDE || off / KIT_STRIDE >= MM_KITS)
         return -1;
-    return (int)(off / PROJECT_STRIDE);
+    return (int)(off / KIT_STRIDE);
 }
 
-void mm_ser(uint8_t *record, const uint8_t *ram)
+void mm_kit_save(uint8_t *record, const uint8_t *ram)
 {
-    mm_scope_save(&mm_scopes, table_index(ram), record + PROJECT_PAD);
+    mm_scope_save(&mm_scopes, kit_index(ram), record + KIT_PAD);
 }
 
-void mm_load(const uint8_t *ram, const uint8_t *record)
+void mm_kit_load(uint8_t *a2, uint8_t *a3)
 {
-    mm_scope_load(&mm_scopes, table_index(ram), record + PROJECT_PAD);
+#ifdef KIT_LOAD_RAM_A3
+    uint8_t *ram = a3, *record = a2;
+#else
+    uint8_t *ram = a2, *record = a3;
+#endif
+    mm_scope_load(&mm_scopes, kit_index(ram), record + KIT_PAD);
 }
 
-/* The pattern on: the sequencer object's (PATTERN_OBJ, the pointer its getter returns) + 0x138, the same on both. */
-static int fw_pattern(void)
+/* The kit on is the pattern on's: the sequencer object's (PATTERN_OBJ, the pointer its getter returns) + 0x138, the
+ * same on both. */
+static int fw_kit(void)
 {
     uint32_t o = *(volatile uint32_t *)PATTERN_OBJ, n;
     if (!o)
         return -1;
     n = *(volatile uint32_t *)(o + 0x138);
-    return n < MM_PATTERNS ? (int)n : -1;
+    return n < MM_KITS ? (int)n : -1;
 }
 #else
-static int fw_pattern(void)
+static int fw_kit(void)
 {
     return -1;
 }
 #endif
 
 #ifdef ROW_TEXT_AT
-/* SETTINGS > PERSONALIZE > MACRO SETUP: PROJECT or PATTERN, a value row as the stock LED INTENSITY (elekloader's
+/* SETTINGS > PERSONALIZE > MACRO SETUP: PROJECT or KIT, a value row as the stock LED INTENSITY (elekloader's
  * core_additem; label in src/rows.s). Each callback gets the std::function's storage, whose first word is the menu;
  * the value is drawn as LED INTENSITY's (the firmware's text routine at the row's x + 19, y + 2, right-aligned), and a
  * change redraws the menu with View::invalidate(menu + 0x38). */
@@ -286,14 +292,14 @@ static void row_draw(void *storage, void *item, void *bmp, int x, int y)
     typedef void (*row_text_t)(void *bmp, const void *font, int x, int y, int align, int a, int b, const char *s);
     (void)storage, (void)item;
     ((row_text_t)ROW_TEXT_AT)(bmp, (const void *)ROW_FONT, x + 19, y + 2, 2, 0, 0,
-                              mm_scopes.mode == MM_SCOPE_PATTERN ? "PATTERN" : "PROJECT");
+                              mm_scopes.mode == MM_SCOPE_KIT ? "KIT" : "PROJECT");
 }
 
 static void row_change(void **storage, int item, int delta)
 {
     (void)item;
     if (delta)
-        row_set(storage, delta > 0 ? MM_SCOPE_PATTERN : MM_SCOPE_PROJECT);
+        row_set(storage, delta > 0 ? MM_SCOPE_KIT : MM_SCOPE_PROJECT);
 }
 
 static const void *const mm_row[4] = {
@@ -411,9 +417,9 @@ void mm_ev_tick(void *ctrl)
     if (!mm_loaded)
         card_load(s);
 #endif
-    if (s->dirty_config)            /* the setup the pattern or project has, as it is now */
+    if (s->dirty_config)            /* the setup the kit or project has, as it is now */
         mm_scope_edited(&mm_scopes, s);
-    mm_scope_follow(&mm_scopes, s, fw_pattern());
+    mm_scope_follow(&mm_scopes, s, fw_kit());
 #ifdef CARD_WRITE_AT
     if (s->dirty_config && s->state != MM_SETUP) {  /* once per visit of the setup screen, not per turn */
         card_store(s);

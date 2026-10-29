@@ -89,31 +89,75 @@ int mm_decode(mm_t *s, const uint8_t *in, int len)
     return 0;
 }
 
-/* A setup in the project (docs/findings/s7-project-storage.md): "MS", flags, the slots and names, a CRC-16. */
-void mm_setup_pack(const mm_t *s, int flags, uint8_t *out)
+/* A setup in a kit record (docs/findings/s7-project-storage.md): a mark byte, then a bit stream, high bit first: per
+ * slot the destination (7 bits), depth (16) and tracks (16), then the names' characters (7 bits each); a CRC-16 of all
+ * before. 194 bytes: the Digitakt II's kit record has no more to spare. */
+static void put_bits(uint8_t *p, int *bit, uint32_t v, int n)
 {
-    int o = 0;
-    out[o++] = 'M';
-    out[o++] = 'S';
-    out[o++] = (uint8_t)flags;
-    o += body_encode(s, out + o);
-    uint16_t c = crc16(out, o);
-    out[o++] = (uint8_t)(c >> 8);
-    out[o] = (uint8_t)c;
+    while (n--) {
+        if (v >> n & 1)
+            p[*bit >> 3] |= (uint8_t)(0x80 >> (*bit & 7));
+        (*bit)++;
+    }
+}
+
+static uint32_t get_bits(const uint8_t *p, int *bit, int n)
+{
+    uint32_t v = 0;
+    while (n--) {
+        v = v << 1 | (p[*bit >> 3] >> (7 - (*bit & 7)) & 1);
+        (*bit)++;
+    }
+    return v;
+}
+
+void mm_setup_pack(const mm_t *s, uint8_t *out)
+{
+    int bit = 0;
+    for (int i = 0; i < MM_SETUP_SIZE; i++)
+        out[i] = 0;
+    out[0] = MM_SETUP_MARK;
+    for (int k = 0; k < MM_MACROS; k++)
+        for (int j = 0; j < MM_SLOTS; j++) {
+            const mm_slot *sl = &s->m[k].slot[j];
+            put_bits(out + 1, &bit, sl->dest < 0x80 ? sl->dest : 0, 7);
+            put_bits(out + 1, &bit, (uint16_t)sl->depth, 16);
+            put_bits(out + 1, &bit, sl->tracks, 16);
+        }
+    for (int k = 0; k < MM_MACROS; k++)
+        for (int i = 0; i < MM_NAME_LEN; i++)
+            put_bits(out + 1, &bit, (uint8_t)s->m[k].name[i] & 0x7f, 7);
+    uint16_t c = crc16(out, MM_SETUP_SIZE - 2);
+    out[MM_SETUP_SIZE - 2] = (uint8_t)(c >> 8);
+    out[MM_SETUP_SIZE - 1] = (uint8_t)c;
 }
 
 int mm_setup_valid(const uint8_t *in)
 {
-    return in[0] == 'M' && in[1] == 'S' &&
+    return in[0] == MM_SETUP_MARK &&
            crc16(in, MM_SETUP_SIZE - 2) == (uint16_t)(in[MM_SETUP_SIZE - 2] << 8 | in[MM_SETUP_SIZE - 1]);
 }
 
 int mm_setup_unpack(mm_t *s, const uint8_t *in)
 {
+    int bit = 0;
     if (!mm_setup_valid(in))
         return -1;
-    body_decode(s, in + 3, MM_BLOB_VERSION);  /* the knobs' positions stay */
-    return in[2];
+    for (int k = 0; k < MM_MACROS; k++)     /* the knobs' positions stay */
+        for (int j = 0; j < MM_SLOTS; j++) {
+            mm_slot *sl = &s->m[k].slot[j];
+            int dest = (int)get_bits(in + 1, &bit, 7);
+            sl->dest = (uint8_t)(mm_dest_pos(s->dests, dest) < 0 ? 0 : dest);
+            sl->depth = (int16_t)get_bits(in + 1, &bit, 16);
+            sl->tracks = (uint16_t)get_bits(in + 1, &bit, 16);
+        }
+    for (int k = 0; k < MM_MACROS; k++) {
+        for (int i = 0; i < MM_NAME_LEN; i++)
+            s->m[k].name[i] = (char)get_bits(in + 1, &bit, 7);
+        s->m[k].name[MM_NAME_LEN] = 0;
+    }
+    s->dirty_mods = s->dirty_screen = 1;
+    return 0;
 }
 
 void mm_set_name(mm_t *s, int macro, const char *name)

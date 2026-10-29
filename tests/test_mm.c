@@ -848,15 +848,21 @@ static void test_setup_pack(void)
     uint8_t rec[MM_SETUP_SIZE];
     mm_init(&a, &dests);
     a.m[2].slot[3] = (mm_slot){55, -300, 0x00f0};
+    a.m[7].slot[0] = (mm_slot){64, MM_DEPTH_MIN, 0x8001};
+    a.m[0].slot[1] = (mm_slot){30, MM_DEPTH_MAX, 0};
     mm_set_name(&a, 2, "WOBL");
+    mm_set_name(&a, 7, "A-Z9!");
     a.m[2].pos = 20;
-    mm_setup_pack(&a, MM_SETUP_PROJECT, rec);
-    CHECK(MM_SETUP_SIZE <= 206);                /* it fits the Digitakt II's unused bytes (s7) */
+    mm_setup_pack(&a, rec);
+    CHECK(MM_SETUP_SIZE == 194);                /* the Digitakt II's kit record spares 194 bytes (s7) */
     mm_init(&b, &dests);
     b.m[2].pos = -7;
-    CHECK(mm_setup_unpack(&b, rec) == MM_SETUP_PROJECT);
+    CHECK(mm_setup_unpack(&b, rec) == 0);
     CHECK(b.m[2].slot[3].dest == 55 && b.m[2].slot[3].depth == -300 && b.m[2].slot[3].tracks == 0x00f0);
-    CHECK(strcmp(b.m[2].name, "WOBL") == 0);
+    CHECK(b.m[7].slot[0].dest == 64 && b.m[7].slot[0].depth == MM_DEPTH_MIN && b.m[7].slot[0].tracks == 0x8001);
+    CHECK(b.m[0].slot[1].dest == 30 && b.m[0].slot[1].depth == MM_DEPTH_MAX && b.m[0].slot[1].tracks == 0);
+    CHECK(b.m[5].slot[2].dest == 0 && b.m[5].slot[2].tracks == 0xffff);
+    CHECK(strcmp(b.m[2].name, "WOBL") == 0 && strcmp(b.m[7].name, "A-Z9!") == 0 && b.m[1].name[0] == 0);
     CHECK(b.m[2].pos == -7);                    /* the knob stays where it is */
     rec[40] ^= 1;
     CHECK(mm_setup_unpack(&b, rec) == -1 && !mm_setup_valid(rec));
@@ -864,92 +870,115 @@ static void test_setup_pack(void)
     CHECK(!mm_setup_valid(rec));
 }
 
-static mm_scope scope;                          /* 26 KB: not on the stack */
+static mm_scope scope;                          /* 25 KB: not on the stack */
 
-static void test_scope_per_pattern(void)
+static void fresh_scope(int mode)
+{
+    memset(&scope, 0, sizeof scope);
+    scope.cur = -1;
+    scope.mode = (uint8_t)mode;
+}
+
+/* A project load: every kit's record, then a tick without loads ends the burst. */
+static int project_load(mm_t *s, const uint8_t *rec, int kit)
+{
+    for (int i = 0; i < MM_KITS; i++)
+        mm_scope_load(&scope, i, rec);
+    mm_scope_follow(&scope, s, kit);
+    return mm_scope_follow(&scope, s, kit);
+}
+
+static void test_scope_per_kit(void)
 {
     mm_t s;
     uint8_t out[MM_SETUP_SIZE];
-    memset(&scope, 0, sizeof scope);
-    scope.cur = -1;
+    fresh_scope(MM_SCOPE_PROJECT);
     mm_init(&s, &dests);
-    mm_scope_set(&scope, &s, MM_SCOPE_PATTERN);
-    s.m[0].slot[0].dest = 30;                   /* the setup on when pattern 0 first shows */
-    CHECK(mm_scope_follow(&scope, &s, 0) == 0); /* pattern 0 had none: it copies the one on */
-    CHECK(mm_setup_valid(scope.pat[0]));
-    s.m[0].slot[0].dest = 55;                   /* an edit on pattern 0 */
+    mm_scope_set(&scope, &s, MM_SCOPE_KIT);
+    s.m[0].slot[0].dest = 30;                   /* the setup on when kit 0 first shows */
+    CHECK(mm_scope_follow(&scope, &s, 0) == 0); /* kit 0 had none: it copies the one on */
+    CHECK(mm_setup_valid(scope.kit[0]));
+    s.m[0].slot[0].dest = 55;                   /* an edit on kit 0 */
     mm_scope_edited(&scope, &s);
     s.m[1].pos = 9;
-    CHECK(mm_scope_follow(&scope, &s, 5) == 0); /* pattern 5: a copy too */
+    CHECK(mm_scope_follow(&scope, &s, 5) == 0); /* kit 5: a copy too */
     s.m[0].slot[0].dest = 64;
     mm_scope_edited(&scope, &s);
     CHECK(mm_scope_follow(&scope, &s, 0) == 1); /* back on 0: its own */
     CHECK(s.m[0].slot[0].dest == 55 && s.m[1].pos == 9);
     CHECK(mm_scope_follow(&scope, &s, 0) == 0); /* no change, nothing to do */
-    mm_scope_save(&scope, 5, out);              /* the save writes each pattern's */
+    mm_scope_save(&scope, 5, out);              /* a save writes each kit's */
     CHECK(mm_setup_unpack(&s, out) == 0 && s.m[0].slot[0].dest == 64);
-    mm_scope_save(&scope, 6, out);              /* none for 6, none for a buffer that is not a pattern */
+    mm_scope_save(&scope, 6, out);              /* none for 6, none for a kit that is not one of the project's */
     CHECK(!mm_setup_valid(out));
     mm_scope_save(&scope, -1, out);
     CHECK(!mm_setup_valid(out));
 }
 
-static void test_scope_load(void)
+static void test_scope_kit_loads(void)
 {
     mm_t s, other;
     uint8_t rec[MM_SETUP_SIZE], none[MM_SETUP_SIZE] = {0};
-    memset(&scope, 0, sizeof scope);
-    scope.cur = -1;
+    fresh_scope(MM_SCOPE_KIT);
     mm_init(&s, &dests);
     mm_init(&other, &dests);
     other.m[7].slot[2].dest = 25;
-    mm_setup_pack(&other, 0, rec);
-    mm_scope_set(&scope, &s, MM_SCOPE_PATTERN);
+    mm_setup_pack(&other, rec);
     mm_scope_follow(&scope, &s, 3);
-    mm_scope_load(&scope, 3, rec);              /* a project load replaces the pattern on: its setup comes on */
-    mm_scope_load(&scope, 4, none);
-    mm_scope_load(&scope, 200, rec);            /* not a pattern: ignored */
+    mm_scope_load(&scope, 3, rec);              /* LOAD KIT TO PATTERN on the kit on: its setup comes on */
+    mm_scope_load(&scope, 200, rec);            /* not one of the project's kits: ignored */
+    CHECK(mm_scope_follow(&scope, &s, 3) == 0); /* the tick with the load: the burst may go on */
     CHECK(mm_scope_follow(&scope, &s, 3) == 1 && s.m[7].slot[2].dest == 25);
-    CHECK(!mm_setup_valid(scope.pat[4]));
-    CHECK(mm_scope_follow(&scope, &s, 4) == 0 && mm_setup_valid(scope.pat[4])); /* none: a copy of the one on */
+    mm_scope_load(&scope, 4, none);             /* a kit saved without the mod */
+    mm_scope_follow(&scope, &s, 3);
+    mm_scope_follow(&scope, &s, 3);
+    CHECK(!mm_setup_valid(scope.kit[4]));
+    CHECK(mm_scope_follow(&scope, &s, 4) == 0 && mm_setup_valid(scope.kit[4])); /* none: a copy of the one on */
+    other.m[7].slot[2].dest = 30;               /* a project load: the kit on takes its setup */
+    mm_setup_pack(&other, rec);
+    CHECK(project_load(&s, rec, 4) == 1 && s.m[7].slot[2].dest == 30);
 }
 
 static void test_scope_per_project(void)
 {
     mm_t s, other;
     uint8_t rec[MM_SETUP_SIZE], out[MM_SETUP_SIZE];
-    memset(&scope, 0, sizeof scope);
-    scope.cur = -1;
+    fresh_scope(MM_SCOPE_PROJECT);
     mm_init(&s, &dests);
     mm_init(&other, &dests);
     s.m[0].slot[0].dest = 30;
     CHECK(mm_scope_follow(&scope, &s, 0) == 0); /* per project (the default): the one on is the project's */
-    CHECK(mm_scope_follow(&scope, &s, 9) == 0 && s.m[0].slot[0].dest == 30); /* patterns change nothing */
+    CHECK(mm_scope_follow(&scope, &s, 9) == 0 && s.m[0].slot[0].dest == 30); /* kits change nothing */
     s.m[0].slot[0].dest = 55;
     mm_scope_edited(&scope, &s);
-    mm_scope_save(&scope, 9, out);              /* every pattern's record carries the project's setup */
-    CHECK(mm_setup_unpack(&other, out) == MM_SETUP_PROJECT && other.m[0].slot[0].dest == 55);
+    mm_scope_save(&scope, 9, out);              /* every kit's record carries the project's setup */
+    CHECK(mm_setup_unpack(&other, out) == 0 && other.m[0].slot[0].dest == 55);
     mm_scope_save(&scope, -1, out);
     CHECK(mm_setup_valid(out));
-    mm_init(&other, &dests);                    /* loading a project saved per project brings its setup */
+    mm_init(&other, &dests);
     other.m[5].slot[1].dest = 64;
-    mm_setup_pack(&other, MM_SETUP_PROJECT, rec);
-    for (int i = 0; i < MM_PATTERNS; i++)
-        mm_scope_load(&scope, i, rec);
-    CHECK(mm_scope_follow(&scope, &s, 0) == 1 && s.m[5].slot[1].dest == 64 && s.m[0].slot[0].dest == 0);
-    mm_setup_pack(&other, 0, rec);              /* one saved per pattern: the setup on stays */
-    for (int i = 0; i < MM_PATTERNS; i++)
-        mm_scope_load(&scope, i, rec);
-    s.m[0].slot[0].dest = 30;
+    mm_setup_pack(&other, rec);
+    mm_scope_load(&scope, 9, rec);              /* one kit loaded (the kit manager): the project's setup stays */
+    mm_scope_follow(&scope, &s, 9);
+    CHECK(mm_scope_follow(&scope, &s, 9) == 0 && s.m[0].slot[0].dest == 55);
+    CHECK(project_load(&s, rec, 9) == 1 && s.m[5].slot[1].dest == 64 && s.m[0].slot[0].dest == 0);
+    mm_scope_save(&scope, 2, out);              /* and it is the project's now */
+    CHECK(mm_setup_unpack(&other, out) == 0 && other.m[5].slot[1].dest == 64);
+    s.m[5].slot[1].dest = 25;
     mm_scope_edited(&scope, &s);
-    CHECK(mm_scope_follow(&scope, &s, 0) == 0 && s.m[0].slot[0].dest == 30);
-    mm_scope_set(&scope, &s, MM_SCOPE_PATTERN); /* per pattern now: pattern 0's own (loaded above) */
+    memset(rec, 0, sizeof rec);                 /* a project from before the mod: the setup on stays */
+    CHECK(project_load(&s, rec, 9) == 0 && s.m[5].slot[1].dest == 25);
+    mm_setup_pack(&other, rec);                 /* kit 0 (dest 64 above) for the switch below */
+    mm_scope_load(&scope, 0, rec);
+    mm_scope_follow(&scope, &s, 9);
+    mm_scope_follow(&scope, &s, 9);
+    mm_scope_set(&scope, &s, MM_SCOPE_KIT);     /* per kit now: the kit on's own */
     CHECK(s.dirty_config);
     CHECK(mm_scope_follow(&scope, &s, 0) == 1 && s.m[5].slot[1].dest == 64);
     s.m[5].slot[1].dest = 0;
     mm_scope_set(&scope, &s, MM_SCOPE_PROJECT); /* back: the one on becomes the project's */
     mm_scope_save(&scope, 3, out);
-    CHECK(mm_setup_unpack(&other, out) == MM_SETUP_PROJECT && other.m[5].slot[1].dest == 0);
+    CHECK(mm_setup_unpack(&other, out) == 0 && other.m[5].slot[1].dest == 0);
 }
 
 void test_draw(int *checks_out, int *failures_out);
@@ -986,8 +1015,8 @@ int main(void)
     test_init_and_old_records();
     test_scaled_encoders();
     test_setup_pack();
-    test_scope_per_pattern();
-    test_scope_load();
+    test_scope_per_kit();
+    test_scope_kit_loads();
     test_scope_per_project();
     test_blob_version_1();
     test_trk_trig_selects_track();

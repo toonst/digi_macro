@@ -31,17 +31,18 @@ PLAY, STOP, RECORD, PTN, SONG, TRK and FUNC keep their stock function throughout
 is lit blue and the other page keys are dark. A firmware screen that opens over the mode (the firmware update's
 confirmation, a dialog) takes the screen and the keys as on any page.
 
-### Per project or per pattern
+### Per project or per kit
 
 SETTINGS > PERSONALIZE > MACRO SETUP chooses what a setup (the destinations, depths, tracks and names) belongs to:
 
 - **PROJECT** (the default): one setup for the whole project.
-- **PATTERN**: each pattern has its own. A pattern that has none yet starts as a copy of the one on, and the
-  setup changes when another pattern comes on. The knobs stay where they are.
+- **KIT**: each kit has its own, the kit of the pattern on. A kit that has none yet starts as a copy of the one on,
+  and the setup changes when another pattern (and so its kit) comes on. The knobs stay where they are.
 
-YES, LEFT or RIGHT on the row changes it. The setups are saved in the project when the firmware saves it, and come
-back when it is loaded. They live in bytes of the saved file that the stock OS leaves unused, so the project still
-loads on a stock OS. Copying and pasting a pattern does not copy its setup yet.
+YES, LEFT or RIGHT on the row changes it. The setups are saved in the kits when the firmware saves them, and come
+back when it loads them. They live in bytes of each saved kit record that the stock OS leaves unused, so the project
+still loads on a stock OS. Copies the firmware makes in memory (PASTE KIT, pattern copy and paste) do not copy the
+setup yet.
 
 ![The macro screen](docs/img/macro-turned.png) ![The setup screen of macro C](docs/img/setup.png)
 ![The destination list](docs/img/setup-list.png)
@@ -92,8 +93,8 @@ Test a build in [digikit](https://github.com/toonst/digikit)'s emulator before i
 | `src/mm_logic.c` | States and the input map: entry and exit, the macro screen, the setup screen |
 | `src/mm_apply.c` | Macro math, the per-track lists and their frame-time apply; the LEDs the mode holds |
 | `src/mm_store.c` | The stored configuration's format; destination helpers |
-| `src/mm_scope.c` | Setups per project or per pattern, and their records in the project |
-| `src/project_dt2.s`, `src/project_dn2.s` | The calls from the firmware's save and load of a project's records |
+| `src/mm_scope.c` | Setups per project or per kit, and their records in the kits |
+| `src/kit.s` | The calls from the firmware's save and load of a kit record |
 | `src/rows.s` | The PERSONALIZE row's label |
 | `src/mm_draw.c` | The two screens, in the stock layout (the previews use the mod's own font; the device the firmware's) |
 | `src/mm_dests.c` | The destinations per device: both from the firmware's parameter tables |

@@ -23,7 +23,7 @@ void mm_layout(void)
     OFF(list, offsetof(mm_t, list));
     OFF(name, offsetof(mm_macro, name));
     OFF(dirty_config, offsetof(mm_t, dirty_config));
-    OFF(scope_pat, offsetof(mm_scope, pat));
+    OFF(scope_kit, offsetof(mm_scope, kit));
     OFF(scope_proj, offsetof(mm_scope, proj));
     OFF(scope_mode, offsetof(mm_scope, mode));
     OFF(scope_cur, offsetof(mm_scope, cur));

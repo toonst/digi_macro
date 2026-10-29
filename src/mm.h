@@ -160,32 +160,32 @@ int mm_leds(const mm_t *s, uint8_t *code, uint8_t *value, int cap);
 #define MM_BLOB_V1_SIZE (5 + MM_MACROS * MM_SLOTS * 4 + 2) /* version 1: depth -64 .. +63 in a byte, no names */
 int mm_encode(const mm_t *s, uint8_t *out);         /* -> MM_BLOB_SIZE */
 int mm_decode(mm_t *s, const uint8_t *in, int len); /* 0, or -1 (unknown version, bad size or check) */
-/* A setup kept in the project (docs/findings/s7-project-storage.md): "MS", flags, the slots and names as in the
- * blob, a CRC-16; MM_SETUP_SIZE bytes. Unpacking keeps the knobs' positions. */
-#define MM_SETUP_SIZE (3 + MM_MACROS * MM_SLOTS * 5 + MM_MACROS * MM_NAME_LEN + 2)
-#define MM_SETUP_PROJECT 0x01 /* written while the setups were per project */
-void mm_setup_pack(const mm_t *s, int flags, uint8_t *out);
+/* A setup kept in a kit record of the project (docs/findings/s7-project-storage.md): a mark, the slots and names
+ * packed in bits, a CRC-16; MM_SETUP_SIZE bytes. Unpacking keeps the knobs' positions. */
+#define MM_SETUP_MARK 0xd1
+#define MM_SETUP_SIZE (1 + (MM_MACROS * MM_SLOTS * (7 + 16 + 16) + MM_MACROS * MM_NAME_LEN * 7 + 7) / 8 + 2)
+void mm_setup_pack(const mm_t *s, uint8_t *out);
 int mm_setup_valid(const uint8_t *in);
-int mm_setup_unpack(mm_t *s, const uint8_t *in); /* its flags, or -1 */
+int mm_setup_unpack(mm_t *s, const uint8_t *in); /* 0, or -1 */
 
-/* Per project or per pattern (PERSONALIZE > MACRO SETUP): the setups the project's records carry, one per pattern
- * and the project's. The firmware's save and load call mm_scope_save and mm_scope_load per pattern; the tick calls
- * mm_scope_edited after a change and mm_scope_follow with the pattern on. */
-#define MM_PATTERNS 128
-enum { MM_SCOPE_PROJECT = 0, MM_SCOPE_PATTERN };
+/* Per project or per kit (PERSONALIZE > MACRO SETUP): the setups the project's kit records carry, one per kit (kit n
+ * is pattern n's) and the project's. The firmware's save and load of a kit record call mm_scope_save and
+ * mm_scope_load; the tick calls mm_scope_edited after a change and mm_scope_follow with the kit on. */
+#define MM_KITS 128
+enum { MM_SCOPE_PROJECT = 0, MM_SCOPE_KIT };
 typedef struct {
-    uint8_t pat[MM_PATTERNS][MM_SETUP_SIZE]; /* all zero: none yet */
+    uint8_t kit[MM_KITS][MM_SETUP_SIZE]; /* all zero: none yet */
     uint8_t proj[MM_SETUP_SIZE];
     uint8_t mode;              /* MM_SCOPE_* */
-    volatile uint8_t loads;    /* bumped by each record loaded */
+    volatile uint8_t loads;    /* bumped by each kit record loaded */
     uint8_t seen;              /* loads, as mm_scope_follow last saw it */
-    volatile uint8_t proj_loaded; /* a record written per project was loaded */
-    int16_t cur;               /* the pattern whose setup is on, -1 none */
+    uint8_t burst;             /* kit records loaded in the loads that are still coming */
+    int16_t cur;               /* the kit whose setup is on, -1 none */
 } mm_scope;
-void mm_scope_save(const mm_scope *p, int pattern, uint8_t *out);  /* MM_SETUP_SIZE bytes; pattern -1: not one */
-void mm_scope_load(mm_scope *p, int pattern, const uint8_t *in);
+void mm_scope_save(const mm_scope *p, int kit, uint8_t *out);  /* MM_SETUP_SIZE bytes; kit -1: not one of the project's */
+void mm_scope_load(mm_scope *p, int kit, const uint8_t *in);
 void mm_scope_edited(mm_scope *p, const mm_t *s);
-int mm_scope_follow(mm_scope *p, mm_t *s, int pattern);            /* 1 when the setup changed */
+int mm_scope_follow(mm_scope *p, mm_t *s, int kit);            /* 1 when the setup changed */
 void mm_scope_set(mm_scope *p, mm_t *s, int mode);
 
 /* A macro's name from the naming screen: up to MM_NAME_LEN characters, trailing spaces dropped. */

@@ -15,7 +15,7 @@
   "../../src/mm_scope.c",
   "../../src/frame.s",
   "../../src/leds.s",
-  "../../src/project_dt2.s",
+  "../../src/kit.s",
   "../../src/rows.s"
  ],
  "subscribe": [
@@ -91,9 +91,9 @@
   "-DVIEW_PUSH_AT=0x4011c08a",
   "-DSP_RELEASE_AT=0x40197d26",
   "-DSP_INPLACE_VT=0x401ef190",
-  "-DPROJECT_RAM=0x41776cb8",
-  "-DPROJECT_STRIDE=0x1db8c",
-  "-DPROJECT_PAD=0x15acc",
+  "-DKIT_RAM=0x426532b8",
+  "-DKIT_STRIDE=0x5574",
+  "-DKIT_PAD=0x573e",
   "-DPATTERN_OBJ=0x44f370a0",
   "-DROW_TEXT_AT=0x40113fd4",
   "-DROW_FONT=0x402a9be0",
@@ -113,7 +113,6 @@
   "MODS_STOCK": "0x400d9508",
   "LEDS_CLEAR": "0x4003098e",
   "FRAME_STRIDE": "71",
-  "MEMCPY": "0x40136388",
   "STRING_CTOR": "0x401e7e7a"
  },
  "sites": [
@@ -130,16 +129,16 @@
    "target": "mmx_leds"
   },
   {
-   "addr": "0x400dc8cc",
-   "stock": "4eb940136388",
+   "addr": "0x400dbee4",
+   "stock": "223cbacef00c",
    "op": "jsr",
-   "target": "mmx_ser"
+   "target": "mmx_kit_save"
   },
   {
-   "addr": "0x400dc7e6",
-   "stock": "203c0001db88",
+   "addr": "0x400db8be",
+   "stock": "223cbacef00c",
    "op": "jsr",
-   "target": "mmx_load"
+   "target": "mmx_kit_load"
   }
  ],
  "collections": {
