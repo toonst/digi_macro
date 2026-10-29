@@ -47,7 +47,7 @@ SRC=(src/mm_logic.c src/mm_apply.c src/mm_store.c src/mm_draw.c src/mm_scope.c)
 FEATURES=()
 [[ "${MM_KITS:-1}" == 0 ]] || FEATURES+=(kits)
 EXTRA=()
-[[ -z "${MM_LED_TEST:-}" ]] || EXTRA+=(--cflag -DMM_LED_TEST)
+[[ -z "${MM_LED_TEST:-}" ]] || EXTRA+=(--cflag=-DMM_LED_TEST)
 
 echo "== host tests"
 "$CC" -std=c99 -Wall -Wextra -Werror -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all \
