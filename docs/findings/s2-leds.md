@@ -43,7 +43,7 @@ controller's `+0x21` so an LED frame runs.
 
 ## Measured in the emulator **[D]**
 
-`tests/emu/scenario.py` with the zero-DSP runner: MOD reads `0x41` in macro mode and the firmware's own value after
+`tests/emu/scenario.py` with the zero-DSP runner: MOD reads `0x81` in macro mode and the firmware's own value after
 leaving it; in the setup screen trig keys 3 and 5 read `0x11` and the others off. The same on the Digitone II.
 
 ## Open **[O]**
