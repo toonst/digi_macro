@@ -296,7 +296,7 @@ def scenario(r):
     chord(r, PAGE, MOD)                         # entry: PAGE held, then MOD
     macro = r.shot('02-macro')
     r.check(r.mode() == 1 and macro != stock, 'PAGE + MOD shows the macro screen')
-    r.check(r.led(LED_MOD) == 0x81, 'the MOD LED is lit with 0x81 (blue): %02x' % (r.led(LED_MOD) or 0))
+    r.check(r.led(LED_MOD) == 0x31, 'the MOD LED is blue (0x31): %02x' % (r.led(LED_MOD) or 0))
     r.check(r.header() == 'Macro Mode', 'the header shows the mode\'s title, as a page\'s: %r' % r.header())
     now = [r.led(LED_PAGE1 + i) for i in range(5)]
     r.check(any(v not in (0, 1) for v in pages) and all(v in (0, 1) for v in now),

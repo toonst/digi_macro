@@ -37,21 +37,38 @@ byte's setter `0x4011d5f4`. The logical ids are the same (digikit's `digitone-ii
 
 `src/leds.s` replaces the 6 bytes at the site (DT2 `0x400311a2`) (the 4-byte `jsr (pc)` to the clear and the `move.l d2,-(sp)`
 after it) with a `jsr` to `mmx_leds`: it runs the clear, calls each handler of the collection `ev_key_leds` as
-`f(void *mgr)`, and replays the displaced push. `mm_ev_key_leds` sets MOD to `0x81` with layer 2, and in the setup
+`f(void *mgr)`, and replays the displaced push. `mm_ev_key_leds` sets MOD to `0x31` (blue) with layer 2, and in the setup
 screen each trig key to `0x11` (layer 2) or off (layer 1). When the mode's LEDs change, the tick sets the view
 controller's `+0x21` so an LED frame runs.
 
 ## Measured in the emulator **[D]**
 
-`tests/emu/scenario.py` with the zero-DSP runner: MOD reads `0x81` in macro mode and the firmware's own value after
+`tests/emu/scenario.py` with the zero-DSP runner: MOD reads `0x31` in macro mode and the firmware's own value after
 leaving it; in the setup screen trig keys 3 and 5 read `0x11` and the others off. The same on the Digitone II.
+
+## Colours, seen on a unit **[V on hardware]**
+
+The value's high nibble is a palette index, not a colour mask (digikit finding 19 infers bits for red, green and
+blue). With the colour test (`MM_LED_TEST=1 tools/check.sh`: trig key n lit with `(n - 1) << 4 | 1`) on a Digitakt
+II, the owner saw:
+
+| Value | Colour |
+| --- | --- |
+| `0x01` | off |
+| `0x11` | red |
+| `0x21` | green |
+| `0x31` | deep blue |
+| `0x41` | yellow |
+| `0x51` | light blue |
+| `0x61` | purple |
+| `0x71` | white |
+| `0x81` | orange (close to red) |
+
+So the page keys' `0x71` is white and RECORD's `0x11` red, as before; `0x41` (the mode's first "blue") is yellow and
+`0x81` (its second) orange. The mode lights MOD with `0x31`. `0x91` .. `0xf1` were not reported.
 
 ## Open **[O]**
 
-- **[C]** `0x41`, digikit's inferred blue, shows yellow-green on a Digitakt II's MOD key (owner, on the unit). The mode now
-  uses `0x81`, the stock's only other colour (it lights the PATTERN and PAGE LEDs, `0x4003094a` at `0x400690ba`,
-  `0x40080322`); that it is blue is **[O]** until seen on a unit.
-- Whether `0x11` is red on a unit: digikit infers the colour bits; the Digitakt II's panel MCU firmware
-  was not looked for in the image yet (digiemu found the mk1's inside its OS).
+- The same palette on a Digitone II (its LEDs take the same values).
 - The playhead: the sequencer does not step in the zero-DSP runner, so whether a running pattern's playhead stays off
   the setup screen's trig keys is checked by the scenario only where the sequencer runs (coupled emulator, unit).

@@ -18,6 +18,5 @@ Still open:
 
 | Where | Now | To do |
 | --- | --- | --- |
-| `MM_LED_*` | Blue `0x41`, red `0x11`, off `0x01` | Colours on a unit (S2) |
 | Machine-dependent source parameters (all of DN2's), LFO parameters | Not offered | S6 |
 | Audio | The zero-DSP runner makes no sound | Coupled emulator or a unit |
