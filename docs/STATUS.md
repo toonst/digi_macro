@@ -1,7 +1,7 @@
 # Status
 
 Against [PLAN.md](../PLAN.md) section 7. Measured on the Digitakt II 1.17 and the Digitone II 1.12 in digikit's
-emulator with `tests/emu/scenario.py` (68 checks each) and `tests/emu/project.py` (16 each), all passing; host
+emulator with `tests/emu/scenario.py` (68 checks each) and `tests/emu/project.py` (23 each), all passing; host
 tests with `tools/check.sh`.
 
 | Part | State |
@@ -14,7 +14,7 @@ tests with `tools/check.sh`.
 | Stored configuration (W3) | Done on DT2 and DN2 ([s5](findings/s5-storage.md)) |
 | LEVEL/DATA and FUNC + NO (D16) | Done on DT2 and DN2 ([s1](findings/s1-input.md)) |
 | Header title, naming macros, TRK + trig, firmware views over the mode, stock depth format | Done on DT2 and DN2 ([s1](findings/s1-input.md), [s4](findings/s4-screens.md)) |
-| Setups per project or per kit, saved in the kit records; PERSONALIZE > MACRO SETUP (D4) | Done on DT2 and DN2 ([s7](findings/s7-project-storage.md)) |
+| Setups per project or per kit, kept apart, saved in the project; copies take them along; PERSONALIZE > MACRO SETUP (D4); an optional feature | Done on DT2 and DN2 ([s7](findings/s7-project-storage.md)) |
 
 Still open:
 
@@ -22,4 +22,4 @@ Still open:
 | --- | --- | --- |
 | Machine-dependent source parameters (all of DN2's), LFO parameters | Not offered | S6 |
 | Audio | The zero-DSP runner makes no sound | Coupled emulator or a unit |
-| Kit manager, PASTE KIT, pattern copy and paste | Not tried; copies in memory keep the target kit's setup | Drive the kit manager; follow the firmware's copies (S7) |
+| Kit manager, PASTE KIT, undo | Not driven in the emulator (pattern copy and paste is) | Find their keys and add them to `tests/emu/project.py` (S7) |

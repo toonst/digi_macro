@@ -33,16 +33,18 @@ confirmation, a dialog) takes the screen and the keys as on any page.
 
 ### Per project or per kit
 
-SETTINGS > PERSONALIZE > MACRO SETUP chooses what a setup (the destinations, depths, tracks and names) belongs to:
+SETTINGS > PERSONALIZE > MACRO SETUP chooses which setup (the destinations, depths, tracks and names) is on:
 
-- **PROJECT** (the default): one setup for the whole project.
-- **KIT**: each kit has its own, the kit of the pattern on. A kit that has none yet starts as a copy of the one on,
-  and the setup changes when another pattern (and so its kit) comes on. The knobs stay where they are.
+- **PROJECT** (the default): the project's own setup.
+- **KIT**: the setup of the kit on (the pattern on's). A kit that has none yet starts as a copy of the one on, and
+  the setup changes when another pattern, and so its kit, comes on. The knobs stay where they are.
 
-YES, LEFT or RIGHT on the row changes it. The setups are saved in the kits when the firmware saves them, and come
-back when it loads them. They live in bytes of each saved kit record that the stock OS leaves unused, so the project
-still loads on a stock OS. Copies the firmware makes in memory (PASTE KIT, pattern copy and paste) do not copy the
-setup yet.
+YES, LEFT or RIGHT on the row changes it. The project and every kit keep their own setups whichever is on, so going
+from KIT to PROJECT and back changes none of them. Copying and pasting a pattern or a kit takes the kit's setup along.
+The setups are saved with the project, the kits' in the kit records and the project's in its header, and come back
+when it is loaded. They live in bytes the stock OS leaves unused, so the project still loads on a stock OS.
+
+This is an optional part of the mod (see Features).
 
 ![The macro screen](docs/img/macro-turned.png) ![The setup screen of macro C](docs/img/setup.png)
 ![The destination list](docs/img/setup-list.png)
@@ -78,6 +80,18 @@ Python's module path:
 PYTHONPATH=third_party/elekloader python3 -m elekloader.patch --stock path/to/Digitakt_II_OS1.17.syx --mod out/check/dt2-core/core-1.0.elemod --mod out/check/dt2-mod/macro-mode-0.1.elemod --out out/macro-dt2.syx --version MM01
 ```
 
+### Features
+
+The mod's optional parts are built in or left out when it is built. Each is a fragment of the manifest,
+`mods/<dev>/<feature>.json`, that `tools/manifest.py` adds to `mods/<dev>/mod.json` (sources, flags, firmware sites,
+events), and a header in `src/` that the rest of the mod calls through, empty without the feature. The one there is:
+
+| Feature | Fragment | Left out with | What it adds |
+| --- | --- | --- | --- |
+| Kits | `kits.json`, `src/mm_kits.h` | `MM_KITS=0 tools/check.sh` | Setups per project or per kit, PERSONALIZE > MACRO SETUP, in the project's data (5 firmware sites, about 27 KB of RAM) |
+
+Without it the mod keeps one setup, on the card.
+
 `MM_LED_TEST=1 tools/check.sh` builds a colour test: on the macro screen trig key n lights with value
 `(n − 1) × 0x10 + 1` and TRIG, SRC, FLTR, AMP, FX with `0x11`, `0x21`, `0x31`, `0x51`, `0x61`, to tell which LED value
 is which colour on a unit.
@@ -93,13 +107,15 @@ Test a build in [digikit](https://github.com/toonst/digikit)'s emulator before i
 | `src/mm_logic.c` | States and the input map: entry and exit, the macro screen, the setup screen |
 | `src/mm_apply.c` | Macro math, the per-track lists and their frame-time apply; the LEDs the mode holds |
 | `src/mm_store.c` | The stored configuration's format; destination helpers |
-| `src/mm_scope.c` | Setups per project or per kit, and their records in the kits |
-| `src/kit.s` | The calls from the firmware's save and load of a kit record |
+| `src/mm_kits.h`, `src/mm_kits.c` | The kits feature: its interface to the glue, and its device side (the firmware's calls, the PERSONALIZE row) |
+| `src/mm_scope.c` | The kits feature's logic: setups per project or per kit, loads, saves and copies |
+| `src/kit.s` | The kits feature's calls from the firmware: kit records, the project's header, memcpy |
 | `src/rows.s` | The PERSONALIZE row's label |
 | `src/mm_draw.c` | The two screens, in the stock layout (the previews use the mod's own font; the device the firmware's) |
 | `src/mm_dests.c` | The destinations per device: both from the firmware's parameter tables |
 | `src/mm_glue.c` | The elekloader handlers: `ev_key`, `ev_enc`, `ev_tick`, `ev_draw`, `ev_personalize` |
-| `mods/dt2`, `mods/dn2` | The elekloader manifests, one per device and OS |
+| `mods/dt2`, `mods/dn2` | The elekloader manifests, one per device and OS (`mod.json`), and each feature's fragment |
+| `tools/manifest.py` | The manifest a build uses: `mod.json` and the chosen features |
 | `tests/` | Host tests, the preview renderer and the emulator scenarios (`tests/emu`) |
 | `third_party/elekloader` | elekloader, pinned |
 

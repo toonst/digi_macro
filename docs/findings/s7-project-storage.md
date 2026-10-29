@@ -1,7 +1,7 @@
 # S7: macro setups in the project's data (Digitakt II 1.17, Digitone II 1.12)
 
-D4: the setups per kit or per project, kept in the project's kit records, so they go wherever a kit or the project
-goes. Marks as digikit's
+D4: the setups per kit or per project, kept in the project's own data, so they go wherever a kit or the project goes.
+This is the kits feature (`src/mm_kits.h`), built in unless left out (README.md, "Features"). Marks as digikit's
 (**[D]** read or measured once here, **[O]** open). Measured with `tests/emu/zero_patched.rs` (`poke` writes guest
 memory, `dump` saves a range of it) and `tests/emu/project.py`.
 
@@ -26,6 +26,10 @@ DN2 `0x400e15f8`) serializes into a buffer and writes it; the load routine (DT2 
 the marks and deserializes. The DT2 buffer at `0x4099d698` holds the boot-loaded file, but SAVE PROJECT AS writes from
 another one: bytes put into the first did not reach the card.
 
+The file's header holds the mark, the version, the name (+ 8, 16 bytes) and a word at + 24; nothing reads or writes
++ `0x1c` .. `0x200` (484 bytes, zero in every save seen): the save and load routines touch only + 0, 4, 8, 24 and the
+records from 512.
+
 Per record, the bytes the serializer writes nothing to (zero in every save seen):
 
 | | Record | Serializer, loader | Written | Unused |
@@ -41,42 +45,53 @@ carries its own mark and CRC so it never takes other bytes for a setup.
 
 ## The mod's records **[D]**
 
-The setups live in the kit records, on both devices: right after the end mark, where the DT2 has 194 bytes and the
-DN2 337. A setup is 194 bytes: the mark `0xd1`, then a bit stream (high bit first) with per slot the destination
-(7 bits), depth (16) and tracks (16), then the 40 name characters (7 bits each), then a CRC-16 of all before.
+Each kit keeps its own setup, and the project its own, whichever is on, so changing the scope never overwrites one
+with the other. A kit's setup goes into its record right after the end mark, where the DT2 has 194 bytes and the DN2
+337; the project's into the file's header at + `0x1c`. A setup is 194 bytes: the mark `0xd1`, then a bit stream (high
+bit first) with per slot the destination (7 bits), depth (16) and tracks (16), then the 40 name characters (7 bits
+each), then a CRC-16 of all before.
 
-The kit serializer and loader have the same shape on both OSes, and both check or write the end mark with
-`move.l #0xbacef00c,d1`; that instruction is the site on each (`src/kit.s`):
+The routines have the same shape on both OSes, and so do the sites (`src/kit.s`):
 
-| | Save (a2 the record, a3 the kit's RAM) | Load |
-| --- | --- | --- |
-| DT2 | `0x400dbee4` in `0x400dbdca` | `0x400db8be` in `0x400db898`, after the version check (a2 the kit's RAM, a3 the record) |
-| DN2 | `0x400de0d4` in `0x400ddfa8` | `0x400ddddc` in `0x400dddb6`, the same (a3 the kit's RAM, a2 the record) |
+| | DT2 | DN2 | Registers |
+| --- | --- | --- | --- |
+| Kit save: `move.l #0xbacef00c,d1` before the end mark | `0x400dbee4` in `0x400dbdca` | `0x400de0d4` in `0x400ddfa8` | a2 the record, a3 the kit's RAM |
+| Kit load: the same instruction, after the version check | `0x400db8be` in `0x400db898` | `0x400ddddc` in `0x400dddb6` | DT2 a2 the kit's RAM, a3 the record; DN2 the other way round |
+| Project save: `move.l #0xbeefbace,(a3)`, the header's mark | `0x400df932` in `0x400df66c` | `0x400e18be` in `0x400e15f8` | a3 the file |
+| Project load: `move.l #0xbeefbace,d0`, its check | `0x400df99c` in `0x400df95a` | `0x400e1928` in `0x400e18e6` | a3 the file |
+| memcpy's first 12 bytes (three loads of its arguments) | `0x40136388` | `0x40134770` | a kit's size: DT2 `0x5574`, DN2 `0x5d71` |
 
 The kit's RAM address gives its number; a kit outside the project's table gets no setup. Besides the project save
-and load, the serializer has nine other callers on each OS (DT2 `0x40035292`, `0x40035532`, `0x40035760`,
+and load, the kit serializer has nine other callers on each OS (DT2 `0x40035292`, `0x40035532`, `0x40035760`,
 `0x40035790`, `0x40043834`, `0x400d3bae`, `0x400e2ee8`, `0x400e3034`, `0x401332b8`) and the loader four (DT2
 `0x40044612`, `0x400485be`, `0x40048978`, `0x400e1570`). `0x40044612` loads into the table (kit n of the project
-object, from a copy at `0x409908e4`: the reload); `0x40043834` saves a table kit into a buffer at `0x40996ce4`. The others pass kit
-pointers that were not traced.
+object, from a copy at `0x409908e4`: the reload); `0x40043834` saves a table kit into a buffer at `0x40996ce4`. The
+others pass kit pointers that were not traced.
+
+Copies of a kit in RAM go through memcpy with the kit's size: seven calls on each OS push it as memcpy's length
+(DT2 `0x40035e3e`, `0x40035ee0`, `0x40036c30`, `0x40133412`, `0x401a900a`, `0x401a9080`, `0x401cdcdc`), and others
+pass it in a register. The wrapper does the
+three loads it displaced and goes on into memcpy; a copy of a kit's size also tells the mod. A copy from one kit of
+the table to another takes the setup along. A copy into another buffer (the clipboard, the undo copy) leaves a
+shadow of the setup, keyed by the buffer's address (the 8 latest), so a copy back from it brings the setup. A copy
+from a buffer the mod never saw filled leaves the target's setup as it is.
 
 The kit on is the pattern on's: `*(*PATTERN_OBJ + 0x138)`, with `PATTERN_OBJ` DT2 `0x44f370a0`, DN2 `0x446488d0`
 (the pointer the getter DT2 `0x40198b7e` returns). It was the only word that went 0, 1, 2 on DT2 as A01, A02 and A03
 came on, and DN2's object has the same shape.
 
-A project load brings all 128 kits and a kit manager load one, so the mod counts the kit records loaded in a burst
-(up to a tick without loads). Per kit, the kit on takes its setup again after any burst. Per project, a burst of
-128 or more is a project load, and the project takes the setup of the kit on. When saved per project, every kit
-carries the project's setup.
-
-In `tests/emu/project.py` (16 checks on each, all passing):
+In `tests/emu/project.py` (23 checks on each, all passing):
 - The PERSONALIZE row toggles with YES, LEFT and RIGHT.
 - Per kit, A02's kit starts as a copy of A01's setup, and each keeps its own.
-- SAVE PROJECT AS to slot 001 writes both into their kit records, and none for kit 3.
-- Per project, LOAD PROJECT of slot 001 (with the mod's copies cleared) brings both back, the project takes A01's
-  kit's setup, and changing the pattern then changes nothing.
+- Per project, an edit leaves the kits' setups. Per kit again, each kit has its own; per project again, the
+  project's.
+- A04's kit with its own setup: copying A01 (FUNC + RECORD) and pasting it on A04 (FUNC + STOP) brings A01's kit's
+  setup.
+- SAVE PROJECT AS to slot 001 writes each kit's into its record, none for a kit never on, and the project's into the
+  header.
+- LOAD PROJECT of slot 001 (with the mod's copies cleared) brings the kits' back and, per project, the project's.
 
-Apart from the mod's bytes, nothing after the end marks changed.
+Apart from the mod's bytes, nothing after the end marks or in the header changed.
 
 ## PERSONALIZE **[D]**
 
@@ -89,7 +104,7 @@ y + 2, right-aligned). Its change callback gets (storage, item, delta) and redra
 
 - The kit manager (SAVE KIT, LOAD KIT TO PATTERN, RELOAD KIT FROM SAVED) was not driven in the emulator: which of the
   callers above it uses, and whether they pass the project's table kits, is not known for all of them.
-- Copies inside RAM (PASTE KIT, pattern copy and paste) copy the firmware's records, not the mod's setups: the target
-  keeps the setup its kit had.
+- PASTE KIT and undo were not driven; they copy with memcpy of a kit's size (the sites above), as pattern paste does.
+- A kit copied by other means than memcpy (a loop, a part at a time) would not take its setup along.
 - Transfer: its project backups carry the file as saved, so the setups should go with them; not tried.
 - Not tried on a unit.

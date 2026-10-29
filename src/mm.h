@@ -168,22 +168,33 @@ void mm_setup_pack(const mm_t *s, uint8_t *out);
 int mm_setup_valid(const uint8_t *in);
 int mm_setup_unpack(mm_t *s, const uint8_t *in); /* 0, or -1 */
 
-/* Per project or per kit (PERSONALIZE > MACRO SETUP): the setups the project's kit records carry, one per kit (kit n
- * is pattern n's) and the project's. The firmware's save and load of a kit record call mm_scope_save and
- * mm_scope_load; the tick calls mm_scope_edited after a change and mm_scope_follow with the kit on. */
+/* The kits feature (src/mm_kits.c; built in unless left out): setups per project or per kit, chosen in PERSONALIZE >
+ * MACRO SETUP. Every kit keeps its own setup and the project its own; the firmware's save and load of a kit record
+ * and of the project's header call the *_save and *_load functions, its copies of a kit in RAM mm_scope_copied; the
+ * tick calls mm_scope_edited after a change and mm_scope_follow with the kit on (kit n is pattern n's). */
 #define MM_KITS 128
+#define MM_SHADOWS 8 /* buffers outside the project's kits (clipboard, undo) whose kit's setup is known */
 enum { MM_SCOPE_PROJECT = 0, MM_SCOPE_KIT };
+typedef struct {
+    uint32_t addr;   /* 0: free */
+    uint8_t setup[MM_SETUP_SIZE];
+} mm_shadow;
 typedef struct {
     uint8_t kit[MM_KITS][MM_SETUP_SIZE]; /* all zero: none yet */
     uint8_t proj[MM_SETUP_SIZE];
-    uint8_t mode;              /* MM_SCOPE_* */
-    volatile uint8_t loads;    /* bumped by each kit record loaded */
-    uint8_t seen;              /* loads, as mm_scope_follow last saw it */
-    uint8_t burst;             /* kit records loaded in the loads that are still coming */
-    int16_t cur;               /* the kit whose setup is on, -1 none */
+    mm_shadow shadow[MM_SHADOWS];
+    uint8_t shadow_next;
+    uint8_t mode;                 /* MM_SCOPE_* */
+    volatile uint8_t gen;         /* bumped when a load or a copy changes a kit's setup */
+    uint8_t seen;                 /* gen, as mm_scope_follow last saw it */
+    volatile uint8_t proj_loaded; /* a project's header was loaded */
+    int16_t cur;                  /* the kit whose setup is on, -1 none */
 } mm_scope;
-void mm_scope_save(const mm_scope *p, int kit, uint8_t *out);  /* MM_SETUP_SIZE bytes; kit -1: not one of the project's */
-void mm_scope_load(mm_scope *p, int kit, const uint8_t *in);
+void mm_scope_kit_save(const mm_scope *p, int kit, uint8_t *out); /* MM_SETUP_SIZE bytes; kit -1: none */
+void mm_scope_kit_load(mm_scope *p, int kit, const uint8_t *in);
+void mm_scope_proj_save(const mm_scope *p, uint8_t *out);
+void mm_scope_proj_load(mm_scope *p, const uint8_t *in);
+void mm_scope_copied(mm_scope *p, int dst_kit, uint32_t dst, int src_kit, uint32_t src);
 void mm_scope_edited(mm_scope *p, const mm_t *s);
 int mm_scope_follow(mm_scope *p, mm_t *s, int kit);            /* 1 when the setup changed */
 void mm_scope_set(mm_scope *p, mm_t *s, int mode);

@@ -12,11 +12,8 @@
   "../../src/mm_store.c",
   "../../src/mm_draw.c",
   "../../src/mm_dests.c",
-  "../../src/mm_scope.c",
   "../../src/frame.s",
-  "../../src/leds.s",
-  "../../src/kit.s",
-  "../../src/rows.s"
+  "../../src/leds.s"
  ],
  "subscribe": [
   {
@@ -48,11 +45,6 @@
    "event": "ev_key_leds",
    "fn": "mm_ev_key_leds",
    "order": 10
-  },
-  {
-   "event": "ev_personalize",
-   "fn": "mm_ev_personalize",
-   "order": 50
   }
  ],
  "requires": [
@@ -91,13 +83,6 @@
   "-DVIEW_PUSH_AT=0x4011c08a",
   "-DSP_RELEASE_AT=0x40197d26",
   "-DSP_INPLACE_VT=0x401ef190",
-  "-DKIT_RAM=0x426532b8",
-  "-DKIT_STRIDE=0x5574",
-  "-DKIT_PAD=0x573e",
-  "-DPATTERN_OBJ=0x44f370a0",
-  "-DROW_TEXT_AT=0x40113fd4",
-  "-DROW_FONT=0x402a9be0",
-  "-DMENU_INVALIDATE_AT=0x4011b126",
   "-fno-tree-loop-distribute-patterns"
  ],
  "resources": {
@@ -105,15 +90,13 @@
   "names": [
    "ui:PAGE + MOD",
    "ui:macro mode",
-   "card:0x2df0e00-0x2df0e01",
-   "personalize:MACRO SETUP"
+   "card:0x2df0e00-0x2df0e01"
   ]
  },
  "defsym": {
   "MODS_STOCK": "0x400d9508",
   "LEDS_CLEAR": "0x4003098e",
-  "FRAME_STRIDE": "71",
-  "STRING_CTOR": "0x401e7e7a"
+  "FRAME_STRIDE": "71"
  },
  "sites": [
   {
@@ -127,18 +110,6 @@
    "stock": "4ebaf7ea2f02",
    "op": "jsr",
    "target": "mmx_leds"
-  },
-  {
-   "addr": "0x400dbee4",
-   "stock": "223cbacef00c",
-   "op": "jsr",
-   "target": "mmx_kit_save"
-  },
-  {
-   "addr": "0x400db8be",
-   "stock": "223cbacef00c",
-   "op": "jsr",
-   "target": "mmx_kit_load"
   }
  ],
  "collections": {

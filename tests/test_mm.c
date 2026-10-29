@@ -870,7 +870,7 @@ static void test_setup_pack(void)
     CHECK(!mm_setup_valid(rec));
 }
 
-static mm_scope scope;                          /* 25 KB: not on the stack */
+static mm_scope scope;                          /* 26 KB: not on the stack */
 
 static void fresh_scope(int mode)
 {
@@ -879,13 +879,11 @@ static void fresh_scope(int mode)
     scope.mode = (uint8_t)mode;
 }
 
-/* A project load: every kit's record, then a tick without loads ends the burst. */
-static int project_load(mm_t *s, const uint8_t *rec, int kit)
+static int dest_of(const uint8_t *rec)
 {
-    for (int i = 0; i < MM_KITS; i++)
-        mm_scope_load(&scope, i, rec);
-    mm_scope_follow(&scope, s, kit);
-    return mm_scope_follow(&scope, s, kit);
+    mm_t t;
+    mm_init(&t, &dests);
+    return mm_setup_unpack(&t, rec) == 0 ? t.m[0].slot[0].dest : -1;
 }
 
 static void test_scope_per_kit(void)
@@ -897,7 +895,7 @@ static void test_scope_per_kit(void)
     mm_scope_set(&scope, &s, MM_SCOPE_KIT);
     s.m[0].slot[0].dest = 30;                   /* the setup on when kit 0 first shows */
     CHECK(mm_scope_follow(&scope, &s, 0) == 0); /* kit 0 had none: it copies the one on */
-    CHECK(mm_setup_valid(scope.kit[0]));
+    CHECK(dest_of(scope.kit[0]) == 30);
     s.m[0].slot[0].dest = 55;                   /* an edit on kit 0 */
     mm_scope_edited(&scope, &s);
     s.m[1].pos = 9;
@@ -907,36 +905,36 @@ static void test_scope_per_kit(void)
     CHECK(mm_scope_follow(&scope, &s, 0) == 1); /* back on 0: its own */
     CHECK(s.m[0].slot[0].dest == 55 && s.m[1].pos == 9);
     CHECK(mm_scope_follow(&scope, &s, 0) == 0); /* no change, nothing to do */
-    mm_scope_save(&scope, 5, out);              /* a save writes each kit's */
-    CHECK(mm_setup_unpack(&s, out) == 0 && s.m[0].slot[0].dest == 64);
-    mm_scope_save(&scope, 6, out);              /* none for 6, none for a kit that is not one of the project's */
+    mm_scope_kit_save(&scope, 5, out);          /* a save writes each kit's */
+    CHECK(dest_of(out) == 64);
+    mm_scope_kit_save(&scope, 6, out);          /* none for 6, none for a kit that is not one of the project's */
     CHECK(!mm_setup_valid(out));
-    mm_scope_save(&scope, -1, out);
+    mm_scope_kit_save(&scope, -1, out);
     CHECK(!mm_setup_valid(out));
 }
 
-static void test_scope_kit_loads(void)
+static void test_scope_loads(void)
 {
     mm_t s, other;
     uint8_t rec[MM_SETUP_SIZE], none[MM_SETUP_SIZE] = {0};
     fresh_scope(MM_SCOPE_KIT);
     mm_init(&s, &dests);
     mm_init(&other, &dests);
-    other.m[7].slot[2].dest = 25;
+    other.m[0].slot[0].dest = 25;
     mm_setup_pack(&other, rec);
     mm_scope_follow(&scope, &s, 3);
-    mm_scope_load(&scope, 3, rec);              /* LOAD KIT TO PATTERN on the kit on: its setup comes on */
-    mm_scope_load(&scope, 200, rec);            /* not one of the project's kits: ignored */
-    CHECK(mm_scope_follow(&scope, &s, 3) == 0); /* the tick with the load: the burst may go on */
-    CHECK(mm_scope_follow(&scope, &s, 3) == 1 && s.m[7].slot[2].dest == 25);
-    mm_scope_load(&scope, 4, none);             /* a kit saved without the mod */
-    mm_scope_follow(&scope, &s, 3);
+    mm_scope_kit_load(&scope, 3, rec);          /* a load of the kit on: its setup comes on */
+    mm_scope_kit_load(&scope, 200, rec);        /* not one of the project's kits: ignored */
+    CHECK(mm_scope_follow(&scope, &s, 3) == 1 && s.m[0].slot[0].dest == 25);
+    mm_scope_kit_load(&scope, 4, none);         /* a kit saved without the mod */
     mm_scope_follow(&scope, &s, 3);
     CHECK(!mm_setup_valid(scope.kit[4]));
-    CHECK(mm_scope_follow(&scope, &s, 4) == 0 && mm_setup_valid(scope.kit[4])); /* none: a copy of the one on */
-    other.m[7].slot[2].dest = 30;               /* a project load: the kit on takes its setup */
+    CHECK(mm_scope_follow(&scope, &s, 4) == 0 && dest_of(scope.kit[4]) == 25); /* none: a copy of the one on */
+    mm_scope_proj_load(&scope, rec);            /* per kit, a project's header changes nothing on */
+    other.m[0].slot[0].dest = 30;
     mm_setup_pack(&other, rec);
-    CHECK(project_load(&s, rec, 4) == 1 && s.m[7].slot[2].dest == 30);
+    mm_scope_kit_load(&scope, 4, rec);
+    CHECK(mm_scope_follow(&scope, &s, 4) == 1 && s.m[0].slot[0].dest == 30);
 }
 
 static void test_scope_per_project(void)
@@ -951,34 +949,76 @@ static void test_scope_per_project(void)
     CHECK(mm_scope_follow(&scope, &s, 9) == 0 && s.m[0].slot[0].dest == 30); /* kits change nothing */
     s.m[0].slot[0].dest = 55;
     mm_scope_edited(&scope, &s);
-    mm_scope_save(&scope, 9, out);              /* every kit's record carries the project's setup */
-    CHECK(mm_setup_unpack(&other, out) == 0 && other.m[0].slot[0].dest == 55);
-    mm_scope_save(&scope, -1, out);
-    CHECK(mm_setup_valid(out));
-    mm_init(&other, &dests);
-    other.m[5].slot[1].dest = 64;
+    mm_scope_proj_save(&scope, out);            /* the header carries the project's */
+    CHECK(dest_of(out) == 55);
+    mm_scope_kit_save(&scope, 9, out);          /* and the kits carry none of it: they have none of their own */
+    CHECK(!mm_setup_valid(out));
+    other.m[0].slot[0].dest = 64;
     mm_setup_pack(&other, rec);
-    mm_scope_load(&scope, 9, rec);              /* one kit loaded (the kit manager): the project's setup stays */
-    mm_scope_follow(&scope, &s, 9);
+    mm_scope_kit_load(&scope, 9, rec);          /* a kit loaded: the project's stays */
     CHECK(mm_scope_follow(&scope, &s, 9) == 0 && s.m[0].slot[0].dest == 55);
-    CHECK(project_load(&s, rec, 9) == 1 && s.m[5].slot[1].dest == 64 && s.m[0].slot[0].dest == 0);
-    mm_scope_save(&scope, 2, out);              /* and it is the project's now */
-    CHECK(mm_setup_unpack(&other, out) == 0 && other.m[5].slot[1].dest == 64);
-    s.m[5].slot[1].dest = 25;
+    mm_scope_proj_load(&scope, rec);            /* a project loaded: its setup comes on */
+    CHECK(mm_scope_follow(&scope, &s, 9) == 1 && s.m[0].slot[0].dest == 64);
+    s.m[0].slot[0].dest = 25;
     mm_scope_edited(&scope, &s);
-    memset(rec, 0, sizeof rec);                 /* a project from before the mod: the setup on stays */
-    CHECK(project_load(&s, rec, 9) == 0 && s.m[5].slot[1].dest == 25);
-    mm_setup_pack(&other, rec);                 /* kit 0 (dest 64 above) for the switch below */
-    mm_scope_load(&scope, 0, rec);
-    mm_scope_follow(&scope, &s, 9);
-    mm_scope_follow(&scope, &s, 9);
-    mm_scope_set(&scope, &s, MM_SCOPE_KIT);     /* per kit now: the kit on's own */
-    CHECK(s.dirty_config);
-    CHECK(mm_scope_follow(&scope, &s, 0) == 1 && s.m[5].slot[1].dest == 64);
-    s.m[5].slot[1].dest = 0;
-    mm_scope_set(&scope, &s, MM_SCOPE_PROJECT); /* back: the one on becomes the project's */
-    mm_scope_save(&scope, 3, out);
-    CHECK(mm_setup_unpack(&other, out) == 0 && other.m[5].slot[1].dest == 0);
+    memset(rec, 0, sizeof rec);                 /* a project from before the mod: the setup on stays, as its own */
+    mm_scope_proj_load(&scope, rec);
+    CHECK(mm_scope_follow(&scope, &s, 9) == 0 && s.m[0].slot[0].dest == 25 && dest_of(scope.proj) == 25);
+}
+
+static void test_scope_shadowed(void)
+{
+    mm_t s;
+    fresh_scope(MM_SCOPE_KIT);
+    mm_init(&s, &dests);
+    s.m[0].slot[0].dest = 30;
+    mm_scope_follow(&scope, &s, 0);             /* kit 0: 30 */
+    s.m[0].slot[0].dest = 55;
+    mm_scope_edited(&scope, &s);
+    mm_scope_follow(&scope, &s, 1);             /* kit 1: a copy, 55 */
+    s.m[0].slot[0].dest = 64;
+    mm_scope_edited(&scope, &s);
+    mm_scope_set(&scope, &s, MM_SCOPE_PROJECT); /* the project has none yet: a copy of the one on, 64 */
+    CHECK(s.m[0].slot[0].dest == 64);
+    s.m[0].slot[0].dest = 25;                   /* per project: an edit is the project's only */
+    mm_scope_edited(&scope, &s);
+    mm_scope_follow(&scope, &s, 0);
+    CHECK(s.m[0].slot[0].dest == 25 && dest_of(scope.kit[0]) == 55 && dest_of(scope.kit[1]) == 64);
+    mm_scope_set(&scope, &s, MM_SCOPE_KIT);     /* back per kit: each kit's own, untouched */
+    CHECK(mm_scope_follow(&scope, &s, 0) == 1 && s.m[0].slot[0].dest == 55);
+    CHECK(mm_scope_follow(&scope, &s, 1) == 1 && s.m[0].slot[0].dest == 64);
+    mm_scope_set(&scope, &s, MM_SCOPE_PROJECT); /* and per project again: the project's own */
+    CHECK(s.m[0].slot[0].dest == 25 && s.dirty_config);
+}
+
+static void test_scope_copies(void)
+{
+    mm_t s;
+    enum { KIT0 = 0x1000, STRIDE = 0x100, CLIP = 0x9000, UNDO = 0xa000, OTHER = 0xb000 };
+    fresh_scope(MM_SCOPE_KIT);
+    mm_init(&s, &dests);
+    s.m[0].slot[0].dest = 30;
+    mm_scope_follow(&scope, &s, 0);             /* kit 0: 30 */
+    mm_scope_follow(&scope, &s, 1);
+    s.m[0].slot[0].dest = 55;
+    mm_scope_edited(&scope, &s);                /* kit 1: 55, on */
+    mm_scope_copied(&scope, -1, CLIP, 0, KIT0); /* copy kit 0 */
+    mm_scope_copied(&scope, -1, UNDO, 1, KIT0 + STRIDE); /* paste into kit 1: the firmware keeps an undo copy, */
+    mm_scope_copied(&scope, 1, KIT0 + STRIDE, -1, CLIP); /* then copies the clipboard over */
+    CHECK(mm_scope_follow(&scope, &s, 1) == 1 && s.m[0].slot[0].dest == 30);
+    mm_scope_copied(&scope, 1, KIT0 + STRIDE, -1, UNDO); /* undo */
+    CHECK(mm_scope_follow(&scope, &s, 1) == 1 && s.m[0].slot[0].dest == 55);
+    mm_scope_copied(&scope, 1, KIT0 + STRIDE, -1, OTHER); /* from a buffer never seen filled: kept */
+    CHECK(mm_scope_follow(&scope, &s, 1) == 0 && s.m[0].slot[0].dest == 55);
+    mm_scope_copied(&scope, 2, KIT0 + 2 * STRIDE, 0, KIT0); /* kit to kit */
+    CHECK(dest_of(scope.kit[2]) == 30);
+    mm_scope_copied(&scope, -1, CLIP, -1, OTHER); /* the clipboard now holds a kit the mod knows nothing of */
+    mm_scope_copied(&scope, 2, KIT0 + 2 * STRIDE, -1, CLIP);
+    CHECK(dest_of(scope.kit[2]) == 30);
+    for (int i = 0; i < 2 * MM_SHADOWS; i++)    /* more buffers than shadows: the oldest go */
+        mm_scope_copied(&scope, -1, 0x20000 + 0x100 * (uint32_t)i, 0, KIT0);
+    mm_scope_copied(&scope, 1, KIT0 + STRIDE, -1, 0x20000 + 0x100 * (2 * MM_SHADOWS - 1));
+    CHECK(dest_of(scope.kit[1]) == 30);
 }
 
 void test_draw(int *checks_out, int *failures_out);
@@ -1016,8 +1056,10 @@ int main(void)
     test_scaled_encoders();
     test_setup_pack();
     test_scope_per_kit();
-    test_scope_kit_loads();
+    test_scope_loads();
     test_scope_per_project();
+    test_scope_shadowed();
+    test_scope_copies();
     test_blob_version_1();
     test_trk_trig_selects_track();
     test_announce();

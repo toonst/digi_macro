@@ -7,6 +7,8 @@
 #      left (the mods have no C library), and the sizes are printed;
 #   4. with DT2_SYX / DN2_SYX set to the stock OS files, elekloader's own build and lint of each mod, and the OS file
 #      out/check/macro-<dev>.syx (never commit it: it holds Elektron's firmware).
+# Each device's manifest is mods/<dev>/mod.json plus its features' fragments (tools/manifest.py): kits.json unless
+# MM_KITS=0. MM_LED_TEST=1 builds the LED colour test.
 # It runs on the bash macOS ships (3.2) as well as on Linux. The ColdFire toolchain is m68k-linux-gnu- (Debian,
 # Ubuntu) or m68k-elf- (macOS, bare-metal builds), found on the PATH; ELEKLOADER_CROSS names another prefix.
 set -euo pipefail
@@ -39,9 +41,13 @@ lines() {
         if [[ -n "$line" ]]; then eval "$name+=(\"\$line\")"; fi
     done < <("$@")
 }
-# manifest DEV EXPR: a Python expression over the manifest m, one line per item
-manifest() { python3 -c "import json; m = json.load(open('mods/$1/mod.json')); print('\n'.join($2))"; }
+# manifest DEV EXPR: a Python expression over the device's built manifest m (tools/manifest.py), one line per item
+manifest() { python3 -c "import json; m = json.load(open('$OUT/$1-manifest/mod.json')); print('\n'.join($2))"; }
 SRC=(src/mm_logic.c src/mm_apply.c src/mm_store.c src/mm_draw.c src/mm_scope.c)
+FEATURES=()
+[[ "${MM_KITS:-1}" == 0 ]] || FEATURES+=(kits)
+EXTRA=()
+[[ -z "${MM_LED_TEST:-}" ]] || EXTRA+=(--cflag -DMM_LED_TEST)
 
 echo "== host tests"
 "$CC" -std=c99 -Wall -Wextra -Werror -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all \
@@ -63,8 +69,8 @@ command -v "${CROSS}gcc" >/dev/null || {
 }
 FLAGS=(-mcpu=54455 -O2 -ffreestanding -fno-builtin -nostdlib -fno-pic -fno-pie -fomit-frame-pointer -Wall -Wextra -Werror)
 for dev in dt2 dn2; do
+    python3 tools/manifest.py "$dev" "$OUT/$dev-manifest" ${FEATURES[@]+"${FEATURES[@]}"} ${EXTRA[@]+"${EXTRA[@]}"}
     lines cflags manifest "$dev" "m['cflags']"
-    [[ -z "${MM_LED_TEST:-}" ]] || cflags+=(-DMM_LED_TEST)
     lines srcs manifest "$dev" "m['sources']"
     lines defsym manifest "$dev" "'--defsym=%s=%s' % kv for kv in m.get('defsym', {}).items()"
     lines tables manifest "$dev" "m.get('collections', {})"
@@ -72,9 +78,9 @@ for dev in dt2 dn2; do
     for s in "${srcs[@]}"; do
         o="$OUT/$dev-$(basename "${s%.*}").o"
         if [[ "$s" == *.s ]]; then
-            "${CROSS}as" -mcpu=54455 ${defsym[@]+"${defsym[@]}"} "mods/$dev/$s" -o "$o"
+            "${CROSS}as" -mcpu=54455 ${defsym[@]+"${defsym[@]}"} "$OUT/$dev-manifest/$s" -o "$o"
         else
-            "${CROSS}gcc" "${FLAGS[@]}" ${cflags[@]+"${cflags[@]}"} -c "mods/$dev/$s" -o "$o"
+            "${CROSS}gcc" "${FLAGS[@]}" ${cflags[@]+"${cflags[@]}"} -c "$OUT/$dev-manifest/$s" -o "$o"
         fi
         objs+=("$o")
     done
@@ -105,13 +111,7 @@ if [[ -n "$DT2_SYX$DN2_SYX" ]]; then
         IFS=: read -r dev syx core <<< "$pair"
         [[ -n "$syx" ]] || continue
         el -m elekloader.sdk.build "$EL/mods/$core" --stock "$syx" --out "$OUT/$dev-core"
-        mod_dir="mods/$dev"
-        if [[ -n "${MM_LED_TEST:-}" ]]; then   # the colour test: the manifest with -DMM_LED_TEST
-            mod_dir="$OUT/$dev-ledtest"
-            mkdir -p "$mod_dir"
-            python3 -c "import json,sys; m=json.load(open('mods/$dev/mod.json')); m['cflags'].append('-DMM_LED_TEST'); m['sources']=['../../../'+x[len('../../'):] for x in m['sources']]; json.dump(m, open('$mod_dir/mod.json','w'), indent=1)"
-        fi
-        el -m elekloader.sdk.build "$mod_dir" --stock "$syx" --out "$OUT/$dev-mod"
+        el -m elekloader.sdk.build "$OUT/$dev-manifest" --stock "$syx" --out "$OUT/$dev-mod"
         el -m elekloader.lint "$OUT/$dev-mod"/*.elemod --stock "$syx" --with "$OUT/$dev-core"/*.elemod
         el -m elekloader.patch --stock "$syx" --mod "$OUT/$dev-core"/*.elemod --mod "$OUT/$dev-mod"/*.elemod \
             --out "$OUT/macro-$dev.syx" --version MMDV | tail -2

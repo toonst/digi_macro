@@ -262,10 +262,11 @@ value = sat(value + delta, 0, 0x7f00)        /* in the per-frame value array, as
 - **Version 1.** The configuration (8 × 4 slots: destination, depth, mask) goes into a global store (W3) in a
   versioned layout, about 120–140 bytes. It is written when the setup screen closes. Positions are not stored (D14).
 - **Per kit or per project** (done; docs/findings/s7-project-storage.md). A PERSONALIZE row from `core_additem`,
-  MACRO SETUP: PROJECT or KIT, chooses the scope. A setup (slots and names, not positions) is part of a kit: it goes
-  into bytes of each saved kit record the stock OS leaves unused, the same way on both devices. The firmware's own
-  save and load of a kit call the mod, so a project saved with the mod still loads on the stock OS. A kit or project
-  with no setup starts with a copy of the one on.
+  MACRO SETUP: PROJECT or KIT, chooses which setup is on. A setup (slots and names, not positions) is part of a kit,
+  and the project has its own; both are kept whichever is on. They go into bytes of the saved project the stock OS
+  leaves unused (each kit record's tail, the header), the same way on both devices, and the firmware's copies of a
+  kit take its setup along. A kit or project with no setup starts with a copy of the one on. It is an optional
+  feature: a manifest fragment and a header the glue calls through (README.md, "Features").
 
 ## 5. Architecture
 

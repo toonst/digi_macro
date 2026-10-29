@@ -1,0 +1,69 @@
+{
+ "_comment": "The kits feature (src/mm_kits.h): setups per project or per kit, PERSONALIZE > MACRO SETUP. tools/manifest.py adds it to mod.json unless MM_KITS=0.",
+ "sources": [
+  "../../src/mm_scope.c",
+  "../../src/mm_kits.c",
+  "../../src/kit.s",
+  "../../src/rows.s"
+ ],
+ "cflags": [
+  "-DMM_FEATURE_KITS",
+  "-DKIT_RAM=0x426532b8",
+  "-DKIT_STRIDE=0x5574",
+  "-DKIT_PAD=0x573e",
+  "-DPATTERN_OBJ=0x44f370a0",
+  "-DROW_TEXT_AT=0x40113fd4",
+  "-DROW_FONT=0x402a9be0",
+  "-DMENU_INVALIDATE_AT=0x4011b126",
+  "-DPROJ_PAD=0x1c"
+ ],
+ "defsym": {
+  "STRING_CTOR": "0x401e7e7a",
+  "MEMCPY": "0x40136388",
+  "KIT_SIZE": "0x5574"
+ },
+ "subscribe": [
+  {
+   "event": "ev_personalize",
+   "fn": "mm_ev_personalize",
+   "order": 50
+  }
+ ],
+ "sites": [
+  {
+   "addr": "0x400dbee4",
+   "stock": "223cbacef00c",
+   "op": "jsr",
+   "target": "mmx_kit_save"
+  },
+  {
+   "addr": "0x400db8be",
+   "stock": "223cbacef00c",
+   "op": "jsr",
+   "target": "mmx_kit_load"
+  },
+  {
+   "addr": "0x400df932",
+   "stock": "26bcbeefbace",
+   "op": "jsr",
+   "target": "mmx_proj_save"
+  },
+  {
+   "addr": "0x400df99c",
+   "stock": "203cbeefbace",
+   "op": "jsr",
+   "target": "mmx_proj_load"
+  },
+  {
+   "addr": "0x40136388",
+   "stock": "226f0004206f0008202f000c",
+   "op": "jmp",
+   "target": "mmx_memcpy"
+  }
+ ],
+ "resources": {
+  "names": [
+   "personalize:MACRO SETUP"
+  ]
+ }
+}

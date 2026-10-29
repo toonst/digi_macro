@@ -4,7 +4,7 @@
  * (TEXT_AT, with the font object at TEXT_FONT).
  *
  * The device's addresses come from mod.json's cflags; docs/findings has what each is. */
-#include "mm.h"
+#include "mm_kits.h"
 
 #ifndef FILLRECT_AT
 #error "FILLRECT_AT: Bitmap::fillRect's address in the target OS (mod.json cflags)"
@@ -22,9 +22,6 @@ static uint8_t mm_back;
 mm_mods *volatile mm_live;
 /* The firmware's Brain, as ev_key last handed it over (its view controller is at +0x40). */
 void *mm_brain;
-
-/* Setups per project or per kit (docs/findings/s7-project-storage.md); not static, for the emulator scenarios. */
-mm_scope mm_scopes;
 
 #ifdef CARD_WRITE_AT
 /* W3 (docs/findings/s5-storage.md): the configuration in two card sectors the stock OS never writes, between the end
@@ -47,8 +44,7 @@ static void card_load(mm_t *s)
     if (pick < 0)
         return;
     mm_decode(s, (pick ? other : mm_sector) + 8, MM_BLOB_SIZE);
-    if ((pick ? other : mm_sector)[MM_RECORD_SCOPE] & 0x80) /* older records: per project */
-        mm_scopes.mode = (pick ? other : mm_sector)[MM_RECORD_SCOPE] & 1;
+    mm_kits_card_restore((pick ? other : mm_sector)[MM_RECORD_SCOPE]);
     mm_seq = seq;
     mm_copy = (uint8_t)pick;
 }
@@ -56,7 +52,7 @@ static void card_load(mm_t *s)
 static void card_store(mm_t *s)
 {
     mm_record_encode(s, mm_seq + 1, mm_sector);
-    mm_sector[MM_RECORD_SCOPE] = (uint8_t)(0x80 | mm_scopes.mode);
+    mm_sector[MM_RECORD_SCOPE] = mm_kits_card();
     if (((block_fn)CARD_WRITE_AT)(CARD_SECTOR + (mm_copy ^ 1), MM_RECORD_SIZE, mm_sector) == 0) {
         mm_seq++;
         mm_copy ^= 1;               /* the next write goes to the other copy */
@@ -222,96 +218,6 @@ static void open_name_view(int macro)
 }
 #endif
 
-#ifdef KIT_RAM
-/* The project's kits (docs/findings/s7-project-storage.md; src/kit.s): the firmware's save and load of a kit record
- * call these, with the record and the kit's RAM. The project's kits are a table (KIT_RAM, KIT_STRIDE; kit n is
- * pattern n's); the setup goes at KIT_PAD in the record, after its end mark, where the firmware writes nothing. A kit
- * that is not in the table gets none. */
-static int kit_index(const uint8_t *ram)
-{
-    uint32_t off = (uint32_t)ram - KIT_RAM;
-    if ((uint32_t)ram < KIT_RAM || off % KIT_STRIDE || off / KIT_STRIDE >= MM_KITS)
-        return -1;
-    return (int)(off / KIT_STRIDE);
-}
-
-void mm_kit_save(uint8_t *record, const uint8_t *ram)
-{
-    mm_scope_save(&mm_scopes, kit_index(ram), record + KIT_PAD);
-}
-
-void mm_kit_load(uint8_t *a2, uint8_t *a3)
-{
-#ifdef KIT_LOAD_RAM_A3
-    uint8_t *ram = a3, *record = a2;
-#else
-    uint8_t *ram = a2, *record = a3;
-#endif
-    mm_scope_load(&mm_scopes, kit_index(ram), record + KIT_PAD);
-}
-
-/* The kit on is the pattern on's: the sequencer object's (PATTERN_OBJ, the pointer its getter returns) + 0x138, the
- * same on both. */
-static int fw_kit(void)
-{
-    uint32_t o = *(volatile uint32_t *)PATTERN_OBJ, n;
-    if (!o)
-        return -1;
-    n = *(volatile uint32_t *)(o + 0x138);
-    return n < MM_KITS ? (int)n : -1;
-}
-#else
-static int fw_kit(void)
-{
-    return -1;
-}
-#endif
-
-#ifdef ROW_TEXT_AT
-/* SETTINGS > PERSONALIZE > MACRO SETUP: PROJECT or KIT, a value row as the stock LED INTENSITY (elekloader's
- * core_additem; label in src/rows.s). Each callback gets the std::function's storage, whose first word is the menu;
- * the value is drawn as LED INTENSITY's (the firmware's text routine at the row's x + 19, y + 2, right-aligned), and a
- * change redraws the menu with View::invalidate(menu + 0x38). */
-extern void core_additem(void *menu, const void *row);
-extern void mm_row_label(void);
-static mm_t *state(void);
-
-static void row_set(void **storage, int mode)
-{
-    mm_scope_set(&mm_scopes, state(), mode);
-    ((void (*)(void *))MENU_INVALIDATE_AT)((char *)*storage + 0x38);
-}
-
-static void row_select(void **storage)
-{
-    row_set(storage, mm_scopes.mode ^ 1);
-}
-
-static void row_draw(void *storage, void *item, void *bmp, int x, int y)
-{
-    typedef void (*row_text_t)(void *bmp, const void *font, int x, int y, int align, int a, int b, const char *s);
-    (void)storage, (void)item;
-    ((row_text_t)ROW_TEXT_AT)(bmp, (const void *)ROW_FONT, x + 19, y + 2, 2, 0, 0,
-                              mm_scopes.mode == MM_SCOPE_KIT ? "KIT" : "PROJECT");
-}
-
-static void row_change(void **storage, int item, int delta)
-{
-    (void)item;
-    if (delta)
-        row_set(storage, delta > 0 ? MM_SCOPE_KIT : MM_SCOPE_PROJECT);
-}
-
-static const void *const mm_row[4] = {
-    (const void *)mm_row_label, (const void *)row_select, (const void *)row_draw, (const void *)row_change,
-};
-
-void mm_ev_personalize(void *menu)
-{
-    core_additem(menu, mm_row);
-}
-#endif
-
 static mm_t *state(void)
 {
     if (!mm_state.dests) {
@@ -325,9 +231,13 @@ static mm_t *state(void)
 #ifdef ENC_FILTER_AT
         mm_state.enc_scaled = 1;
 #endif
-        mm_scopes.cur = -1;
     }
     return &mm_state;
+}
+
+mm_t *mm_get(void)
+{
+    return state();
 }
 
 /* The firmware's frame has y = 0 at the bottom; the mode draws with y = 0 at the top. */
@@ -417,9 +327,7 @@ void mm_ev_tick(void *ctrl)
     if (!mm_loaded)
         card_load(s);
 #endif
-    if (s->dirty_config)            /* the setup the kit or project has, as it is now */
-        mm_scope_edited(&mm_scopes, s);
-    mm_scope_follow(&mm_scopes, s, fw_kit());
+    mm_kits_tick(s);
 #ifdef CARD_WRITE_AT
     if (s->dirty_config && s->state != MM_SETUP) {  /* once per visit of the setup screen, not per turn */
         card_store(s);

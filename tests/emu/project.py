@@ -1,6 +1,7 @@
-"""Setups per kit and per project in the emulator (docs/findings/s7-project-storage.md), on a build from
-tools/check.sh: the PERSONALIZE row, a setup following the kit on (the pattern on's), SAVE PROJECT AS writing each
-kit's setup into its record, and LOAD PROJECT bringing them back.
+"""The kits feature in the emulator (docs/findings/s7-project-storage.md), on a build from tools/check.sh: the
+PERSONALIZE row, a setup following the kit on (the pattern on's), the kits' and the project's setups kept apart across
+scope changes, pattern copy and paste taking the kit's setup along, SAVE PROJECT AS writing them into the kit records
+and the project's header, and LOAD PROJECT bringing them back.
 
     python3 tests/emu/project.py --runner RUNNER --stock STOCK.syx --build out/check/macro-dt2.syx \\
         --map out/check/macro-dt2.map.json --out out/emu-project-dt2 --device dt2
@@ -13,7 +14,7 @@ import sys
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 import scenario as S  # noqa: E402
 
-SETTINGS, YES, NO, UP, LEFT, DOWN, RIGHT, PTN = 8, 10, 12, 11, 13, 14, 15, 23
+SETTINGS, YES, NO, UP, LEFT, DOWN, RIGHT, FUNC, RECORD, STOP, PTN = 8, 10, 12, 11, 13, 14, 15, 17, 19, 21, 23
 # Per device: the saved project's first sector (slot 001: digikit finding 14), where kit n's setup lies in the saved
 # file (after the kit record's end mark), and three destinations it has.
 PROJECT = {
@@ -40,6 +41,11 @@ class Project:
 
     def has_setup(self, i):
         return self.r.peek8(self.scope + self.L['scope_kit'] + i * self.L['setup_size']) == MARK
+
+    def kit_dest(self, i):
+        """Slot 1 of macro A's destination in kit i's setup, None without one."""
+        a = self.scope + self.L['scope_kit'] + i * self.L['setup_size']
+        return self.r.peek8(a + 1) >> 1 if self.r.peek8(a) == MARK else None
 
     def clear(self, i):
         a = self.scope + self.L['scope_kit'] + i * self.L['setup_size']
@@ -114,47 +120,96 @@ def scenario(r, out, dev):
     p.set_dest(0, 0, d1)
     pattern(r, 0)
     r.check(r.slot(0, 0)[0] == d0, "back on A01: its kit's setup (%d)" % r.slot(0, 0)[0])
-    pattern(r, 1)
-    r.check(r.slot(0, 0)[0] == d1, "A02: its kit's own (%d)" % r.slot(0, 0)[0])
-    pattern(r, 0)
 
-    # SAVE PROJECT AS slot 001: every kit's record carries its setup
+    # per project and back: the kits' setups stay as they are, and so does the project's
+    scope(r, LEFT)
+    r.check(r.slot(0, 0)[0] == 0, 'per project: the project\'s own, from boot (%d)' % r.slot(0, 0)[0])
+    p.set_dest(0, 0, d2)
+    r.check(p.kit_dest(0) == d0 and p.kit_dest(1) == d1, 'an edit per project leaves the kits\' setups: %s, %s'
+            % (p.kit_dest(0), p.kit_dest(1)))
+    scope(r, RIGHT)
+    r.check(r.slot(0, 0)[0] == d0, 'per kit again: A01\'s kit\'s own (%d)' % r.slot(0, 0)[0])
+    pattern(r, 1)
+    r.check(r.slot(0, 0)[0] == d1, 'and A02\'s (%d)' % r.slot(0, 0)[0])
+    scope(r, LEFT)
+    r.check(r.slot(0, 0)[0] == d2, 'per project again: the project\'s own (%d)' % r.slot(0, 0)[0])
+    scope(r, RIGHT)
+
+    # pattern copy and paste (FUNC + RECORD, FUNC + STOP): the pasted pattern's kit takes the setup along
+    pattern(r, 0)
+    r.down(FUNC)
+    r.tap(RECORD)
+    r.up(FUNC)
+    pattern(r, 3)
+    p.set_dest(0, 0, d1)                        # A04's kit: its own setup before the paste
+    r.check(p.kit_dest(3) == d1, "A04's kit has its own setup before the paste")
+    r.down(FUNC)
+    r.tap(STOP)
+    r.up(FUNC)
+    r.step(S.SETTLE)
+    r.step(S.SETTLE)
+    r.shot('pasted')
+    r.check(p.kit_dest(3) == d0 and r.slot(0, 0)[0] == d0,
+            'the paste of A01 on A04 brings A01\'s kit\'s setup: kit %s, on %d' % (p.kit_dest(3), r.slot(0, 0)[0]))
+    pattern(r, 0)
+    scope(r, LEFT)
+
+    # SAVE PROJECT AS slot 001, per project: every kit's record carries its own setup, the header the project's
     before = card(r, out, 'card-0.bin')
-    menu(r, SETTINGS, *[UP] * 10, YES, DOWN, YES, YES, wait=2)
+    settings(r)
+    menu(r, YES, DOWN, YES, YES, wait=2)
     r.shot('save-name')
     menu(r, YES, wait=8)
     r.shot('saved')
     after = card(r, out, 'card-1.bin')
     sec, rec = PROJECT[dev]['sector'], PROJECT[dev]['record']
     r.check(any(after.get(k) != before.get(k) for k in range(sec, sec + 64)), 'the project was saved')
-    a, b, c = (read(after, sec, rec(i), SIZE) for i in (0, 1, 2))
-    r.check(a[0] == MARK and first_dest(a) == d0, 'the saved kit 1 has its setup: %s' % a[:3].hex())
+    a, b, c, h = (read(after, sec, o, SIZE) for o in (rec(0), rec(1), rec(2), 0x1c))
+    r.check(a[0] == MARK and first_dest(a) == d0, 'the saved kit 1 has its own setup: %s' % a[:3].hex())
     r.check(b[0] == MARK and first_dest(b) == d1, 'the saved kit 2 has its own: %s' % b[:3].hex())
     r.check(c == bytes(SIZE), 'kit 3, never on, has none')
+    r.check(h[0] == MARK and first_dest(h) == d2, 'the header has the project\'s: %s' % h[:3].hex())
     menu(r, NO, NO, wait=2)
 
-    # per project now, LOAD PROJECT 001: the kits get their setups back, and the project takes the kit on's
-    personalize(r)
-    menu(r, LEFT, NO, NO, NO, wait=2)
-    r.check(p.mode() == 0, 'per project again')
+    # LOAD PROJECT 001, per project: the kits get their setups back, and the project's comes on
     p.clear(0)
     p.clear(1)
-    p.set_dest(0, 0, d2)
-    menu(r, SETTINGS, *[UP] * 10, YES, UP, YES, wait=2)
+    p.set_dest(0, 0, d1)
+    settings(r)
+    menu(r, YES, UP, YES, wait=2)
     r.shot('load-list')
     menu(r, YES, wait=2)
     r.shot('load-confirm')
     menu(r, YES, wait=8)
     r.shot('loaded')
     menu(r, NO, NO, wait=2)
-    r.check(p.has_setup(0) and p.has_setup(1), "the load brought kit 1's and kit 2's setups back")
-    r.check(r.slot(0, 0)[0] == d0, "per project, the project load brings the kit on's setup (%d)" % r.slot(0, 0)[0])
+    r.check(p.kit_dest(0) == d0 and p.kit_dest(1) == d1, 'the load brought the kits\' setups back')
+    r.check(r.slot(0, 0)[0] == d2, 'per project, the load brings the project\'s setup (%d)' % r.slot(0, 0)[0])
     pattern(r, 1)
-    r.check(r.slot(0, 0)[0] == d0, 'per project, another kit changes nothing (%d)' % r.slot(0, 0)[0])
+    r.check(r.slot(0, 0)[0] == d2, 'per project, another kit changes nothing (%d)' % r.slot(0, 0)[0])
+    scope(r, RIGHT)
+    r.check(r.slot(0, 0)[0] == d1, 'per kit, A02\'s kit\'s own (%d)' % r.slot(0, 0)[0])
+
+
+def scope(r, key):
+    """MACRO SETUP to per project (LEFT) or per kit (RIGHT), out of the menu again."""
+    personalize(r)
+    menu(r, key, NO, NO, NO, wait=2)
+
+
+def settings(r):
+    """SETTINGS open, at its first row. After a project load the firmware can let the first press go."""
+    for _ in range(3):
+        menu(r, SETTINGS)
+        if S.top_view(r) != S.DEV['view_top']:
+            break
+        r.step(S.SETTLE)
+    menu(r, *[UP] * 10)
 
 
 def personalize(r):
-    menu(r, SETTINGS, *[UP] * 10, *[DOWN] * 6, YES, *[DOWN] * 16)
+    settings(r)
+    menu(r, *[DOWN] * 6, YES, *[DOWN] * 16)
 
 
 def main():
