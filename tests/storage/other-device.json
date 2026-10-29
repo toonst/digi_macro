@@ -4,7 +4,8 @@
  "sites": [],
  "resources": {
   "names": [
-   "record:kit:0x5780-0x57a0"
+   "card:0x2df0e00-0x2df0e02",
+   "kitdata:MMKS"
   ]
  }
 }

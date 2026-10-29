@@ -15,18 +15,21 @@ sys.path.insert(0, str(pathlib.Path(__file__).parent))
 import scenario as S  # noqa: E402
 
 SETTINGS, YES, NO, UP, LEFT, DOWN, RIGHT, FUNC, RECORD, STOP, PTN = 8, 10, 12, 11, 13, 14, 15, 17, 19, 21, 23
-# Per device: the saved project's first sector (slot 001: digikit finding 14), where kit n's setup lies in the saved
-# file (after the kit record's end mark), and three destinations it has.
+# Per device: the saved project's first sector (slot 001: digikit finding 14), where kit n's mod data lies in the
+# saved file (elekloader core's, after the kit record's end mark), and three destinations it has.
 PROJECT = {
     'dt2': dict(sector=0x58000, record=lambda i: 0xae0200 + i * 0x5800 + 0x573e, dests=(36, 40, 50)),
     'dn2': dict(sector=0x58000, record=lambda i: 0xae0200 + i * 0x2a00 + 0x28af, dests=(67, 71, 80)),
 }
-MARK, SIZE = 0xd1, 194
+SIZE = 191      # MM_SETUP_SIZE
+# core's kit data: 'K', the layout's id, then the blocks (the mod's is the only one); project data in the header's
+# gap at + 0x1c: 'ELKP', then the block's tag, its size and its bytes
+KIT_HEAD, PROJ_AT, PROJ_HEAD = 3, 0x1c, b'ELKP' + b'MMPS' + (192).to_bytes(4, 'big')
 
 
 def first_dest(rec):
-    """Slot 1 of macro A's destination in a saved setup: the stream's first 7 bits."""
-    return rec[1] >> 1
+    """Slot 1 of macro A's destination in a setup: the stream's first 7 bits; None for none (all zero)."""
+    return rec[0] >> 1 if any(rec) else None
 
 
 class Project:
@@ -39,17 +42,23 @@ class Project:
     def mode(self):
         return self.r.peek8(self.scope + self.L['scope_mode'])
 
+    def setup(self, i):
+        a = self.scope + self.L['scope_kit'] + i * self.L['setup_size']
+        return bytes(self.r.peek8(a + k) for k in range(8))   # a setup's first slot: none has these all zero
+
     def has_setup(self, i):
-        return self.r.peek8(self.scope + self.L['scope_kit'] + i * self.L['setup_size']) == MARK
+        return any(self.setup(i))
 
     def kit_dest(self, i):
         """Slot 1 of macro A's destination in kit i's setup, None without one."""
-        a = self.scope + self.L['scope_kit'] + i * self.L['setup_size']
-        return self.r.peek8(a + 1) >> 1 if self.r.peek8(a) == MARK else None
+        return first_dest(self.setup(i))
+
+    def conflicts(self):
+        return self.r.peek32(self.r.syms['core_store_conflicts'])
 
     def clear(self, i):
         a = self.scope + self.L['scope_kit'] + i * self.L['setup_size']
-        self.r.cmd('poke %x %s' % (a, '00' * 4))
+        self.r.cmd('poke %x %s' % (a, '00' * self.L['setup_size']))
 
     def set_dest(self, k, j, dest):
         """Slot j of macro k to dest, as the setup screen would (the tick then keeps it as the setup on)."""
@@ -164,11 +173,13 @@ def scenario(r, out, dev):
     after = card(r, out, 'card-1.bin')
     sec, rec = PROJECT[dev]['sector'], PROJECT[dev]['record']
     r.check(any(after.get(k) != before.get(k) for k in range(sec, sec + 64)), 'the project was saved')
-    a, b, c, h = (read(after, sec, o, SIZE) for o in (rec(0), rec(1), rec(2), 0x1c))
-    r.check(a[0] == MARK and first_dest(a) == d0, 'the saved kit 1 has its own setup: %s' % a[:3].hex())
-    r.check(b[0] == MARK and first_dest(b) == d1, 'the saved kit 2 has its own: %s' % b[:3].hex())
-    r.check(c == bytes(SIZE), 'kit 3, never on, has none')
-    r.check(h[0] == MARK and first_dest(h) == d2, 'the header has the project\'s: %s' % h[:3].hex())
+    a, b, c = (read(after, sec, rec(i), KIT_HEAD + SIZE) for i in range(3))
+    h = read(after, sec, PROJ_AT, len(PROJ_HEAD) + SIZE)
+    r.check(a[0] == 0x4b and first_dest(a[KIT_HEAD:]) == d0, 'the saved kit 1 has its own setup: %s' % a[:5].hex())
+    r.check(b[:3] == a[:3] and first_dest(b[KIT_HEAD:]) == d1, 'the saved kit 2 has its own: %s' % b[:5].hex())
+    r.check(c[:3] == a[:3] and c[KIT_HEAD:] == bytes(SIZE), 'kit 3, never on, has none')
+    r.check(h.startswith(PROJ_HEAD) and first_dest(h[len(PROJ_HEAD):]) == d2,
+            'the header has the project\'s: %s' % h[:16].hex())
     menu(r, NO, NO, wait=2)
 
     # LOAD PROJECT 001, per project: the kits get their setups back, and the project's comes on

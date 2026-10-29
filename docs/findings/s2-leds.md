@@ -35,8 +35,9 @@ byte's setter `0x4011d5f4`. The logical ids are the same (digikit's `digitone-ii
 
 ## The hook **[D]**
 
-`src/leds.s` replaces the 6 bytes at the site (DT2 `0x400311a2`) (the 4-byte `jsr (pc)` to the clear and the `move.l d2,-(sp)`
-after it) with a `jsr` to `mmx_leds`: it runs the clear, calls each handler of the collection `ev_key_leds` as
+elekloader's core (core-dt2 1.1, core-dn2 0.3: its `mods/core-dt2/leds.s`, first built here) replaces the 6 bytes at
+the site (DT2 `0x400311a2`) (the 4-byte `jsr (pc)` to the clear and the `move.l d2,-(sp)` after it) with a `jsr` to
+`core_key_leds`: it runs the clear, calls each handler of the event `ev_key_leds` as
 `f(void *mgr)`, and replays the displaced push. `mm_ev_key_leds` sets MOD to `0x31` (blue) with layer 2, and in the setup
 screen each trig key to `0x11` (layer 2) or off (layer 1). When the mode's LEDs change, the tick sets the view
 controller's `+0x21` so an LED frame runs.

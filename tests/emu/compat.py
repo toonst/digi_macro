@@ -2,13 +2,14 @@
 
 1. the mod (a build with the kits feature) saves a project with setups per kit and the project's: slot 001;
 2. the stock OS, with that slot on its card, loads it and saves it again: slot 002. The mod's file and the stock
-   OS's may differ only in the bytes the mod claims (record:kit, record:project in mods/<dev>/kits.json), and in what
+   OS's may differ only in the bytes elekloader's core keeps mods' data in (after each kit record's end mark, the
+   header's gap), and in what
    a load and a save change on the stock OS alone (the control: its own project saved as slot 004, loaded, saved as
-   slot 005; a word of the header). In the mod's bytes the stock save has zeros or keeps the mod's setups;
+   slot 005; a word of the header). In those bytes the stock save has zeros or keeps the mod's setups;
 3. the mod loads the stock OS's save: no conflict, and the setups are either gone (zeros) or as they were; then its
    own save, still there, with the setups back;
-4. a conflict: kit 1's bytes in the mod's file hold something else (another mod's, say). The mod loads it: it counts
-   a conflict and does not take them for a setup. Kit 1 then gets a setup of the mod's own, and the mod saves the
+4. a conflict: kit 1's bytes in the mod's file hold something else (another tool's, say). The mod loads it: core
+   counts a conflict and does not take them for a setup. Kit 1 then gets a setup of the mod's own, and the mod saves the
    project again (after a first save, so the firmware's save starts from the loaded file, as in step 2): those bytes
    stay as they were, the conflict is counted again, and kit 2's setup is saved as before.
 
@@ -18,7 +19,6 @@
 import argparse
 import json
 import pathlib
-import re
 import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
@@ -27,6 +27,8 @@ import scenario as S  # noqa: E402
 
 FILES = {'dt2': 0xdd9604, 'dn2': 0xc4b004}   # a saved project's length: its end mark's place + 4 (s7)
 KITS = {'dt2': (0xae0200, 0x5800, 128), 'dn2': (0xae0200, 0x2a00, 129)}   # the kit records in the file: start, stride, count
+TAILS = {'dt2': (0x573e, 0x5800), 'dn2': (0x28af, 0x2a00)}   # a kit record's bytes after its end mark
+GAP = (0x1c, 0x200)                                          # the header's
 
 
 def slot_sector(n):
@@ -35,19 +37,9 @@ def slot_sector(n):
 
 
 def claimed(dev):
-    """[(lo, hi)] of the file's bytes the mod claims, from its kits fragment."""
-    names = json.load(open(pathlib.Path(__file__).parent.parent.parent / 'mods' / dev / 'kits.json'))['resources']['names']
-    out, (start, stride, count) = [], KITS[dev]
-    for nm in names:
-        m = re.match(r'record:(kit|project):(0x[0-9a-f]+)-(0x[0-9a-f]+)$', nm)
-        if not m:
-            continue
-        lo, hi = int(m.group(2), 16), int(m.group(3), 16)
-        if m.group(1) == 'project':
-            out.append((lo, hi))
-        else:
-            out += [(start + i * stride + lo, start + i * stride + hi) for i in range(count)]
-    return out
+    """[(lo, hi)] of the file's bytes core keeps mods' data in: the header's gap, then each kit record's tail."""
+    (start, stride, count), (lo, hi) = KITS[dev], TAILS[dev]
+    return [GAP] + [(start + i * stride + lo, start + i * stride + hi) for i in range(count)]
 
 
 def card_file(sectors, path, *ranges):
@@ -173,7 +165,7 @@ def main():
     try:
         S.settle_boot(r)
         load(r, 2, 'mod-loaded')                    # the list: 001, 002
-        conflicts = r.peek16(p.scope + p.L['scope_conflicts'])
+        conflicts = p.conflicts()
         r.check(conflicts == 0 and (p.kit_dest(0), p.kit_dest(1)) in ((None, None), (d0, d1)),
                 'the mod loads the stock save: no conflict (%d), setups none or as they were (%s, %s)'
                 % (conflicts, p.kit_dest(0), p.kit_dest(1)))
@@ -185,7 +177,7 @@ def main():
     n, failed = n + r.n, failed + r.failed
 
     # 4. someone else's bytes in kit 1's area of slot 001
-    kit1 = claimed(dev)[1] if claimed(dev)[0][0] == 0x1c else claimed(dev)[0]
+    kit1 = claimed(dev)[1]
     foreign = bytes([0x42, 0x13] + [0x5a] * (kit1[1] - kit1[0] - 2))
     edited = dict(mod_card)
     for i, b in enumerate(foreign):
@@ -198,13 +190,13 @@ def main():
         S.settle_boot(r)
         save_as(r, 3, 'conflict-first')
         load(r, 1, 'conflict-loaded')               # the list: 001, 003
-        conflicts = r.peek16(p.scope + p.L['scope_conflicts'])
+        conflicts = p.conflicts()
         r.check(conflicts >= 1 and p.kit_dest(0) is None and p.kit_dest(1) == d1,
                 'a load of someone else\'s bytes: a conflict (%d), kit 1 has no setup, kit 2 its own' % conflicts)
         P.scope(r, P.RIGHT)                         # per kit: kit 1, on, takes a copy of the setup on
         r.check(p.kit_dest(0) is not None, 'kit 1 has a setup of the mod\'s now')
         save_as(r, 2, 'conflict-saved')
-        after = r.peek16(p.scope + p.L['scope_conflicts'])  # each time the firmware passes the record: twice a save
+        after = p.conflicts()  # each time the firmware passes the record: twice a save
         r.check(after > conflicts, 'the save found them in its way: more conflicts (%d, then %d)' % (conflicts, after))
         conflict_card = P.card(r, out, 'card-conflict.bin')
     finally:

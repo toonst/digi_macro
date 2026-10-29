@@ -32,12 +32,12 @@ modulation destinations and the Sound array use.
 The frame interrupt calls the glide `0x400db28e` (mirror `0x80003af0`, block `0x800068e4`) at `0x4002717e`, then the
 per-track modulators `0x400db390` at `0x40027196`, with the block and the mirror pushed. Track rows are 202 bytes
 (101 values), the values again at `+0x22`: track `t`, index `j` at `0x80006906 + 202 t + 2 j`. The hook is the same
-(`src/frame.s`, `FRAME_STRIDE` 101); the stock driver keeps its second argument.
+(stride 101); the stock driver keeps its second argument.
 
 ## The hook **[D]**
 
-`src/frame.s` replaces the `jsr` at `0x4002e90c` with a `jsr` to `mmx_frame`, which calls each handler of the
-collection `ev_frame_params` as `f(int16_t *values, int stride)` with `values = block + 0x22`, `stride = 71`, then jumps
+elekloader's core (core-dt2 1.1, core-dn2 0.3: its `mods/core-dt2/frame.s`, first built here) replaces the `jsr` at
+`0x4002e90c` with a `jsr` to `core_frame`, which calls each handler of the event `ev_frame_params` as `f(int16_t *values, int stride)` with `values = block + 0x22`, `stride = 71`, then jumps
 to `0x400d9508` with the stack as it came. So the stock velocity, second source and LFOs ride on top of the macros, as
 on elekloader's Digitone mk1 `ev_render_params`. The handler (`mm_ev_frame_params`) adds the precomputed per-track
 deltas and holds each value in its destination's range (`0 .. 0x7f00` for most;

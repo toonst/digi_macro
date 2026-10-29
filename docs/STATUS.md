@@ -14,7 +14,7 @@ all passing; host tests with `tools/check.sh`.
 | Stored configuration (W3) | Done on DT2 and DN2 ([s5](findings/s5-storage.md)) |
 | LEVEL/DATA and FUNC + NO (D16) | Done on DT2 and DN2 ([s1](findings/s1-input.md)) |
 | Header title, naming macros, TRK + trig, firmware views over the mode, stock depth format | Done on DT2 and DN2 ([s1](findings/s1-input.md), [s4](findings/s4-screens.md)) |
-| Setups per project or per kit, kept apart, saved in the project; copies take them along; PERSONALIZE > MACRO SETUP (D4); an optional feature | Done on DT2 and DN2 ([s7](findings/s7-project-storage.md)) |
+| Setups per project or per kit, kept apart, saved in the project; copies take them along; PERSONALIZE > MACRO SETUP (D4); an optional feature | Done on DT2 and DN2, on core's kit and project data ([s7](findings/s7-project-storage.md)) |
 
 Still open:
 
@@ -22,6 +22,5 @@ Still open:
 | --- | --- | --- |
 | Machine-dependent source parameters (all of DN2's), LFO parameters | Not offered | S6 |
 | Audio | The zero-DSP runner makes no sound | Coupled emulator or a unit |
-| Storage claims, other mods | Claimed ranges, checked by `tools/storage.py` (with `MM_WITH`); a guard at run time | elekloader's linker refuses overlapping range claims once its core-dt2 1.1 / core-dn2 0.3 change is merged (S7) |
-| The elekloader core | The mod hooks its own sites for frame values, LEDs, PERSONALIZE rows and storage | Once core-dt2 1.1 and core-dn2 0.3 are released: subscribe to their events and tables, drop `src/frame.s`, `leds.s`, `kit.s`, `rows.s` and the storage sites, set `resources.core`. Projects saved by this build then read as a conflict there (another kit-data format) |
+| Storage claims, other mods | elekloader's linker refuses the same names and overlapping card ranges; `tools/storage.py` checks the same from manifests; core's guard at run time | elekloader to take the fork's core-dt2 1.1 / core-dn2 0.3 (the submodule points at the fork) |
 | Kit manager, PASTE KIT, undo | Not driven in the emulator (pattern copy and paste is) | Find their keys and add them to `tests/emu/project.py` (S7) |

@@ -1,3 +1,4 @@
 [submodule "third_party/elekloader"]
 	path = third_party/elekloader
-	url = https://github.com/elekloader/elekloader
+	url = https://github.com/toonst/elekloader
+	branch = claude/zen-rubin-g8jh03

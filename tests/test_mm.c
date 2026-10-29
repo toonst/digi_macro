@@ -854,23 +854,25 @@ static void test_setup_pack(void)
     mm_set_name(&a, 7, "A-Z9!");
     a.m[2].pos = 20;
     mm_setup_pack(&a, rec);
-    CHECK(MM_SETUP_SIZE == 194);                /* the Digitakt II's kit record spares 194 bytes (s7) */
+    CHECK(MM_SETUP_SIZE == 191);                /* all the room core has for kit data on the Digitakt II */
+    CHECK(MM_PROJ_SIZE == 192 && MM_PROJ_SIZE % 4 == 0);
     mm_init(&b, &dests);
     b.m[2].pos = -7;
-    CHECK(mm_setup_unpack(&b, rec) == 0);
+    CHECK(mm_setup_valid(rec) && mm_setup_unpack(&b, rec) == 0);
     CHECK(b.m[2].slot[3].dest == 55 && b.m[2].slot[3].depth == -300 && b.m[2].slot[3].tracks == 0x00f0);
     CHECK(b.m[7].slot[0].dest == 64 && b.m[7].slot[0].depth == MM_DEPTH_MIN && b.m[7].slot[0].tracks == 0x8001);
     CHECK(b.m[0].slot[1].dest == 30 && b.m[0].slot[1].depth == MM_DEPTH_MAX && b.m[0].slot[1].tracks == 0);
     CHECK(b.m[5].slot[2].dest == 0 && b.m[5].slot[2].tracks == 0xffff);
     CHECK(strcmp(b.m[2].name, "WOBL") == 0 && strcmp(b.m[7].name, "A-Z9!") == 0 && b.m[1].name[0] == 0);
     CHECK(b.m[2].pos == -7);                    /* the knob stays where it is */
-    rec[40] ^= 1;
-    CHECK(mm_setup_unpack(&b, rec) == -1 && !mm_setup_valid(rec));
-    memset(rec, 0, sizeof rec);
-    CHECK(!mm_setup_valid(rec));
+    memset(rec, 0, sizeof rec);                 /* zeros: none (what core gives a kit saved without the mod) */
+    CHECK(!mm_setup_valid(rec) && mm_setup_unpack(&b, rec) == -1);
+    mm_init(&a, &dests);                        /* a fresh setup is not none: its slots have every track */
+    mm_setup_pack(&a, rec);
+    CHECK(mm_setup_valid(rec));
 }
 
-static mm_scope scope;                          /* 26 KB: not on the stack */
+static mm_scope scope;                          /* 24 KB: not on the stack */
 
 static void fresh_scope(int mode)
 {
@@ -886,10 +888,27 @@ static int dest_of(const uint8_t *rec)
     return mm_setup_unpack(&t, rec) == 0 ? t.m[0].slot[0].dest : -1;
 }
 
+/* What core does on a kit's load or copy (into the kit data, then changed) and on a project's load. */
+static void core_kit(int kit, const uint8_t *rec)
+{
+    if (rec)
+        memcpy(scope.kit[kit], rec, MM_SETUP_SIZE);
+    else
+        memset(scope.kit[kit], 0, MM_SETUP_SIZE);
+    mm_scope_kit_changed(&scope);
+}
+
+static void core_proj(const uint8_t *rec)
+{
+    memset(scope.proj, 0, sizeof scope.proj);
+    if (rec)
+        memcpy(scope.proj, rec, MM_SETUP_SIZE);
+    mm_scope_proj_loaded(&scope);
+}
+
 static void test_scope_per_kit(void)
 {
     mm_t s;
-    uint8_t out[MM_SETUP_SIZE];
     fresh_scope(MM_SCOPE_PROJECT);
     mm_init(&s, &dests);
     mm_scope_set(&scope, &s, MM_SCOPE_KIT);
@@ -905,42 +924,37 @@ static void test_scope_per_kit(void)
     CHECK(mm_scope_follow(&scope, &s, 0) == 1); /* back on 0: its own */
     CHECK(s.m[0].slot[0].dest == 55 && s.m[1].pos == 9);
     CHECK(mm_scope_follow(&scope, &s, 0) == 0); /* no change, nothing to do */
-    mm_scope_kit_save(&scope, 5, out);          /* a save writes each kit's */
-    CHECK(dest_of(out) == 64);
-    mm_scope_kit_save(&scope, 6, out);          /* none for 6, none for a kit that is not one of the project's */
-    CHECK(!mm_setup_valid(out));
-    mm_scope_kit_save(&scope, -1, out);
-    CHECK(!mm_setup_valid(out));
+    CHECK(dest_of(scope.kit[5]) == 64 && !mm_setup_valid(scope.kit[6])); /* what core saves with each kit */
+    CHECK(mm_scope_follow(&scope, &s, -1) == 0); /* no kit on: nothing changes */
 }
 
 static void test_scope_loads(void)
 {
     mm_t s, other;
-    uint8_t rec[MM_SETUP_SIZE], none[MM_SETUP_SIZE] = {0};
+    uint8_t rec[MM_SETUP_SIZE];
     fresh_scope(MM_SCOPE_KIT);
     mm_init(&s, &dests);
     mm_init(&other, &dests);
     other.m[0].slot[0].dest = 25;
     mm_setup_pack(&other, rec);
     mm_scope_follow(&scope, &s, 3);
-    mm_scope_kit_load(&scope, 3, rec);          /* a load of the kit on: its setup comes on */
-    mm_scope_kit_load(&scope, 200, rec);        /* not one of the project's kits: ignored */
+    core_kit(3, rec);                           /* a load of the kit on: its setup comes on */
     CHECK(mm_scope_follow(&scope, &s, 3) == 1 && s.m[0].slot[0].dest == 25);
-    mm_scope_kit_load(&scope, 4, none);         /* a kit saved without the mod */
+    core_kit(4, 0);                             /* a kit saved without the mod */
     mm_scope_follow(&scope, &s, 3);
     CHECK(!mm_setup_valid(scope.kit[4]));
     CHECK(mm_scope_follow(&scope, &s, 4) == 0 && dest_of(scope.kit[4]) == 25); /* none: a copy of the one on */
-    mm_scope_proj_load(&scope, rec);            /* per kit, a project's header changes nothing on */
+    core_proj(rec);                             /* per kit, a project's data changes nothing on */
     other.m[0].slot[0].dest = 30;
     mm_setup_pack(&other, rec);
-    mm_scope_kit_load(&scope, 4, rec);
+    core_kit(4, rec);
     CHECK(mm_scope_follow(&scope, &s, 4) == 1 && s.m[0].slot[0].dest == 30);
 }
 
 static void test_scope_per_project(void)
 {
     mm_t s, other;
-    uint8_t rec[MM_SETUP_SIZE], out[MM_SETUP_SIZE];
+    uint8_t rec[MM_SETUP_SIZE];
     fresh_scope(MM_SCOPE_PROJECT);
     mm_init(&s, &dests);
     mm_init(&other, &dests);
@@ -949,20 +963,17 @@ static void test_scope_per_project(void)
     CHECK(mm_scope_follow(&scope, &s, 9) == 0 && s.m[0].slot[0].dest == 30); /* kits change nothing */
     s.m[0].slot[0].dest = 55;
     mm_scope_edited(&scope, &s);
-    mm_scope_proj_save(&scope, out);            /* the header carries the project's */
-    CHECK(dest_of(out) == 55);
-    mm_scope_kit_save(&scope, 9, out);          /* and the kits carry none of it: they have none of their own */
-    CHECK(!mm_setup_valid(out));
+    CHECK(dest_of(scope.proj) == 55);           /* what core saves with the project */
+    CHECK(!mm_setup_valid(scope.kit[9]));       /* and the kits have none of their own */
     other.m[0].slot[0].dest = 64;
     mm_setup_pack(&other, rec);
-    mm_scope_kit_load(&scope, 9, rec);          /* a kit loaded: the project's stays */
+    core_kit(9, rec);                           /* a kit loaded: the project's stays */
     CHECK(mm_scope_follow(&scope, &s, 9) == 0 && s.m[0].slot[0].dest == 55);
-    mm_scope_proj_load(&scope, rec);            /* a project loaded: its setup comes on */
+    core_proj(rec);                             /* a project loaded: its setup comes on */
     CHECK(mm_scope_follow(&scope, &s, 9) == 1 && s.m[0].slot[0].dest == 64);
     s.m[0].slot[0].dest = 25;
     mm_scope_edited(&scope, &s);
-    memset(rec, 0, sizeof rec);                 /* a project from before the mod: the setup on stays, as its own */
-    mm_scope_proj_load(&scope, rec);
+    core_proj(0);                               /* a project from before the mod: the setup on stays, as its own */
     CHECK(mm_scope_follow(&scope, &s, 9) == 0 && s.m[0].slot[0].dest == 25 && dest_of(scope.proj) == 25);
 }
 
@@ -994,7 +1005,6 @@ static void test_scope_shadowed(void)
 static void test_scope_copies(void)
 {
     mm_t s;
-    enum { KIT0 = 0x1000, STRIDE = 0x100, CLIP = 0x9000, UNDO = 0xa000, OTHER = 0xb000 };
     fresh_scope(MM_SCOPE_KIT);
     mm_init(&s, &dests);
     s.m[0].slot[0].dest = 30;
@@ -1002,58 +1012,10 @@ static void test_scope_copies(void)
     mm_scope_follow(&scope, &s, 1);
     s.m[0].slot[0].dest = 55;
     mm_scope_edited(&scope, &s);                /* kit 1: 55, on */
-    mm_scope_copied(&scope, -1, CLIP, 0, KIT0); /* copy kit 0 */
-    mm_scope_copied(&scope, -1, UNDO, 1, KIT0 + STRIDE); /* paste into kit 1: the firmware keeps an undo copy, */
-    mm_scope_copied(&scope, 1, KIT0 + STRIDE, -1, CLIP); /* then copies the clipboard over */
+    core_kit(1, scope.kit[0]);                  /* kit 0 pasted over kit 1, the kit on: its setup comes on */
     CHECK(mm_scope_follow(&scope, &s, 1) == 1 && s.m[0].slot[0].dest == 30);
-    mm_scope_copied(&scope, 1, KIT0 + STRIDE, -1, UNDO); /* undo */
-    CHECK(mm_scope_follow(&scope, &s, 1) == 1 && s.m[0].slot[0].dest == 55);
-    mm_scope_copied(&scope, 1, KIT0 + STRIDE, -1, OTHER); /* from a buffer never seen filled: kept */
-    CHECK(mm_scope_follow(&scope, &s, 1) == 0 && s.m[0].slot[0].dest == 55);
-    mm_scope_copied(&scope, 2, KIT0 + 2 * STRIDE, 0, KIT0); /* kit to kit */
-    CHECK(dest_of(scope.kit[2]) == 30);
-    mm_scope_copied(&scope, -1, CLIP, -1, OTHER); /* the clipboard now holds a kit the mod knows nothing of */
-    mm_scope_copied(&scope, 2, KIT0 + 2 * STRIDE, -1, CLIP);
-    CHECK(dest_of(scope.kit[2]) == 30);
-    for (int i = 0; i < 2 * MM_SHADOWS; i++)    /* more buffers than shadows: the oldest go */
-        mm_scope_copied(&scope, -1, 0x20000 + 0x100 * (uint32_t)i, 0, KIT0);
-    mm_scope_copied(&scope, 1, KIT0 + STRIDE, -1, 0x20000 + 0x100 * (2 * MM_SHADOWS - 1));
-    CHECK(dest_of(scope.kit[1]) == 30);
-}
-
-static void test_scope_conflicts(void)
-{
-    mm_t s;
-    uint8_t rec[MM_SETUP_SIZE], area[MM_SETUP_SIZE], foreign[MM_SETUP_SIZE];
-    fresh_scope(MM_SCOPE_KIT);
-    mm_init(&s, &dests);
-    s.m[0].slot[0].dest = 30;
-    mm_scope_follow(&scope, &s, 0);             /* kit 0 has a setup */
-    memset(foreign, 0, sizeof foreign);
-    foreign[0] = 0x42, foreign[100] = 7;        /* something else's bytes: another mod, or a later OS */
-    mm_setup_pack(&s, rec);
-    rec[0] = 0;                                 /* a record of the same shape without this mod's mark: foreign too */
-    memset(area, 0, sizeof area);               /* a save over zeros, the stock save's */
-    mm_scope_kit_save(&scope, 0, area);
-    CHECK(dest_of(area) == 30 && scope.conflicts == 0);
-    mm_scope_kit_save(&scope, 1, area);         /* over its own: kit 1 has none, so zeros */
-    CHECK(mm_setup_blank(area) && scope.conflicts == 0);
-    memcpy(area, foreign, sizeof area);         /* over another's: left as it is, counted */
-    mm_scope_kit_save(&scope, 0, area);
-    CHECK(memcmp(area, foreign, sizeof area) == 0 && scope.conflicts == 1);
-    mm_scope_proj_save(&scope, area);
-    CHECK(memcmp(area, foreign, sizeof area) == 0 && scope.conflicts == 2);
-    mm_scope_kit_load(&scope, 0, foreign);      /* a load of another's: not taken for a setup */
-    CHECK(!mm_setup_valid(scope.kit[0]) && scope.conflicts == 3);
-    mm_scope_kit_load(&scope, 2, rec);
-    CHECK(!mm_setup_valid(scope.kit[2]) && scope.conflicts == 4);
-    memset(area, 0, sizeof area);               /* zeros: none, and no conflict */
-    mm_scope_proj_load(&scope, area);
-    CHECK(scope.conflicts == 4);
-    uint8_t seeded[MM_SETUP_SIZE];              /* the check is this mod's own: a plain CRC-16 does not pass */
-    mm_setup_pack(&s, seeded);
-    seeded[MM_SETUP_SIZE - 1] ^= 0xff;
-    CHECK(!mm_setup_valid(seeded));
+    core_kit(2, scope.kit[1]);                  /* a copy to a kit not on: nothing on changes */
+    CHECK(mm_scope_follow(&scope, &s, 1) == 1 && s.m[0].slot[0].dest == 30 && dest_of(scope.kit[2]) == 30);
 }
 
 void test_draw(int *checks_out, int *failures_out);
@@ -1095,7 +1057,6 @@ int main(void)
     test_scope_per_project();
     test_scope_shadowed();
     test_scope_copies();
-    test_scope_conflicts();
     test_blob_version_1();
     test_trk_trig_selects_track();
     test_announce();

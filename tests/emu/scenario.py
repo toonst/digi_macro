@@ -3,7 +3,7 @@
 
     python3 tests/emu/scenario.py --runner ZERO_PATCHED --stock STOCK.syx --build BUILD.syx --out OUT_DIR [--device dn2]
 
-ZERO_PATCHED is tests/emu/zero_patched.rs built as an example of digikit's digi-coupled crate (tests/emu/README.md):
+ZERO_PATCHED is digikit's zero_patched runner, an example of its digi-coupled crate (tests/emu/README.md):
 the build runs with the DSP side answering zeros, so the frame interrupt, where the macros apply, runs too. Screens
 go to OUT_DIR as PNGs; the exit status is the number of failed checks.
 """

@@ -11,9 +11,7 @@
   "../../src/mm_apply.c",
   "../../src/mm_store.c",
   "../../src/mm_draw.c",
-  "../../src/mm_dests.c",
-  "../../src/frame.s",
-  "../../src/leds.s"
+  "../../src/mm_dests.c"
  ],
  "subscribe": [
   {
@@ -86,34 +84,11 @@
   "-fno-tree-loop-distribute-patterns"
  ],
  "resources": {
-  "core": "0.1",
+  "core": "0.3",
   "names": [
    "ui:PAGE + MOD",
    "ui:macro mode",
    "card:0x7ff000-0x7ff002"
   ]
- },
- "defsym": {
-  "MODS_STOCK": "0x400db390",
-  "LEDS_CLEAR": "0x4002c3c6",
-  "FRAME_STRIDE": "101"
- },
- "sites": [
-  {
-   "addr": "0x40027196",
-   "stock": "4eb9400db390",
-   "op": "jsr",
-   "target": "mmx_frame"
-  },
-  {
-   "addr": "0x4002c87a",
-   "stock": "4ebafb4a2f02",
-   "op": "jsr",
-   "target": "mmx_leds"
-  }
- ],
- "collections": {
-  "ev_frame_params": 4,
-  "ev_key_leds": 4
  }
 }

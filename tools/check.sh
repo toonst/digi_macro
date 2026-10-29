@@ -8,8 +8,9 @@
 #   4. with DT2_SYX / DN2_SYX set to the stock OS files, elekloader's own build and lint of each mod, and the OS file
 #      out/check/macro-<dev>.syx (never commit it: it holds Elektron's firmware).
 # Each device's manifest is mods/<dev>/mod.json plus its features' fragments (tools/manifest.py): kits.json unless
-# MM_KITS=0. MM_LED_TEST=1 builds the LED colour test. Each built manifest's storage is checked (tools/storage.py),
-# against the other mods MM_WITH names (mod.json or .elemod files, space-separated) too.
+# MM_KITS=0. MM_LED_TEST=1 builds the LED colour test. Each built manifest's storage claims are checked
+# (tools/storage.py), against the other mods MM_WITH names (mod.json or .elemod files, space-separated) too; with the
+# stock files, elekloader's linker also checks the mod with MM_WITH's .elemod files.
 # It runs on the bash macOS ships (3.2) as well as on Linux. The ColdFire toolchain is m68k-linux-gnu- (Debian,
 # Ubuntu) or m68k-elf- (macOS, bare-metal builds), found on the PATH; ELEKLOADER_CROSS names another prefix.
 set -euo pipefail
@@ -19,7 +20,11 @@ abspath() { [[ -z "$1" || "$1" == /* ]] && echo "$1" || echo "$PWD/$1"; }
 DT2_SYX=$(abspath "${DT2_SYX:-}")
 DN2_SYX=$(abspath "${DN2_SYX:-}")
 WITH=()   # MM_WITH's mods, from where the script is run
-for o in ${MM_WITH:-}; do WITH+=(--with "$(abspath "$o")"); done
+LINT_WITH=()   # and its .elemod files, for elekloader's lint
+for o in ${MM_WITH:-}; do
+    WITH+=(--with "$(abspath "$o")")
+    [[ "$o" != *.elemod ]] || LINT_WITH+=(--with "$(abspath "$o")")
+done
 for f in "$DT2_SYX" "$DN2_SYX"; do
     [[ -z "$f" || -f "$f" ]] || { echo "no such file: $f" >&2; exit 1; }
 done
@@ -71,7 +76,7 @@ command -v "${CROSS}gcc" >/dev/null || {
     echo "no ColdFire compiler (${CROSS}gcc): install m68k-linux-gnu or m68k-elf binutils and gcc, or set ELEKLOADER_CROSS" >&2
     exit 1
 }
-FLAGS=(-mcpu=54455 -O2 -ffreestanding -fno-builtin -nostdlib -fno-pic -fno-pie -fomit-frame-pointer -Wall -Wextra -Werror)
+FLAGS=(-mcpu=54455 -I third_party/elekloader/elekloader/sdk/include -O2 -ffreestanding -fno-builtin -nostdlib -fno-pic -fno-pie -fomit-frame-pointer -Wall -Wextra -Werror)
 for dev in dt2 dn2; do
     python3 tools/manifest.py "$dev" "$OUT/$dev-manifest" ${FEATURES[@]+"${FEATURES[@]}"} ${EXTRA[@]+"${EXTRA[@]}"}
     lines cflags manifest "$dev" "m['cflags']"
@@ -89,9 +94,10 @@ for dev in dt2 dn2; do
         objs+=("$o")
     done
     "${CROSS}ld" -r -o "$OUT/$dev.o" "${objs[@]}"
-    # the collections the mod declares are the linker's tables; core_additem is the core's (PERSONALIZE's row)
+    # the collections the mod declares are the linker's tables; core_* are the core's (mk2/core.h)
     undef=$("${CROSS}nm" -u "$OUT/$dev.o" | awk '{print $2}' |
-        grep -v -x -F -f <(printf '%s\n' ${tables[@]+"${tables[@]}"} core_additem "") || true)
+        grep -v -x -F -f <(printf '%s\n' ${tables[@]+"${tables[@]}"} core_addvalue core_kit_on \
+            core_store_conflicts "") || true)
     if [[ -n "$undef" ]]; then
         echo "$dev: undefined symbols (the mod has no C library):"; echo "$undef"; exit 1
     fi
@@ -99,10 +105,9 @@ for dev in dt2 dn2; do
         "${CROSS}nm" "$OUT/$dev.o" | grep -q " T $fn$" || { echo "$dev: $fn missing"; exit 1; }
     done
     echo "$dev: ok, $("${CROSS}size" "$OUT/$dev.o" | tail -1 | awk '{print "text " $1 ", data " $2 ", bss " $3}')"
-    # the storage it claims, against what the build writes and against MM_WITH's mods
+    # the storage it claims, against what the code writes and against MM_WITH's mods
     "${CROSS}gcc" "${FLAGS[@]}" -c tests/emu/layout.c -o "$OUT/$dev-layout.o"
-    setup_size=$((16#$("${CROSS}nm" "$OUT/$dev-layout.o" | awk '$3 == "MMOFF_setup_size" {print $1}')))
-    python3 tools/storage.py "$OUT/$dev-manifest" --setup-size "$setup_size" ${WITH[@]+"${WITH[@]}"}
+    python3 tools/storage.py "$OUT/$dev-manifest" ${WITH[@]+"${WITH[@]}"}
 done
 
 if [[ -n "$DT2_SYX$DN2_SYX" ]]; then
@@ -118,9 +123,11 @@ if [[ -n "$DT2_SYX$DN2_SYX" ]]; then
     for pair in "dt2:$DT2_SYX:core-dt2" "dn2:$DN2_SYX:core-dn2"; do
         IFS=: read -r dev syx core <<< "$pair"
         [[ -n "$syx" ]] || continue
+        rm -rf "$OUT/$dev-core" "$OUT/$dev-mod"   # one .elemod each: an older version's would be taken too
         el -m elekloader.sdk.build "$EL/mods/$core" --stock "$syx" --out "$OUT/$dev-core"
         el -m elekloader.sdk.build "$OUT/$dev-manifest" --stock "$syx" --out "$OUT/$dev-mod"
-        el -m elekloader.lint "$OUT/$dev-mod"/*.elemod --stock "$syx" --with "$OUT/$dev-core"/*.elemod
+        el -m elekloader.lint "$OUT/$dev-mod"/*.elemod --stock "$syx" --with "$OUT/$dev-core"/*.elemod \
+            ${LINT_WITH[@]+"${LINT_WITH[@]}"}
         el -m elekloader.patch --stock "$syx" --mod "$OUT/$dev-core"/*.elemod --mod "$OUT/$dev-mod"/*.elemod \
             --out "$OUT/macro-$dev.syx" --version MMDV | tail -2
         # where the mod's symbols landed, for the emulator scenarios (the layout object is the cross-compile's)
@@ -133,6 +140,9 @@ _, manifest = patch.build(stock, [core, mod], 'MMDV', log=lambda *a: None)
 secs = manifest['link']['layout']['sections']
 m = json.load(open(mod))
 syms = {k: secs['macro-mode ' + v[0]] + v[1] for k, v in m['symbols'].items() if v[0] in ('.run', '.bss')}
+c = json.load(open(core))
+syms['core_store_conflicts'] = secs['core ' + c['symbols']['core_store_conflicts'][0]] + \
+    c['symbols']['core_store_conflicts'][1]
 syms['layout'] = {l.split()[2][6:]: int(l.split()[0], 16)
                   for l in subprocess.run([nm, layout], capture_output=True, text=True).stdout.splitlines()
                   if ' A MMOFF_' in l}

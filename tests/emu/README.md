@@ -2,19 +2,10 @@
 
 The builds run in [digikit](https://github.com/toonst/digikit)'s emulator. Its daemon (`digi-emud`) refuses a build it
 does not know at start and loads a patched one ColdFire-only, where the frame interrupt (and so the macros) never runs.
-`zero_patched.rs` runs a patched build with the DSP side answering zeros instead, so the frame interrupt runs.
-
-Once, in a digikit checkout (it needs the Rust toolchain digikit's `mise.toml` names): copy the runner into the
-`digi-coupled` crate's examples, and give that crate `plusdrive-format` as a dev-dependency (the runner builds its card
-the way the emulator does when it is given none):
-
-```bash
-cp tests/emu/zero_patched.rs DIGIKIT/packages/emulator/coupled/examples/
-```
-
-```bash
-printf '\n[dev-dependencies]\nplusdrive-format = { path = "../plusdrive" }\n' >> DIGIKIT/packages/emulator/coupled/Cargo.toml
-```
+digikit's `zero_patched` runner (`packages/emulator/coupled/examples/zero_patched.rs`, on its
+`claude/zen-rubin-g8jh03` branch until it is merged; digikit's docs/INSTRUMENTATION.md, "Scripted patched runs") runs
+a patched build with the DSP side answering zeros instead, so the frame interrupt runs. Build it once, in a digikit
+checkout (it needs the Rust toolchain digikit's `mise.toml` names):
 
 ```bash
 cargo build --manifest-path DIGIKIT/Cargo.toml --release -p digi-coupled --example zero_patched
@@ -37,8 +28,8 @@ With the same arguments, the kits feature (a build with it, the default):
 - `tests/emu/project.py` (23 checks): the PERSONALIZE row, a setup following the kit on, the kits' and the
   project's setups kept apart, pattern copy and paste, SAVE PROJECT AS and LOAD PROJECT.
 - `tests/emu/compat.py` (12 checks): projects round-trip between the mod and the stock OS (the stock `.syx` runs
-  as the build) and differ only in the bytes the mod claims; a project with someone else's bytes in them is a
-  conflict, and the mod leaves those bytes alone (README.md, "Storage and other mods").
+  as the build) and differ only in the bytes core keeps mods' data in; a project with someone else's bytes in them is a
+  conflict, and core leaves those bytes alone (README.md, "Storage and other mods").
 
-The runner also takes `poke ADDR HEXBYTES` and `dump ADDR LEN PATH` (guest memory, for experiments such as
-docs/findings/s7-project-storage.md).
+The runner's other commands (`dump`, memory guards, register logs, `run-until`) are in digikit's
+docs/INSTRUMENTATION.md.

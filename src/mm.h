@@ -160,45 +160,32 @@ int mm_leds(const mm_t *s, uint8_t *code, uint8_t *value, int cap);
 #define MM_BLOB_V1_SIZE (5 + MM_MACROS * MM_SLOTS * 4 + 2) /* version 1: depth -64 .. +63 in a byte, no names */
 int mm_encode(const mm_t *s, uint8_t *out);         /* -> MM_BLOB_SIZE */
 int mm_decode(mm_t *s, const uint8_t *in, int len); /* 0, or -1 (unknown version, bad size or check) */
-/* A setup kept in a kit record of the project (docs/findings/s7-project-storage.md): a mark, the slots and names
- * packed in bits, a CRC-16; MM_SETUP_SIZE bytes. Unpacking keeps the knobs' positions. */
-#define MM_SETUP_MARK 0xd1
-#define MM_SETUP_SIZE (1 + (MM_MACROS * MM_SLOTS * (7 + 16 + 16) + MM_MACROS * MM_NAME_LEN * 7 + 7) / 8 + 2)
+/* A setup kept with a kit and with the project (docs/findings/s7-project-storage.md), as elekloader core's kit and
+ * project data: the slots and names packed in bits, MM_SETUP_SIZE bytes; all zero is none (a setup always has a
+ * track). Unpacking keeps the knobs' positions. 191 bytes: all the room core has for kit data on the Digitakt II. */
+#define MM_SETUP_SIZE ((MM_MACROS * MM_SLOTS * (7 + 16 + 16) + MM_MACROS * MM_NAME_LEN * 7 + 7) / 8)
+#define MM_PROJ_SIZE ((MM_SETUP_SIZE + 3) & ~3) /* core's project data comes in longs */
 void mm_setup_pack(const mm_t *s, uint8_t *out);
-int mm_setup_valid(const uint8_t *in);
-int mm_setup_blank(const uint8_t *in);          /* all zero: what the stock save leaves */
-int mm_setup_unpack(mm_t *s, const uint8_t *in); /* 0, or -1 */
+int mm_setup_valid(const uint8_t *in);          /* holds a setup: not all zero */
+int mm_setup_unpack(mm_t *s, const uint8_t *in); /* 0, or -1 (none) */
 
 /* The kits feature (src/mm_kits.c; built in unless left out): setups per project or per kit, chosen in PERSONALIZE >
- * MACRO SETUP. Every kit keeps its own setup and the project its own; the firmware's save and load of a kit record
- * and of the project's header call the *_save and *_load functions, its copies of a kit in RAM mm_scope_copied; the
- * tick calls mm_scope_edited after a change and mm_scope_follow with the kit on (kit n is pattern n's). */
+ * MACRO SETUP. Every kit keeps its own setup and the project its own. elekloader's core saves, loads and copies them
+ * with the kits and the project (kit n is pattern n's) and says when one changed (mm_scope_kit_changed,
+ * mm_scope_proj_loaded); the tick calls mm_scope_edited after a change and mm_scope_follow with the kit on. */
 #define MM_KITS 128
-#define MM_SHADOWS 8 /* buffers outside the project's kits (clipboard, undo) whose kit's setup is known */
 enum { MM_SCOPE_PROJECT = 0, MM_SCOPE_KIT };
 typedef struct {
-    uint32_t addr;   /* 0: free */
-    uint8_t setup[MM_SETUP_SIZE];
-} mm_shadow;
-typedef struct {
-    uint8_t kit[MM_KITS][MM_SETUP_SIZE]; /* all zero: none yet */
-    uint8_t proj[MM_SETUP_SIZE];
-    mm_shadow shadow[MM_SHADOWS];
-    uint8_t shadow_next;
+    uint8_t kit[MM_KITS][MM_SETUP_SIZE]; /* core's kit data; all zero: none yet */
+    uint8_t proj[MM_PROJ_SIZE];          /* core's project data */
     uint8_t mode;                 /* MM_SCOPE_* */
     volatile uint8_t gen;         /* bumped when a load or a copy changes a kit's setup */
     uint8_t seen;                 /* gen, as mm_scope_follow last saw it */
-    volatile uint8_t proj_loaded; /* a project's header was loaded */
-    volatile uint16_t conflicts;  /* times a load or save met something else in the mod's bytes (a record can pass twice) */
+    volatile uint8_t proj_loaded; /* a project's data was loaded */
     int16_t cur;                  /* the kit whose setup is on, -1 none */
 } mm_scope;
-/* The areas are shared with the stock OS (and so maybe with a later OS or another mod): a save writes only over zeros
- * or a setup of this mod's, and a load takes only those; anything else counts as a conflict and is left alone. */
-void mm_scope_kit_save(mm_scope *p, int kit, uint8_t *out); /* MM_SETUP_SIZE bytes; kit -1: none */
-void mm_scope_kit_load(mm_scope *p, int kit, const uint8_t *in);
-void mm_scope_proj_save(mm_scope *p, uint8_t *out);
-void mm_scope_proj_load(mm_scope *p, const uint8_t *in);
-void mm_scope_copied(mm_scope *p, int dst_kit, uint32_t dst, int src_kit, uint32_t src);
+void mm_scope_kit_changed(mm_scope *p);
+void mm_scope_proj_loaded(mm_scope *p);
 void mm_scope_edited(mm_scope *p, const mm_t *s);
 int mm_scope_follow(mm_scope *p, mm_t *s, int kit);            /* 1 when the setup changed */
 void mm_scope_set(mm_scope *p, mm_t *s, int mode);

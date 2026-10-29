@@ -1,79 +1,43 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
-/* macro-mode, the kits feature on the device (src/mm_kits.h): the firmware's calls (src/kit.s), the kit on, and
- * SETTINGS > PERSONALIZE > MACRO SETUP. The device's addresses come from mods/<dev>/kits.json's cflags; the logic is
- * mm_scope.c's. */
+/* macro-mode, the kits feature on the device (src/mm_kits.h): the setups as elekloader core's kit and project data,
+ * the kit on, and SETTINGS > PERSONALIZE > MACRO SETUP (core-dt2 1.1, core-dn2 0.3: elekloader's docs/ADAPTING.md,
+ * "Frames, LEDs, project and kit data, value rows"). The logic is mm_scope.c's. */
 #include "mm_kits.h"
+#include "mk2/core.h"
 
 /* Not static, for the emulator scenarios (tests/emu/project.py). */
 mm_scope mm_scopes;
 
-/* The project's kits are a table (KIT_RAM, KIT_STRIDE; kit n is pattern n's): a kit's RAM gives its number, -1 for
- * one outside it. */
-static int kit_index(const uint8_t *ram)
+static void kit_changed(int kit, int found)
 {
-    uint32_t off = (uint32_t)ram - KIT_RAM;
-    if ((uint32_t)ram < KIT_RAM || off % KIT_STRIDE || off / KIT_STRIDE >= MM_KITS)
-        return -1;
-    return (int)(off / KIT_STRIDE);
+    (void)kit, (void)found;         /* none found: core zeroed the block, which is none here too */
+    mm_scope_kit_changed(&mm_scopes);
 }
 
-/* A kit record's save and load: the setup at KIT_PAD, after its end mark, where the firmware writes nothing. */
-void mm_kit_save(uint8_t *record, const uint8_t *ram)
+static void proj_loaded(int found)
 {
-    mm_scope_kit_save(&mm_scopes, kit_index(ram), record + KIT_PAD);
+    (void)found;
+    mm_scope_proj_loaded(&mm_scopes);
 }
 
-void mm_kit_load(uint8_t *a2, uint8_t *a3)
-{
-#ifdef KIT_LOAD_RAM_A3
-    uint8_t *ram = a3, *record = a2;
-#else
-    uint8_t *ram = a2, *record = a3;
-#endif
-    mm_scope_kit_load(&mm_scopes, kit_index(ram), record + KIT_PAD);
-}
-
-/* The project's header: the project's setup at PROJ_PAD, after the name and the fields the firmware keeps there. */
-void mm_proj_save(uint8_t *file)
-{
-    mm_scope_proj_save(&mm_scopes, file + PROJ_PAD);
-}
-
-void mm_proj_load(const uint8_t *file)
-{
-    mm_scope_proj_load(&mm_scopes, file + PROJ_PAD);
-}
-
-/* memcpy of a kit's size (KIT_SIZE): paste, undo, pattern copy. */
-void mm_kit_copied(uint8_t *dst, const uint8_t *src)
-{
-    mm_scope_copied(&mm_scopes, kit_index(dst), (uint32_t)dst, kit_index(src), (uint32_t)src);
-}
-
-/* The kit on is the pattern on's: the sequencer object's (PATTERN_OBJ, the pointer its getter returns) + 0x138, the
- * same on both. */
-static int fw_kit(void)
-{
-    uint32_t o = *(volatile uint32_t *)PATTERN_OBJ, n;
-    if (!o)
-        return -1;
-    n = *(volatile uint32_t *)(o + 0x138);
-    return n < MM_KITS ? (int)n : -1;
-}
+/* contributed to core's tables (mods/<dev>/kits.json), claimed as kitdata:MMKS and projdata:MMPS */
+const core_kitdata_t mm_kitdata = {{'M', 'M', 'K', 'S'}, MM_SETUP_SIZE, mm_scopes.kit, kit_changed};
+const core_projdata_t mm_projdata = {{'M', 'M', 'P', 'S'}, MM_PROJ_SIZE, mm_scopes.proj, proj_loaded};
 
 void mm_kits_tick(mm_t *s)
 {
     static uint8_t ready;
+    static uint32_t conflicts;
     if (!ready) {
         mm_scopes.cur = -1;
+        conflicts = core_store_conflicts;
         ready = 1;
     }
-    static uint16_t conflicts;
     if (s->dirty_config)            /* the setup the kit or project has, as it is now */
         mm_scope_edited(&mm_scopes, s);
-    mm_scope_follow(&mm_scopes, s, fw_kit());
-    if (mm_scopes.conflicts != conflicts) { /* the mod's bytes of a project held something else */
-        conflicts = mm_scopes.conflicts;
+    mm_scope_follow(&mm_scopes, s, core_kit_on());
+    if (core_store_conflicts != conflicts) { /* a project's bytes for mods held something else: core left them */
+        conflicts = core_store_conflicts;
         mm_notice("MACRO SETUP CONFLICT");
     }
 }
@@ -90,44 +54,22 @@ void mm_kits_card_restore(uint8_t b)
         mm_scopes.mode = b & 1;
 }
 
-/* SETTINGS > PERSONALIZE > MACRO SETUP: PROJECT or KIT, a value row as the stock LED INTENSITY (elekloader's
- * core_additem; label in src/rows.s). Each callback gets the std::function's storage, whose first word is the menu;
- * the value is drawn as LED INTENSITY's (the firmware's text routine at the row's x + 19, y + 2, right-aligned), and a
- * change redraws the menu with View::invalidate(menu + 0x38). */
-extern void core_additem(void *menu, const void *row);
-extern void mm_row_label(void);
+/* SETTINGS > PERSONALIZE > MACRO SETUP: PROJECT or KIT */
+static const char *const scope_names[] = {"PROJECT", "KIT"};
 
-static void row_set(void **storage, int mode)
+static uint32_t row_get(void)
 {
-    mm_scope_set(&mm_scopes, mm_get(), mode);
-    ((void (*)(void *))MENU_INVALIDATE_AT)((char *)*storage + 0x38);
+    return mm_scopes.mode;
 }
 
-static void row_select(void **storage)
+static void row_set(uint32_t mode)
 {
-    row_set(storage, mm_scopes.mode ^ 1);
+    mm_scope_set(&mm_scopes, mm_get(), (int)mode);
 }
 
-static void row_draw(void *storage, void *item, void *bmp, int x, int y)
-{
-    typedef void (*row_text_t)(void *bmp, const void *font, int x, int y, int align, int a, int b, const char *s);
-    (void)storage, (void)item;
-    ((row_text_t)ROW_TEXT_AT)(bmp, (const void *)ROW_FONT, x + 19, y + 2, 2, 0, 0,
-                              mm_scopes.mode == MM_SCOPE_KIT ? "KIT" : "PROJECT");
-}
-
-static void row_change(void **storage, int item, int delta)
-{
-    (void)item;
-    if (delta)
-        row_set(storage, delta > 0 ? MM_SCOPE_KIT : MM_SCOPE_PROJECT);
-}
-
-static const void *const mm_row[4] = {
-    (const void *)mm_row_label, (const void *)row_select, (const void *)row_draw, (const void *)row_change,
-};
+static const core_value_t mm_row = {"MACRO SETUP", scope_names, 2, row_get, row_set};
 
 void mm_ev_personalize(void *menu)
 {
-    core_additem(menu, mm_row);
+    core_addvalue(menu, &mm_row);
 }

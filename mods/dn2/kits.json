@@ -1,28 +1,12 @@
 {
- "_comment": "The kits feature (src/mm_kits.h): setups per project or per kit, PERSONALIZE > MACRO SETUP. tools/manifest.py adds it to mod.json unless MM_KITS=0.",
+ "_comment": "The kits feature (src/mm_kits.h): setups per project or per kit, PERSONALIZE > MACRO SETUP, as core's kit and project data. tools/manifest.py adds it to mod.json unless MM_KITS=0.",
  "sources": [
   "../../src/mm_scope.c",
-  "../../src/mm_kits.c",
-  "../../src/kit.s",
-  "../../src/rows.s"
+  "../../src/mm_kits.c"
  ],
  "cflags": [
-  "-DMM_FEATURE_KITS",
-  "-DKIT_RAM=0x4210d08c",
-  "-DKIT_STRIDE=0x5d71",
-  "-DKIT_PAD=0x28af",
-  "-DKIT_LOAD_RAM_A3",
-  "-DPATTERN_OBJ=0x446488d0",
-  "-DROW_TEXT_AT=0x40115948",
-  "-DROW_FONT=0x40294710",
-  "-DMENU_INVALIDATE_AT=0x4011ca9a",
-  "-DPROJ_PAD=0x1c"
+  "-DMM_FEATURE_KITS"
  ],
- "defsym": {
-  "STRING_CTOR": "0x401ceab8",
-  "MEMCPY": "0x40134770",
-  "KIT_SIZE": "0x5d71"
- },
  "subscribe": [
   {
    "event": "ev_personalize",
@@ -30,68 +14,39 @@
    "order": 50
   }
  ],
- "sites": [
+ "contribute": [
   {
-   "addr": "0x400de0d4",
-   "stock": "223cbacef00c",
-   "op": "jsr",
-   "target": "mmx_kit_save"
+   "to": "core_kitdata",
+   "order": 50,
+   "data": "00000000",
+   "relocs": [
+    [
+     0,
+     "abs32",
+     "sym:mm_kitdata",
+     0
+    ]
+   ]
   },
   {
-   "addr": "0x400ddddc",
-   "stock": "223cbacef00c",
-   "op": "jsr",
-   "target": "mmx_kit_load"
-  },
-  {
-   "addr": "0x400e18be",
-   "stock": "26bcbeefbace",
-   "op": "jsr",
-   "target": "mmx_proj_save"
-  },
-  {
-   "addr": "0x400e1928",
-   "stock": "203cbeefbace",
-   "op": "jsr",
-   "target": "mmx_proj_load"
-  },
-  {
-   "addr": "0x40134770",
-   "stock": "226f0004206f0008202f000c",
-   "op": "jmp",
-   "target": "mmx_memcpy"
+   "to": "core_projdata",
+   "order": 50,
+   "data": "00000000",
+   "relocs": [
+    [
+     0,
+     "abs32",
+     "sym:mm_projdata",
+     0
+    ]
+   ]
   }
  ],
  "resources": {
   "names": [
    "personalize:MACRO SETUP",
-   "record:kit:0x28af-0x2971",
-   "record:project:0x1c-0xde"
+   "kitdata:MMKS",
+   "projdata:MMPS"
   ]
- },
- "_storage": {
-  "_comment": "The firmware routines the feature's storage goes through (tools/storage.py): another mod hooking inside one is a conflict.",
-  "routines": {
-   "kit record save": [
-    "0x400ddfa8",
-    "0x400de0ee"
-   ],
-   "kit record load": [
-    "0x400dddb6",
-    "0x400ddfa8"
-   ],
-   "project save": [
-    "0x400e15f8",
-    "0x400e18e6"
-   ],
-   "project load": [
-    "0x400e18e6",
-    "0x400e1c2a"
-   ],
-   "memcpy entry": [
-    "0x40134770",
-    "0x4013477c"
-   ]
-  }
  }
 }

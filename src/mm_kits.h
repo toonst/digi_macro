@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 /* The kits feature's interface to the glue (mm_glue.c): setups per project or per kit, in the project's own data
- * (src/mm_kits.c, src/mm_scope.c, src/kit.s, src/rows.s; docs/findings/s7-project-storage.md). A build without it
+ * (src/mm_kits.c, src/mm_scope.c: elekloader core's kit and project data; docs/findings/s7-project-storage.md). A build without it
  * (mods/<dev>/kits.json left out, so no MM_FEATURE_KITS) gets these empty, and the mode keeps one global setup. */
 #ifndef MM_KITS_H
 #define MM_KITS_H

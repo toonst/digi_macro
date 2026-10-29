@@ -4,7 +4,7 @@
  "sites": [],
  "resources": {
   "names": [
-   "record:kit:0x5800"
+   "card:0x5800"
   ]
  }
 }

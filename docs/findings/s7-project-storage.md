@@ -2,8 +2,9 @@
 
 D4: the setups per kit or per project, kept in the project's own data, so they go wherever a kit or the project goes.
 This is the kits feature (`src/mm_kits.h`), built in unless left out (README.md, "Features"). Marks as digikit's
-(**[D]** read or measured once here, **[O]** open). Measured with `tests/emu/zero_patched.rs` (`poke` writes guest
-memory, `dump` saves a range of it) and `tests/emu/project.py`.
+(**[D]** read or measured once here, **[O]** open). Measured with digikit's `zero_patched` runner (`poke` writes guest
+memory, `dump` saves a range of it) and `tests/emu/project.py`. The storage itself is now elekloader core's
+(core-dt2 1.1, core-dn2 0.3: its `mods/core-dt2/store.s` and `store.c`), built on what is found here.
 
 ## The project in RAM **[D]**
 
@@ -15,8 +16,7 @@ TO PATTERN, PASTE KIT, RELOAD KIT FROM SAVED). The firmware copies whole pattern
 
 The RAM records have no room of their own: a DT2 kit's `0x5574` bytes are all serialized, and the pattern records'
 bytes the save leaves out are in use (on DT2, + `0x1cef0` .. `0x1db60` holds `0xff` and a 16 x 128 array the code at
-`0x400d6cd6` reads; pokes into it hung the UI). So the mod keeps the setups in its own RAM and puts them only in the
-saved records.
+`0x400d6cd6` reads; pokes into it hung the UI). So the setups are kept in RAM and put only in the saved records.
 
 ## The saved project **[D]**
 
@@ -40,18 +40,22 @@ Per record, the bytes the serializer writes nothing to (zero in every save seen)
 | DN2 kit | `0x2a00` | `0x400ddfa8`, `0x400dddb6` | to the end mark at `0x28ab` | `0x28af` .. `0x2a00` (337) |
 
 The DT2 pattern record's loader version converters (`0x400de220` from version 3, `0x400de420` from 2) show its raw
-tail moving from `0x15a94` to `0x15aa4` between versions: a later OS may grow into unused bytes, and the mod's record
-carries its own mark and CRC so it never takes other bytes for a setup.
+tail moving from `0x15a94` to `0x15aa4` between versions: a later OS may grow into unused bytes, so what is kept
+there carries a mark (core's) and is never taken from bytes without it.
 
-## The mod's records **[D]**
+## The setups in the records **[D]**
 
 Each kit keeps its own setup, and the project its own, whichever is on, so changing the scope never overwrites one
-with the other. A kit's setup goes into its record right after the end mark, where the DT2 has 194 bytes and the DN2
-337; the project's into the file's header at + `0x1c`. A setup is 194 bytes: the mark `0xd1`, then a bit stream (high
-bit first) with per slot the destination (7 bits), depth (16) and tracks (16), then the 40 name characters (7 bits
-each), then a CRC-16 of all before.
+with the other. They are elekloader core's kit data and project data (`kitdata:MMKS`, `projdata:MMPS`):
 
-The routines have the same shape on both OSes, and so do the sites (`src/kit.s`):
+- after a kit record's end mark (DT2 194 bytes, DN2 337): `K`, core's 16-bit layout id, then the setup;
+- in the header's gap at + `0x1c`: `ELKP`, then `MMPS`, the size (192) and the setup.
+
+A setup is 191 bytes, all the room a DT2 kit record has left after core's three: a bit stream (high bit first) with per
+slot the destination (7 bits), depth (16) and tracks (16), then the 40 name characters (7 bits each). All zero is
+none; a setup always has a track, so none is never a setup.
+
+The routines have the same shape on both OSes, and so do core's sites:
 
 | | DT2 | DN2 | Registers |
 | --- | --- | --- | --- |
@@ -70,11 +74,11 @@ others pass kit pointers that were not traced.
 
 Copies of a kit in RAM go through memcpy with the kit's size: seven calls on each OS push it as memcpy's length
 (DT2 `0x40035e3e`, `0x40035ee0`, `0x40036c30`, `0x40133412`, `0x401a900a`, `0x401a9080`, `0x401cdcdc`), and others
-pass it in a register. The wrapper does the
-three loads it displaced and goes on into memcpy; a copy of a kit's size also tells the mod. A copy from one kit of
-the table to another takes the setup along. A copy into another buffer (the clipboard, the undo copy) leaves a
-shadow of the setup, keyed by the buffer's address (the 8 latest), so a copy back from it brings the setup. A copy
-from a buffer the mod never saw filled leaves the target's setup as it is.
+pass it in a register. core's wrapper does the
+three loads it displaced and goes on into memcpy; a copy of a kit's size also copies the kit's data. A copy from one
+kit of the table to another takes the setup along. A copy into another buffer (the clipboard, the undo copy) leaves a
+shadow of it, keyed by the buffer's address (the 8 latest), so a copy back from it brings the setup. A copy from a
+buffer core never saw filled leaves the target's setup as it is.
 
 The kit on is the pattern on's: `*(*PATTERN_OBJ + 0x138)`, with `PATTERN_OBJ` DT2 `0x44f370a0`, DN2 `0x446488d0`
 (the pointer the getter DT2 `0x40198b7e` returns). It was the only word that went 0, 1, 2 on DT2 as A01, A02 and A03
@@ -91,7 +95,7 @@ In `tests/emu/project.py` (23 checks on each, all passing):
   header.
 - LOAD PROJECT of slot 001 (with the mod's copies cleared) brings the kits' back and, per project, the project's.
 
-Apart from the mod's bytes, nothing after the end marks or in the header changed.
+Apart from core's bytes, nothing after the end marks or in the header changed.
 
 ## Compatibility and conflicts **[D]**
 
@@ -105,36 +109,37 @@ Apart from the mod's bytes, nothing after the end marks or in the header changed
 
 What they showed:
 - The control changes the header word at + `0x18` (+ 24, which the load copies to the project's RAM and a save
-  writes back) and nothing else outside the mod's bytes. The mod's slot 001 and the stock OS's slot 002 differ in
-  that word and nowhere else outside the claimed bytes.
-- A stock save does not always clear the claimed bytes. When it follows another save, the firmware serializes into
+  writes back) and nothing else outside core's bytes. The mod's slot 001 and the stock OS's slot 002 differ in
+  that word and nowhere else outside them.
+- A stock save does not always clear those bytes. When it follows another save, the firmware serializes into
   the buffer the loaded file is in, so the bytes it does not write keep what the file had: the stock OS's slot 002
   still carried the mod's setups. A first save after boot starts from a blank buffer and leaves zeros.
 - The mod loads the stock OS's save with no conflict.
-- With someone else's bytes in kit 1's area, the load counts a conflict and keeps no setup for kit 1. The save after
+- With someone else's bytes in kit 1's area, the load counts a conflict (core's `core_store_conflicts`) and keeps no
+  setup for kit 1. The save after
   a save, which starts from the loaded file, finds those bytes in its way: it counts the conflict again and leaves
   them as they were. Kit 2's setup is saved as before.
 - Each kit record passes the serializer twice in a save, and the loader twice in a load, so the conflict counter
   rises by two each time.
 
-The claims (`record:kit:LO-HI`, `record:project:LO-HI`, `card:LO-HI`, half-open) and `tools/storage.py` are
-described in README.md, "Storage and other mods".
+The claims and `tools/storage.py` are described in README.md, "Storage and other mods".
 
 ## PERSONALIZE **[D]**
 
-The row is a stock `MenuItem` from elekloader's `core_additem`, drawn as LED INTENSITY is (DT2 `0x4009c722`: the
-text routine DT2 `0x40113fd4`, DN2 `0x40115948`, font DT2 `0x402a9be0`, DN2 `0x40294710`, at the row's x + 19,
-y + 2, right-aligned). Its change callback gets (storage, item, delta) and redraws with `View::invalidate(menu +
-0x38)` (DT2 `0x4011b126`, DN2 `0x4011ca9a`). LEFT and RIGHT call it; the LEVEL encoder does not, in this menu.
+The row is core's `core_addvalue`, a stock `MenuItem` drawn as LED INTENSITY is (DT2 `0x4009c722`: the text routine
+DT2 `0x40113fd4`, DN2 `0x40115948`, font DT2 `0x402a9be0`, DN2 `0x40294710`, at the row's x + 19, y + 2,
+right-aligned). Its change callback gets (storage, item, delta) and redraws with `View::invalidate(menu + 0x38)` (DT2
+`0x4011b126`, DN2 `0x4011ca9a`). LEFT and RIGHT call it; the LEVEL encoder does not, in this menu.
 
 ## Open **[O]**
 
 - The kit manager (SAVE KIT, LOAD KIT TO PATTERN, RELOAD KIT FROM SAVED) was not driven in the emulator: which of the
   callers above it uses, and whether they pass the project's table kits, is not known for all of them.
-- elekloader compares claims as names, not ranges: a mod that claims an overlapping range under another name links,
-  and only `tools/storage.py` (given that mod) refuses it. A mod that writes the same bytes without claiming them is
-  caught at run time only, by the guard.
-- PASTE KIT and undo were not driven; they copy with memcpy of a kit's size (the sites above), as pattern paste does.
+- A mod or tool that writes core's bytes without going through core is caught at run time only, by core's guard.
+- PASTE KIT was driven with elekloader's kit-memo example on core, not with this mod; undo was not driven. Both copy
+  with memcpy of a kit's size (the sites above), as pattern paste does.
+- On the Digitakt II the setup takes all of a kit record's room: with another kit-data mod, one of the two blocks is
+  left out.
 - A kit copied by other means than memcpy (a loop, a part at a time) would not take its setup along.
 - Transfer: its project backups carry the file as saved, so the setups should go with them; not tried.
 - Not tried on a unit.

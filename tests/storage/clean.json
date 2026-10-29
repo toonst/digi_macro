@@ -11,8 +11,8 @@
  ],
  "resources": {
   "names": [
-   "record:kit:0x5800-0x5900",
-   "record:project:0xde-0x200",
+   "kitdata:OTHR",
+   "projdata:OTHR",
    "card:0x2df0e02-0x2df0e10",
    "ui:OTHER"
   ]
