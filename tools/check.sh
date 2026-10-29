@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-2.0-or-later
-# The checks of this repository (README.md, "Checks"):
+# The checks of this repository (docs/DEVELOPING.md, "Building"):
 #   1. host tests of the device-independent code, with ASan and UBSan;
 #   2. the screen previews in docs/img (--previews rewrites them);
 #   3. a ColdFire cross-compile of each manifest with elekloader's flags for the device: no undefined symbol may be

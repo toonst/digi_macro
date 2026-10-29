@@ -1,8 +1,8 @@
 """The manifest a build uses: mods/<dev>/mod.json, the mod without its optional features, plus each chosen feature's
-fragment mods/<dev>/<feature>.json (README.md, "Features"). Lists (sources, cflags, subscribe, contribute, sites,
-resource names) are joined, tables (defsym, collections) merged; a name both define is an error. The sources are
-rewritten for the output folder, which elekloader's build and tools/check.sh's cross-compile then take as the mod's
-folder.
+fragment mods/<dev>/<feature>.json (docs/DEVELOPING.md, "Features"). Lists (sources, cflags, subscribe, contribute,
+sites, resource names) are joined, tables (defsym, collections) merged; a name both define is an error. The sources
+are rewritten for the output folder, which elekloader's build and tools/check.sh's cross-compile then take as the
+mod's folder.
 
     python3 tools/manifest.py DEV OUT_DIR [FEATURE ...] [--cflag FLAG ...]
 """

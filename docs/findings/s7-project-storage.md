@@ -1,7 +1,7 @@
 # S7: macro setups in the project's data (Digitakt II 1.17, Digitone II 1.12)
 
 D4: the setups per kit or per project, kept in the project's own data, so they go wherever a kit or the project goes.
-This is the kits feature (`src/mm_kits.h`), built in unless left out (README.md, "Features"). Marks as digikit's
+This is the kits feature (`src/mm_kits.h`), built in unless left out (docs/DEVELOPING.md, "Features"). Marks as digikit's
 (**[D]** read or measured once here, **[O]** open). Measured with digikit's `zero_patched` runner (`poke` writes guest
 memory, `dump` saves a range of it) and `tests/emu/project.py`. The storage itself is now elekloader core's
 (core-dt2 1.1, core-dn2 0.3: its `mods/core-dt2/store.s` and `store.c`), built on what is found here.
@@ -122,7 +122,7 @@ What they showed:
 - Each kit record passes the serializer twice in a save, and the loader twice in a load, so the conflict counter
   rises by two each time.
 
-The claims and `tools/storage.py` are described in README.md, "Storage and other mods".
+The claims and `tools/storage.py` are described in docs/DEVELOPING.md, "Storage and other mods".
 
 ## PERSONALIZE **[D]**
 

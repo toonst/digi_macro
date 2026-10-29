@@ -1,4 +1,4 @@
-"""Projects stay compatible with and without the mod (README.md, "Storage and other mods"), in the emulator:
+"""Projects stay compatible with and without the mod (docs/DEVELOPING.md, "Storage and other mods"), in the emulator:
 
 1. the mod (a build with the kits feature) saves a project with setups per kit and the project's: slot 001;
 2. the stock OS, with that slot on its card, loads it and saves it again: slot 002. The mod's file and the stock

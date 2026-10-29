@@ -1,166 +1,106 @@
 # macro-mode
 
-A performance macro mode for the **Digitakt II (OS 1.17)** and **Digitone II (OS 1.12)**, as an
-[elekloader](https://github.com/elekloader/elekloader) mod. It needs core-dt2 1.1 / core-dn2 0.3, which are in
-[a fork](https://github.com/toonst/elekloader/tree/claude/zen-rubin-g8jh03) until elekloader takes them (the
-submodule `third_party/elekloader` points there). Hold PAGE and press MOD (or the other way round): encoders A–H
-become eight macros, each moving up to four parameters on the tracks you choose, on top of the sound like the stock
-modulations. Requirements: [SPEC.md](SPEC.md); plan and decisions: [PLAN.md](PLAN.md); where it stands:
-[docs/STATUS.md](docs/STATUS.md).
+Eight performance macros for the **Elektron Digitakt II** and **Digitone II**. Hold PAGE and press MOD, and encoders
+A–H become eight macro knobs. Each macro moves up to four sound parameters, on the tracks you choose, all at once.
+They work like the stock modulation: they ride on top of the sound and don't change your kit.
 
-> **Development build.** On both devices everything runs in digikit's emulator (screens, LEDs, the macros in the
-> frame values, the stored configuration), but nothing has been tried on a unit or listened to yet. Do not flash it
-> on a device you need.
+![The macro screen](docs/img/macro-turned.png) ![Setting up macro C](docs/img/setup.png)
+
+> [!WARNING]
+> **Experimental.** Earlier builds have run on a Digitakt II; this one, with the per-kit setups, has so far only run
+> in an emulator, and the Digitone II version has never been on a unit. Don't install it on a device you rely on. This is unofficial custom firmware: you use it at your own risk, and
+> it is not made or supported by Elektron.
+
+## What you need
+
+- A **Digitakt II on OS 1.17** or a **Digitone II on OS 1.12**. Other OS versions won't work.
+- The matching official OS file (`.syx`) from [Elektron's website](https://www.elektron.se/support-downloads).
+- A computer with Linux or macOS to build the firmware. There is no ready-made download: the result contains
+  Elektron's firmware, so it can't be shared. You build it yourself from your own copy of the OS.
 
 ## Using it
 
-| | Macro screen | Setup screen |
-| --- | --- | --- |
-| Enter | Hold PAGE and press MOD, or hold MOD and press PAGE (the header shows "Macro Mode") | FUNC + push an encoder (A–H) |
-| Name a macro | FUNC + push and hold its encoder: the stock naming screen (5 characters) | The same |
-| Encoders A–H | Move that macro (−64 … +63), with the stock knobs' feel; push and turn for bigger steps | A–D: destination of parameter 1–4, from a list as in the stock modulation setups; E–H: its depth (−128.00 … 127.99, push for whole steps) |
-| Push + NO | The macro back to the centre | That knob back: destination none, depth 0 |
-| Trig keys | Their usual function | The tracks of the selected parameter (red; all of them for a new one) |
-| LEFT / RIGHT | Their usual function | Select a parameter |
-| NO | Its usual function | Close the destination list; else back to the macro screen |
-| LEVEL/DATA | Move all eight macros together | Move the macro being edited |
-| FUNC + NO, or push LEVEL/DATA | All eight macros back to the centre (the pattern is not reloaded) | FUNC + NO: the same; LEVEL/DATA: the macro being edited |
-| TRIG, SRC, FLTR, AMP, FX; FUNC + MOD | Leave macro mode and open that page (FUNC + MOD: the compressor and mixer pages, as anywhere) | The same |
-| TRK + trig key | Leave macro mode and select that track, on the page macro mode was entered from | The same |
-| MOD | Leave macro mode (also with PAGE held) | Back to the macro screen |
+**Macro screen**
 
-PLAY, STOP, RECORD, PTN, SONG, TRK and FUNC keep their stock function throughout. While the mode is on, the MOD key
-is lit blue and the other page keys are dark. A firmware screen that opens over the mode (the firmware update's
-confirmation, a dialog) takes the screen and the keys as on any page.
-
-### Per project or per kit
-
-SETTINGS > PERSONALIZE > MACRO SETUP chooses which setup (the destinations, depths, tracks and names) is on:
-
-- **PROJECT** (the default): the project's own setup.
-- **KIT**: the setup of the kit on (the pattern on's). A kit that has none yet starts as a copy of the one on, and
-  the setup changes when another pattern, and so its kit, comes on. The knobs stay where they are.
-
-YES, LEFT or RIGHT on the row changes it. The project and every kit keep their own setups whichever is on, so going
-from KIT to PROJECT and back changes none of them. Copying and pasting a pattern or a kit takes the kit's setup along.
-The setups are saved with the project, the kits' with the kit records and the project's in its header, and come back
-when it is loaded. elekloader's core keeps them in bytes the stock OS leaves unused, so the project still loads on a
-stock OS.
-
-This is an optional part of the mod (see Features).
-
-![The macro screen](docs/img/macro-turned.png) ![The setup screen of macro C](docs/img/setup.png)
-![The destination list](docs/img/setup-list.png)
-
-## Building
-
-You need Python 3, a host C compiler and the m68k cross tools, and your own stock OS files from Elektron's site.
-This repository never holds firmware. The cross tools:
-
-- Ubuntu or Debian: `apt install gcc-m68k-linux-gnu binutils-m68k-linux-gnu`
-- macOS: `brew install m68k-elf-gcc` (it brings `m68k-elf-binutils`)
-
-`tools/check.sh` uses whichever of `m68k-linux-gnu-` and `m68k-elf-` it finds (`ELEKLOADER_CROSS` names another
-prefix), and runs on the bash macOS ships.
-
-```bash
-git submodule update --init
-```
-
-```bash
-DT2_SYX=path/to/Digitakt_II_OS1.17.syx DN2_SYX=path/to/Digitone_II_OS1.12.syx tools/check.sh
-```
-
-`tools/check.sh` runs the host tests, renders the screen previews (`--previews` rewrites `docs/img`), cross-compiles
-both manifests and, with the stock files, builds the elekloader core and this mod for each device and patches them
-into the stock OS: `out/check/macro-dt2.syx` and `out/check/macro-dn2.syx`. Those are the files to send to a device
-(never commit them: they hold Elektron's firmware).
-
-To patch by hand instead (for another version string, say), run elekloader from this directory with the submodule on
-Python's module path:
-
-```bash
-PYTHONPATH=third_party/elekloader python3 -m elekloader.patch --stock path/to/Digitakt_II_OS1.17.syx --mod out/check/dt2-core/core-1.1.elemod --mod out/check/dt2-mod/macro-mode-0.1.elemod --out out/macro-dt2.syx --version MM01
-```
-
-### Features
-
-The mod's optional parts are built in or left out when it is built. Each is a fragment of the manifest,
-`mods/<dev>/<feature>.json`, that `tools/manifest.py` adds to `mods/<dev>/mod.json` (sources, flags, firmware sites,
-events), and a header in `src/` that the rest of the mod calls through, empty without the feature. The one there is:
-
-| Feature | Fragment | Left out with | What it adds |
-| --- | --- | --- | --- |
-| Kits | `kits.json`, `src/mm_kits.h` | `MM_KITS=0 tools/check.sh` | Setups per project or per kit, PERSONALIZE > MACRO SETUP, in core's kit and project data (about 25 KB of RAM) |
-
-Without it the mod keeps one setup, on the card.
-
-### Storage and other mods
-
-The mod hooks no firmware code of its own: elekloader's core gives it the frame values, the LEDs, the PERSONALIZE row
-and the kit and project storage. Where it keeps its data:
-
-| What | Where | Claim |
-| --- | --- | --- |
-| The mode's state, every kit's and the project's setup while the unit runs | The mod's own RAM (its `.bss`, placed by elekloader's linker) | |
-| The configuration (the setup on, the MACRO SETUP choice) | Two card sectors the stock OS never writes | `card:0x2df0e00-0x2df0e02` (DT2), `card:0x7ff000-0x7ff002` (DN2) |
-| A kit's setup, the project's setup (kits feature) | core's kit data (after each kit record's end mark) and project data (the project header's gap) | `kitdata:MMKS`, `projdata:MMPS` |
-
-- **Compatible either way.** core's areas are bytes the stock OS writes as zeros and never reads, and keeps when it
-  saves a project it loaded. The stock OS loads and saves a project the mod saved, and the files differ only there;
-  the mod loads a stock OS's project and finds no setups. Patterns and kits are the project's records, so the same
-  holds for them.
-- **Claimed.** elekloader's linker refuses another mod that claims the same names, a card range that overlaps
-  ours, or a site on core's.
-- **Guarded.** core writes its areas only over zeros or its own data. Anything else there (another tool's, a later
-  OS's) is left as it is; the mod then keeps no setup for that kit and shows MACRO SETUP CONFLICT in the header.
-
-On the Digitakt II a kit record has room for one kit-data block of the setup's size (191 bytes): another kit-data mod
-would leave one of the two out.
-
-Checks:
-
-```bash
-MM_WITH="path/to/other.elemod path/to/another/mod.json" tools/check.sh
-```
-
-`tools/storage.py` (run by `tools/check.sh`) checks the claims against the card sectors the code writes, and, with
-`MM_WITH`, against those mods from their manifests alone; with the stock files elekloader's lint also links the mod
-with MM_WITH's `.elemod` files. `tests/test_storage.py` tests the checker on the fixtures in `tests/storage`. In the
-emulator (tests/emu/README.md), `tests/emu/compat.py` covers the round trips and a conflict:
-
-```bash
-python3 tests/emu/compat.py --runner RUNNER --stock path/to/Digitakt_II_OS1.17.syx --build out/check/macro-dt2.syx --map out/check/macro-dt2.map.json --out out/emu-compat-dt2 --device dt2
-```
-
-`MM_LED_TEST=1 tools/check.sh` builds a colour test: on the macro screen trig key n lights with value
-`(n − 1) × 0x10 + 1` and TRIG, SRC, FLTR, AMP, FX with `0x11`, `0x21`, `0x31`, `0x51`, `0x61`, to tell which LED value
-is which colour on a unit.
-
-Test a build in [digikit](https://github.com/toonst/digikit)'s emulator before it goes near a device
-(`mise run workbench -- /path/to/out/check/macro-dt2.syx` in a digikit checkout).
-
-## Layout
-
-| Path | What |
+| Do this | And |
 | --- | --- |
-| `src/mm.h` | Types and the interface of the device-independent part |
-| `src/mm_logic.c` | States and the input map: entry and exit, the macro screen, the setup screen |
-| `src/mm_apply.c` | Macro math, the per-track lists and their frame-time apply; the LEDs the mode holds |
-| `src/mm_store.c` | The stored configuration's format; destination helpers |
-| `src/mm_kits.h`, `src/mm_kits.c` | The kits feature: its interface to the glue, and its device side (core's kit and project data, the PERSONALIZE row) |
-| `src/mm_scope.c` | The kits feature's logic: setups per project or per kit, following the kit on |
-| `src/mm_draw.c` | The two screens, in the stock layout (the previews use the mod's own font; the device the firmware's) |
-| `src/mm_dests.c` | The destinations per device: both from the firmware's parameter tables |
-| `src/mm_glue.c` | The elekloader handlers: `ev_key`, `ev_enc`, `ev_tick`, `ev_draw`, `ev_frame_params`, `ev_key_leds` |
-| `mods/dt2`, `mods/dn2` | The elekloader manifests, one per device and OS (`mod.json`), and each feature's fragment |
-| `tools/manifest.py` | The manifest a build uses: `mod.json` and the chosen features |
-| `tools/storage.py` | The mod's storage claims, against the card sectors it writes and against other mods |
-| `tests/` | Host tests, the preview renderer and the emulator scenarios (`tests/emu`) |
-| `third_party/elekloader` | elekloader with core-dt2 1.1 and core-dn2 0.3 (the fork), pinned |
+| Hold PAGE + press MOD (or MOD + PAGE) | Macro mode opens: the header says "Macro Mode" and MOD lights blue |
+| Turn encoders A–H | Move that macro (−64 … +63). Push and turn for bigger steps |
+| Turn LEVEL/DATA | Move all eight macros together |
+| Push an encoder + NO | That macro back to the centre |
+| FUNC + NO, or push LEVEL/DATA | All macros back to the centre |
+| FUNC + push and hold an encoder | Name the macro (5 characters) |
+| MOD, or a page key (TRIG, SRC, FLTR, AMP, FX) | Leave macro mode |
 
-## Licence
+**Setup screen**: FUNC + push an encoder opens the setup of that macro.
 
-GPL-2.0-or-later ([LICENSE](LICENSE)), as elekloader. Not affiliated with Elektron; flashing custom firmware is at
-your own risk. The stock OS file always restores a unit (hold FUNC while powering on, TRIG 4, then send the stock
-`.syx` over DIN MIDI).
+| Do this | And |
+| --- | --- |
+| Encoders A–D | Choose what parameters 1–4 control, from a list like the stock modulation setup |
+| Encoders E–H | How far each one moves (its depth, positive or negative; push for whole steps) |
+| LEFT / RIGHT | Select one of the four parameters |
+| Trig keys | Choose the tracks the selected parameter acts on (lit red) |
+| Push an encoder + NO | Clear that parameter |
+| NO or MOD | Back to the macro screen |
+
+PLAY, STOP, RECORD, PTN, SONG, TRK and FUNC keep their normal function. TRK + a trig key leaves macro mode and selects
+that track. The macro setup is saved on the unit and comes back after a restart.
+
+### One setup per project, or one per kit
+
+In **SETTINGS > PERSONALIZE > MACRO SETUP** you choose where the macro setup lives:
+
+- **PROJECT** (default): one setup for the whole project.
+- **KIT**: each pattern's kit has its own setup, which comes on with the pattern. A kit without one starts as a copy
+  of the current setup.
+
+Switching between the two loses nothing: the project and every kit keep their own setup. Copying a pattern or a kit
+takes its setup along. The setups are saved inside the project.
+
+## Your projects stay safe
+
+- A project saved with macro-mode still opens on the official OS. It just has no macros there.
+- A project from the official OS opens with macro-mode; its kits start without macro setups.
+- The macro setups are stored in spare room in the project file that the official OS leaves empty. If something else
+  has already put data there, macro-mode leaves it alone and shows **MACRO SETUP CONFLICT**.
+
+## Installing
+
+1. Install Python 3, Git and the ColdFire compiler:
+   - Ubuntu or Debian: `sudo apt install python3 git gcc gcc-m68k-linux-gnu binutils-m68k-linux-gnu`
+   - macOS: the Xcode command line tools (`xcode-select --install`), then with [Homebrew](https://brew.sh):
+     `brew install python m68k-elf-gcc`
+2. Get this project and the loader it builds with:
+
+   ```bash
+   git clone --recurse-submodules https://github.com/toonst/digi_macro.git
+   ```
+
+3. In the `digi_macro` folder, build it, pointing to the official OS file(s) you downloaded (one is enough):
+
+   ```bash
+   DT2_SYX=path/to/Digitakt_II_OS1.17.syx DN2_SYX=path/to/Digitone_II_OS1.12.syx tools/check.sh
+   ```
+
+   It ends with `WROTE out/check/macro-dt2.syx` (Digitakt II) or `out/check/macro-dn2.syx` (Digitone II).
+4. Send that file to the unit as you would an official OS update (see "Updating the OS" in Elektron's manual).
+5. Check it worked: hold PAGE and press MOD. The header should say "Macro Mode".
+
+**Going back to the official OS:** send the official `.syx` the same way. If the unit doesn't start, hold FUNC while
+powering on, press TRIG 4, and send the official `.syx` over DIN MIDI.
+
+## Good to know
+
+- Macros are for playing live: they can't be recorded or parameter-locked, and they never change the saved sound.
+- Machine-specific parameters (on the Digitone II, all synth parameters) and the LFOs can't be chosen as macro
+  targets yet.
+- Building without the per-kit setups: `MM_KITS=0 tools/check.sh`. Then there's one setup, kept on the unit.
+
+## More
+
+- [docs/DEVELOPING.md](docs/DEVELOPING.md): building, checks, storage details and the code's layout
+- [docs/STATUS.md](docs/STATUS.md): what's done and what's open
+- [SPEC.md](SPEC.md) and [PLAN.md](PLAN.md): what it should do and how it was planned
+
+Built with [elekloader](https://github.com/elekloader/elekloader) and tested in
+[digikit](https://github.com/toonst/digikit)'s emulator. Licence: GPL-2.0-or-later ([LICENSE](LICENSE)).

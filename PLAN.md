@@ -266,7 +266,7 @@ value = sat(value + delta, 0, 0x7f00)        /* in the per-frame value array, as
   and the project has its own; both are kept whichever is on. They go into bytes of the saved project the stock OS
   leaves unused (each kit record's tail, the header), the same way on both devices, and the firmware's copies of a
   kit take its setup along. A kit or project with no setup starts with a copy of the one on. It is an optional
-  feature: a manifest fragment and a header the glue calls through (README.md, "Features").
+  feature: a manifest fragment and a header the glue calls through (docs/DEVELOPING.md, "Features").
 
 ## 5. Architecture
 

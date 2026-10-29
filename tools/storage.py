@@ -1,4 +1,4 @@
-"""The mod's storage claims against itself and against other mods (README.md, "Storage and other mods").
+"""The mod's storage claims against itself and against other mods (docs/DEVELOPING.md, "Storage and other mods").
 
 The mod claims every place it keeps data outside its own RAM as a resource name: `card:0xLO-0xHI` (eMMC sectors,
 half-open), and with the kits feature `kitdata:TAG` and `projdata:TAG` (its blocks in elekloader core's kit and

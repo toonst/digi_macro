@@ -1,5 +1,5 @@
-"""tools/storage.py against the fixtures in tests/storage: the mod's storage claims against other mods (README.md,
-"Storage and other mods"). No firmware needed. Run by tools/check.sh:
+"""tools/storage.py against the fixtures in tests/storage: the mod's storage claims against other mods
+(docs/DEVELOPING.md, "Storage and other mods"). No firmware needed. Run by tools/check.sh:
 
     python3 tests/test_storage.py
 """
