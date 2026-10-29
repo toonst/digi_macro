@@ -134,6 +134,10 @@ python3 tests/emu/compat.py --runner RUNNER --stock path/to/Digitakt_II_OS1.17.s
 `(n − 1) × 0x10 + 1` and TRIG, SRC, FLTR, AMP, FX with `0x11`, `0x21`, `0x31`, `0x51`, `0x61`, to tell which LED value
 is which colour on a unit.
 
+The submodule pins elekloader at the commit the mod is built against. Do not move it to a commit with core-dt2 1.1
+or core-dn2 0.3 before the mod moves onto them: those cores hook the same firmware sites (frame values, LEDs, kit and
+project storage, `memcpy`), and the linker refuses the pair. docs/STATUS.md has the plan.
+
 Test a build in [digikit](https://github.com/toonst/digikit)'s emulator before it goes near a device
 (`mise run workbench -- /path/to/out/check/macro-dt2.syx` in a digikit checkout).
 

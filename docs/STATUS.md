@@ -22,5 +22,6 @@ Still open:
 | --- | --- | --- |
 | Machine-dependent source parameters (all of DN2's), LFO parameters | Not offered | S6 |
 | Audio | The zero-DSP runner makes no sound | Coupled emulator or a unit |
-| Storage claims, other mods | Claimed ranges, checked by `tools/storage.py` (with `MM_WITH`); a guard at run time | elekloader compares claims as names: ranges could move there (S7) |
+| Storage claims, other mods | Claimed ranges, checked by `tools/storage.py` (with `MM_WITH`); a guard at run time | elekloader's linker refuses overlapping range claims once its core-dt2 1.1 / core-dn2 0.3 change is merged (S7) |
+| The elekloader core | The mod hooks its own sites for frame values, LEDs, PERSONALIZE rows and storage | Once core-dt2 1.1 and core-dn2 0.3 are released: subscribe to their events and tables, drop `src/frame.s`, `leds.s`, `kit.s`, `rows.s` and the storage sites, set `resources.core`. Projects saved by this build then read as a conflict there (another kit-data format) |
 | Kit manager, PASTE KIT, undo | Not driven in the emulator (pattern copy and paste is) | Find their keys and add them to `tests/emu/project.py` (S7) |
