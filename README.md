@@ -65,6 +65,10 @@ Python's module path:
 PYTHONPATH=third_party/elekloader python3 -m elekloader.patch --stock path/to/Digitakt_II_OS1.17.syx --mod out/check/dt2-core/core-1.0.elemod --mod out/check/dt2-mod/macro-mode-0.1.elemod --out out/macro-dt2.syx --version MM01
 ```
 
+`MM_LED_TEST=1 tools/check.sh` builds a colour test: on the macro screen trig key n lights with value
+`(n − 1) × 0x10 + 1` and TRIG, SRC, FLTR, AMP, FX with `0x11`, `0x21`, `0x31`, `0x51`, `0x61`, to tell which LED value
+is which colour on a unit.
+
 Test a build in [digikit](https://github.com/toonst/digikit)'s emulator before it goes near a device
 (`mise run workbench -- /path/to/out/check/macro-dt2.syx` in a digikit checkout).
 

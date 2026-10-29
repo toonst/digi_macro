@@ -64,6 +64,7 @@ command -v "${CROSS}gcc" >/dev/null || {
 FLAGS=(-mcpu=54455 -O2 -ffreestanding -fno-builtin -nostdlib -fno-pic -fno-pie -fomit-frame-pointer -Wall -Wextra -Werror)
 for dev in dt2 dn2; do
     lines cflags manifest "$dev" "m['cflags']"
+    [[ -z "${MM_LED_TEST:-}" ]] || cflags+=(-DMM_LED_TEST)
     lines srcs manifest "$dev" "m['sources']"
     lines defsym manifest "$dev" "'--defsym=%s=%s' % kv for kv in m.get('defsym', {}).items()"
     lines tables manifest "$dev" "m.get('collections', {})"
@@ -103,7 +104,13 @@ if [[ -n "$DT2_SYX$DN2_SYX" ]]; then
         IFS=: read -r dev syx core <<< "$pair"
         [[ -n "$syx" ]] || continue
         el -m elekloader.sdk.build "$EL/mods/$core" --stock "$syx" --out "$OUT/$dev-core"
-        el -m elekloader.sdk.build "mods/$dev" --stock "$syx" --out "$OUT/$dev-mod"
+        mod_dir="mods/$dev"
+        if [[ -n "${MM_LED_TEST:-}" ]]; then   # the colour test: the manifest with -DMM_LED_TEST
+            mod_dir="$OUT/$dev-ledtest"
+            mkdir -p "$mod_dir"
+            python3 -c "import json,sys; m=json.load(open('mods/$dev/mod.json')); m['cflags'].append('-DMM_LED_TEST'); m['sources']=['../../../'+x[len('../../'):] for x in m['sources']]; json.dump(m, open('$mod_dir/mod.json','w'), indent=1)"
+        fi
+        el -m elekloader.sdk.build "$mod_dir" --stock "$syx" --out "$OUT/$dev-mod"
         el -m elekloader.lint "$OUT/$dev-mod"/*.elemod --stock "$syx" --with "$OUT/$dev-core"/*.elemod
         el -m elekloader.patch --stock "$syx" --mod "$OUT/$dev-core"/*.elemod --mod "$OUT/$dev-mod"/*.elemod \
             --out "$OUT/macro-$dev.syx" --version MMDV | tail -2
