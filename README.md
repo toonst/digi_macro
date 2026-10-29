@@ -100,6 +100,7 @@ powering on, press TRIG 4, and send the official `.syx` over DIN MIDI.
 
 - [docs/DEVELOPING.md](docs/DEVELOPING.md): building, checks, storage details and the code's layout
 - [docs/STATUS.md](docs/STATUS.md): what's done and what's open
+- [docs/TESTING-ON-A-UNIT.md](docs/TESTING-ON-A-UNIT.md): a checklist for trying it on your unit
 - [SPEC.md](SPEC.md) and [PLAN.md](PLAN.md): what it should do and how it was planned
 
 Built with [elekloader](https://github.com/elekloader/elekloader) and tested in
