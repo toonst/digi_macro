@@ -1,4 +1,4 @@
-# macro-mode
+# Elektron Digitakt 2 & Digitone 2 macro-mode
 
 Eight performance macros for the **Elektron Digitakt II** and **Digitone II**. Hold PAGE and press MOD, and encoders
 A–H become eight macro knobs. Each macro moves up to four sound parameters, on the tracks you choose, all at once.
