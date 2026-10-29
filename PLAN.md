@@ -187,6 +187,7 @@ All decided by the user:
 | FUNC + push A–H, let go | Open SETUP for that macro | Switch to that macro's setup |
 | FUNC + push A–H, held (about 0.5 s) | Name that macro: the firmware's naming screen, as a MIDI machine's parameter (5 characters); the name labels its knob | The same |
 | TRK + trig | Leave; the firmware selects that track on the page underneath | The same |
+| FUNC + MOD | Leave; the firmware opens its FUNC + MOD page (compressor, mixer), as from any page | The same |
 | LEFT / RIGHT | Pass | Step the selected slot |
 | Trig 1–16 | Pass: their usual function, in their current mode (D6) | Toggle that track in the selected slot's mask |
 | NO alone | Pass | Close the destination list; else back to MACRO (the configuration is saved) |

@@ -584,6 +584,24 @@ static void test_release_without_flags(void)
     CHECK(mm_key(&s, MM_K_PUSH_A, MM_F_PRESS | MM_F_REPEAT) == 0); /* a repeat of a press not taken */
 }
 
+static void test_func_mod_leaves(void)
+{
+    mm_t s;
+    fresh(&s);
+    enter(&s);
+    press(&s, MM_K_FUNC);
+    CHECK(press(&s, MM_K_MOD) == 0);          /* FUNC + MOD: leaves, and the firmware opens what it opens on any page */
+    CHECK(s.state == MM_OFF);
+    release(&s, MM_K_MOD);
+    release(&s, MM_K_FUNC);
+    enter(&s);
+    press(&s, MM_K_FUNC);                       /* from the setup screen too */
+    press(&s, MM_K_PUSH_A);
+    release(&s, MM_K_PUSH_A);
+    CHECK(s.state == MM_SETUP);
+    CHECK(press(&s, MM_K_MOD) == 0 && s.state == MM_OFF);
+}
+
 static void test_announce(void)
 {
     mm_t s;
@@ -860,6 +878,7 @@ int main(void)
     test_blob_version_1();
     test_trk_trig_selects_track();
     test_announce();
+    test_func_mod_leaves();
     test_release_without_flags();
     test_func_hold_names();
     test_leds();

@@ -301,9 +301,10 @@ int mm_key(mm_t *s, int code, int flags)
     }
     if (code == MM_K_TRK)
         s->trk = 1;
-    if (s->state != MM_OFF && (is_page(code) || (is_trig(code) && trk_held(s)))) {
-        leave(s);                   /* a page key leaves macro mode, as for any page, and opens its page; TRK + trig */
-        take = 0;                   /* selects that track on the page macro mode was entered from */
+    if (s->state != MM_OFF && (is_page(code) || (code == MM_K_MOD && s->func) || (is_trig(code) && trk_held(s)))) {
+        leave(s);                   /* a page key leaves macro mode, as for any page, and opens its page (FUNC + MOD: */
+        take = 0;                   /* the one it opens on any page); TRK + trig selects that track on the page */
+                                    /* macro mode was entered from */
     } else if (s->state == MM_OFF) {
         take = 0;
         if (code == MM_K_MOD || code == MM_K_PAGE) {

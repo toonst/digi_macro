@@ -55,10 +55,11 @@ enum {
 #define MM_F_REPEAT 0x08
 #define MM_F_RELEASE 0x10
 
-/* LED values the mode asks for: [O] digikit infers them (finding 19); spike S2 confirms. */
+/* LED values the mode asks for (docs/findings/s2-leds.md). On a Digitakt II's MOD key 0x41, digikit's "blue",
+ * shows yellow-green; 0x81, the stock's other colour (the PATTERN and PAGE LEDs), is the one left for blue [O]. */
 #define MM_LED_OFF 0x01
 #define MM_LED_RED 0x11
-#define MM_LED_BLUE 0x41
+#define MM_LED_BLUE 0x81
 
 enum { MM_OFF = 0, MM_MACRO, MM_SETUP };
 

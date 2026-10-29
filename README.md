@@ -23,7 +23,7 @@ modulations. Requirements: [SPEC.md](SPEC.md); plan and decisions: [PLAN.md](PLA
 | NO | Its usual function | Close the destination list; else back to the macro screen |
 | LEVEL/DATA | Move all eight macros together | Move the macro being edited |
 | FUNC + NO, or push LEVEL/DATA | All eight macros back to the centre (the pattern is not reloaded) | FUNC + NO: the same; LEVEL/DATA: the macro being edited |
-| TRIG, SRC, FLTR, AMP, FX | Leave macro mode and open that page | The same |
+| TRIG, SRC, FLTR, AMP, FX; FUNC + MOD | Leave macro mode and open that page (FUNC + MOD: the compressor and mixer pages, as anywhere) | The same |
 | TRK + trig key | Leave macro mode and select that track, on the page macro mode was entered from | The same |
 | MOD | Leave macro mode (also with PAGE held) | Back to the macro screen |
 

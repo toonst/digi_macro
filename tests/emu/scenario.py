@@ -296,7 +296,7 @@ def scenario(r):
     chord(r, PAGE, MOD)                         # entry: PAGE held, then MOD
     macro = r.shot('02-macro')
     r.check(r.mode() == 1 and macro != stock, 'PAGE + MOD shows the macro screen')
-    r.check(r.led(LED_MOD) == 0x41, 'the MOD LED is blue: %02x' % (r.led(LED_MOD) or 0))
+    r.check(r.led(LED_MOD) == 0x81, 'the MOD LED is lit with 0x81 (blue): %02x' % (r.led(LED_MOD) or 0))
     r.check(r.header() == 'Macro Mode', 'the header shows the mode\'s title, as a page\'s: %r' % r.header())
     now = [r.led(LED_PAGE1 + i) for i in range(5)]
     r.check(any(v not in (0, 1) for v in pages) and all(v in (0, 1) for v in now),
@@ -413,6 +413,16 @@ def scenario(r):
     r.tap(TRIG1 + 3)
     r.up(16)
     r.check(r.mode() == 0, 'TRK + a trig key leaves macro mode')
+    chord(r, PAGE, MOD)
+    inside = r.shot('08-inside')
+    r.down(FUNC)                                # FUNC + MOD: leaves, and the firmware opens its page for it
+    r.tap(MOD)
+    r.up(FUNC)
+    r.step(SETTLE)
+    func_mod = r.shot('08-func-mod')
+    r.check(r.mode() == 0 and func_mod != inside, 'FUNC + MOD leaves macro mode for the firmware\'s FUNC + MOD page')
+    r.tap(2)                                    # back to SRC
+    r.step(SETTLE)
     chord(r, PAGE, MOD)
 
     spin_until(r, 3, -1, lambda: r.pos(2) <= -6)
