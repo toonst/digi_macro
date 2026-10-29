@@ -150,17 +150,24 @@ typedef uint32_t (*fw_new_t)(unsigned bytes);
 
 #ifdef HEADER_MSG_AT
 /* The header's message, as a page shows its title there when it opens ("Filter (1/2)"): (header, fmt, ...), the
- * header from HEADER_OBJ_AT() (docs/findings/s4-screens.md). */
-static void announce(void)
+ * header from HEADER_OBJ_AT() (docs/findings/s4-screens.md). On the tick, out of the key handler: the header's own
+ * time base. */
+void mm_notice(const char *msg)
 {
     void *ui = (void *)((fw_ptr_t)HEADER_OBJ_AT)();
-    ((void (*)(void *, const char *, ...))HEADER_MSG_AT)(ui, "%s", "Macro Mode");
+    ((void (*)(void *, const char *, ...))HEADER_MSG_AT)(ui, "%s", msg);
 }
 #else
-static void announce(void)
+void mm_notice(const char *msg)
 {
+    (void)msg;
 }
 #endif
+
+static void announce(void)
+{
+    mm_notice("Macro Mode");
+}
 
 #ifdef NAME_VIEW_AT
 /* The firmware's naming screen (NameView), as a MIDI machine opens it to name a parameter (FUNC + hold a knob;

@@ -1021,6 +1021,41 @@ static void test_scope_copies(void)
     CHECK(dest_of(scope.kit[1]) == 30);
 }
 
+static void test_scope_conflicts(void)
+{
+    mm_t s;
+    uint8_t rec[MM_SETUP_SIZE], area[MM_SETUP_SIZE], foreign[MM_SETUP_SIZE];
+    fresh_scope(MM_SCOPE_KIT);
+    mm_init(&s, &dests);
+    s.m[0].slot[0].dest = 30;
+    mm_scope_follow(&scope, &s, 0);             /* kit 0 has a setup */
+    memset(foreign, 0, sizeof foreign);
+    foreign[0] = 0x42, foreign[100] = 7;        /* something else's bytes: another mod, or a later OS */
+    mm_setup_pack(&s, rec);
+    rec[0] = 0;                                 /* a record of the same shape without this mod's mark: foreign too */
+    memset(area, 0, sizeof area);               /* a save over zeros, the stock save's */
+    mm_scope_kit_save(&scope, 0, area);
+    CHECK(dest_of(area) == 30 && scope.conflicts == 0);
+    mm_scope_kit_save(&scope, 1, area);         /* over its own: kit 1 has none, so zeros */
+    CHECK(mm_setup_blank(area) && scope.conflicts == 0);
+    memcpy(area, foreign, sizeof area);         /* over another's: left as it is, counted */
+    mm_scope_kit_save(&scope, 0, area);
+    CHECK(memcmp(area, foreign, sizeof area) == 0 && scope.conflicts == 1);
+    mm_scope_proj_save(&scope, area);
+    CHECK(memcmp(area, foreign, sizeof area) == 0 && scope.conflicts == 2);
+    mm_scope_kit_load(&scope, 0, foreign);      /* a load of another's: not taken for a setup */
+    CHECK(!mm_setup_valid(scope.kit[0]) && scope.conflicts == 3);
+    mm_scope_kit_load(&scope, 2, rec);
+    CHECK(!mm_setup_valid(scope.kit[2]) && scope.conflicts == 4);
+    memset(area, 0, sizeof area);               /* zeros: none, and no conflict */
+    mm_scope_proj_load(&scope, area);
+    CHECK(scope.conflicts == 4);
+    uint8_t seeded[MM_SETUP_SIZE];              /* the check is this mod's own: a plain CRC-16 does not pass */
+    mm_setup_pack(&s, seeded);
+    seeded[MM_SETUP_SIZE - 1] ^= 0xff;
+    CHECK(!mm_setup_valid(seeded));
+}
+
 void test_draw(int *checks_out, int *failures_out);
 
 int main(void)
@@ -1060,6 +1095,7 @@ int main(void)
     test_scope_per_project();
     test_scope_shadowed();
     test_scope_copies();
+    test_scope_conflicts();
     test_blob_version_1();
     test_trk_trig_selects_track();
     test_announce();

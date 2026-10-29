@@ -1,8 +1,8 @@
 # Status
 
 Against [PLAN.md](../PLAN.md) section 7. Measured on the Digitakt II 1.17 and the Digitone II 1.12 in digikit's
-emulator with `tests/emu/scenario.py` (68 checks each) and `tests/emu/project.py` (23 each), all passing; host
-tests with `tools/check.sh`.
+emulator with `tests/emu/scenario.py` (68 checks each), `tests/emu/project.py` (23) and `tests/emu/compat.py` (12),
+all passing; host tests with `tools/check.sh`.
 
 | Part | State |
 | --- | --- |
@@ -22,4 +22,5 @@ Still open:
 | --- | --- | --- |
 | Machine-dependent source parameters (all of DN2's), LFO parameters | Not offered | S6 |
 | Audio | The zero-DSP runner makes no sound | Coupled emulator or a unit |
+| Storage claims, other mods | Claimed ranges, checked by `tools/storage.py` (with `MM_WITH`); a guard at run time | elekloader compares claims as names: ranges could move there (S7) |
 | Kit manager, PASTE KIT, undo | Not driven in the emulator (pattern copy and paste is) | Find their keys and add them to `tests/emu/project.py` (S7) |

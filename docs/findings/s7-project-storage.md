@@ -93,6 +93,33 @@ In `tests/emu/project.py` (23 checks on each, all passing):
 
 Apart from the mod's bytes, nothing after the end marks or in the header changed.
 
+## Compatibility and conflicts **[D]**
+
+`tests/emu/compat.py` (12 checks on each, all passing):
+1. The mod saves a project (slot 001) with setups on kits 1 and 2 and the project's.
+2. The stock OS (the stock `.syx` as the build) loads it and saves it as slot 002. As a control it also saves its own
+   project as slot 004, loads it, and saves it as slot 005.
+3. The mod loads the stock OS's slot 002, then its own slot 001.
+4. In a copy of slot 001, kit 1's bytes are replaced with someone else's. The mod loads that copy, gives kit 1 a
+   setup, and saves it again.
+
+What they showed:
+- The control changes the header word at + `0x18` (+ 24, which the load copies to the project's RAM and a save
+  writes back) and nothing else outside the mod's bytes. The mod's slot 001 and the stock OS's slot 002 differ in
+  that word and nowhere else outside the claimed bytes.
+- A stock save does not always clear the claimed bytes. When it follows another save, the firmware serializes into
+  the buffer the loaded file is in, so the bytes it does not write keep what the file had: the stock OS's slot 002
+  still carried the mod's setups. A first save after boot starts from a blank buffer and leaves zeros.
+- The mod loads the stock OS's save with no conflict.
+- With someone else's bytes in kit 1's area, the load counts a conflict and keeps no setup for kit 1. The save after
+  a save, which starts from the loaded file, finds those bytes in its way: it counts the conflict again and leaves
+  them as they were. Kit 2's setup is saved as before.
+- Each kit record passes the serializer twice in a save, and the loader twice in a load, so the conflict counter
+  rises by two each time.
+
+The claims (`record:kit:LO-HI`, `record:project:LO-HI`, `card:LO-HI`, half-open) and `tools/storage.py` are
+described in README.md, "Storage and other mods".
+
 ## PERSONALIZE **[D]**
 
 The row is a stock `MenuItem` from elekloader's `core_additem`, drawn as LED INTENSITY is (DT2 `0x4009c722`: the
@@ -104,6 +131,9 @@ y + 2, right-aligned). Its change callback gets (storage, item, delta) and redra
 
 - The kit manager (SAVE KIT, LOAD KIT TO PATTERN, RELOAD KIT FROM SAVED) was not driven in the emulator: which of the
   callers above it uses, and whether they pass the project's table kits, is not known for all of them.
+- elekloader compares claims as names, not ranges: a mod that claims an overlapping range under another name links,
+  and only `tools/storage.py` (given that mod) refuses it. A mod that writes the same bytes without claiming them is
+  caught at run time only, by the guard.
 - PASTE KIT and undo were not driven; they copy with memcpy of a kit's size (the sites above), as pattern paste does.
 - A kit copied by other means than memcpy (a loop, a part at a time) would not take its setup along.
 - Transfer: its project backups carry the file as saved, so the setups should go with them; not tried.

@@ -64,7 +64,34 @@
  ],
  "resources": {
   "names": [
-   "personalize:MACRO SETUP"
+   "personalize:MACRO SETUP",
+   "record:kit:0x28af-0x2971",
+   "record:project:0x1c-0xde"
   ]
+ },
+ "_storage": {
+  "_comment": "The firmware routines the feature's storage goes through (tools/storage.py): another mod hooking inside one is a conflict.",
+  "routines": {
+   "kit record save": [
+    "0x400ddfa8",
+    "0x400de0ee"
+   ],
+   "kit record load": [
+    "0x400dddb6",
+    "0x400ddfa8"
+   ],
+   "project save": [
+    "0x400e15f8",
+    "0x400e18e6"
+   ],
+   "project load": [
+    "0x400e18e6",
+    "0x400e1c2a"
+   ],
+   "memcpy entry": [
+    "0x40134770",
+    "0x4013477c"
+   ]
+  }
  }
 }

@@ -68,9 +68,14 @@ void mm_kits_tick(mm_t *s)
         mm_scopes.cur = -1;
         ready = 1;
     }
+    static uint16_t conflicts;
     if (s->dirty_config)            /* the setup the kit or project has, as it is now */
         mm_scope_edited(&mm_scopes, s);
     mm_scope_follow(&mm_scopes, s, fw_kit());
+    if (mm_scopes.conflicts != conflicts) { /* the mod's bytes of a project held something else */
+        conflicts = mm_scopes.conflicts;
+        mm_notice("MACRO SETUP CONFLICT");
+    }
 }
 
 /* The card's record keeps the scope: 0x80 | MM_SCOPE_*; older records have 0, per project. */

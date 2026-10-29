@@ -3,9 +3,8 @@
 #include "mm.h"
 
 /* "MM", version, macros, slots; then per slot dest, depth, tracks (big-endian); then a CRC-16/CCITT of all before. */
-static uint16_t crc16(const uint8_t *p, int n)
+static uint16_t crc16_from(uint16_t c, const uint8_t *p, int n)
 {
-    uint16_t c = 0xffff;
     while (n--) {
         c ^= (uint16_t)(*p++ << 8);
         for (int b = 0; b < 8; b++)
@@ -13,6 +12,14 @@ static uint16_t crc16(const uint8_t *p, int n)
     }
     return c;
 }
+
+static uint16_t crc16(const uint8_t *p, int n)
+{
+    return crc16_from(0xffff, p, n);
+}
+
+/* A setup's check starts from this mod's own seed, so another mod's record in the same bytes does not pass for one */
+#define SETUP_SEED 0x4d4d /* "MM" */
 
 /* The slots, then the names (zero-padded): the part the blob and the project's setups share. */
 static int body_encode(const mm_t *s, uint8_t *out)
@@ -127,15 +134,23 @@ void mm_setup_pack(const mm_t *s, uint8_t *out)
     for (int k = 0; k < MM_MACROS; k++)
         for (int i = 0; i < MM_NAME_LEN; i++)
             put_bits(out + 1, &bit, (uint8_t)s->m[k].name[i] & 0x7f, 7);
-    uint16_t c = crc16(out, MM_SETUP_SIZE - 2);
+    uint16_t c = crc16_from(SETUP_SEED, out, MM_SETUP_SIZE - 2);
     out[MM_SETUP_SIZE - 2] = (uint8_t)(c >> 8);
     out[MM_SETUP_SIZE - 1] = (uint8_t)c;
+}
+
+int mm_setup_blank(const uint8_t *in)
+{
+    for (int i = 0; i < MM_SETUP_SIZE; i++)
+        if (in[i])
+            return 0;
+    return 1;
 }
 
 int mm_setup_valid(const uint8_t *in)
 {
     return in[0] == MM_SETUP_MARK &&
-           crc16(in, MM_SETUP_SIZE - 2) == (uint16_t)(in[MM_SETUP_SIZE - 2] << 8 | in[MM_SETUP_SIZE - 1]);
+           crc16_from(SETUP_SEED, in, MM_SETUP_SIZE - 2) == (uint16_t)(in[MM_SETUP_SIZE - 2] << 8 | in[MM_SETUP_SIZE - 1]);
 }
 
 int mm_setup_unpack(mm_t *s, const uint8_t *in)

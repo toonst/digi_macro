@@ -157,7 +157,7 @@ def scenario(r, out, dev):
     # SAVE PROJECT AS slot 001, per project: every kit's record carries its own setup, the header the project's
     before = card(r, out, 'card-0.bin')
     settings(r)
-    menu(r, YES, DOWN, YES, YES, wait=2)
+    menu(r, YES, UP, UP, DOWN, YES, YES, wait=2)   # PROJECT keeps its cursor: from the top
     r.shot('save-name')
     menu(r, YES, wait=8)
     r.shot('saved')
@@ -176,7 +176,7 @@ def scenario(r, out, dev):
     p.clear(1)
     p.set_dest(0, 0, d1)
     settings(r)
-    menu(r, YES, UP, YES, wait=2)
+    menu(r, YES, UP, UP, YES, wait=2)
     r.shot('load-list')
     menu(r, YES, wait=2)
     r.shot('load-confirm')
@@ -200,8 +200,12 @@ def scope(r, key):
 def settings(r):
     """SETTINGS open, at its first row. After a project load the firmware can let the first press go."""
     for _ in range(3):
+        before = r.shot('settings-before') if r.syms is None else None
         menu(r, SETTINGS)
-        if S.top_view(r) != S.DEV['view_top']:
+        if r.syms is None:          # the stock OS: no map to look with, so the screen must have changed
+            if r.shot('settings-after') != before:
+                break
+        elif S.top_view(r) != S.DEV['view_top']:
             break
         r.step(S.SETTLE)
     menu(r, *[UP] * 10)

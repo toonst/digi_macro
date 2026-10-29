@@ -27,5 +27,6 @@ void mm_layout(void)
     OFF(scope_proj, offsetof(mm_scope, proj));
     OFF(scope_mode, offsetof(mm_scope, mode));
     OFF(scope_cur, offsetof(mm_scope, cur));
+    OFF(scope_conflicts, offsetof(mm_scope, conflicts));
     OFF(setup_size, MM_SETUP_SIZE);
 }

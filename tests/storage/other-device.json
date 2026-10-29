@@ -1,0 +1,10 @@
+{
+ "id": "other-device",
+ "device": "digitone-mk2",
+ "sites": [],
+ "resources": {
+  "names": [
+   "record:kit:0x5780-0x57a0"
+  ]
+ }
+}

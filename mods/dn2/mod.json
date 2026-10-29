@@ -90,7 +90,7 @@
   "names": [
    "ui:PAGE + MOD",
    "ui:macro mode",
-   "card:0x7ff000-0x7ff001"
+   "card:0x7ff000-0x7ff002"
   ]
  },
  "defsym": {

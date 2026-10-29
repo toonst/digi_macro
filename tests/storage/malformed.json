@@ -1,0 +1,10 @@
+{
+ "id": "malformed",
+ "device": "digitakt-mk2",
+ "sites": [],
+ "resources": {
+  "names": [
+   "record:kit:0x5800"
+  ]
+ }
+}

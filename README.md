@@ -92,6 +92,44 @@ events), and a header in `src/` that the rest of the mod calls through, empty wi
 
 Without it the mod keeps one setup, on the card.
 
+### Storage and other mods
+
+Where the mod keeps its data:
+
+| What | Where | Whose |
+| --- | --- | --- |
+| The mode's state, every kit's and the project's setup while the unit runs | The mod's own RAM (its `.bss`, placed by elekloader's linker) | The mod's only |
+| The configuration (the setup on, the MACRO SETUP choice) | Two card sectors the stock OS never writes (`card:` claim) | The mod's only |
+| A kit's setup, the project's setup (kits feature) | The saved project: after each kit record's end mark, in the header after the name (`record:kit:`, `record:project:` claims) | Bytes the stock OS writes as zeros and never reads. They must be there to travel with the project, so they are shared with the stock OS and, possibly, a later OS or another mod |
+
+Everything that can be the mod's own is. For the shared bytes, three rules hold:
+
+- **Compatible either way.** The stock OS loads and saves a project the mod saved, and the files differ only in
+  those bytes. The mod loads a stock OS's project and finds no setups and no conflict. Patterns and kits are the
+  project's records, so the same holds for them.
+- **Claimed.** The manifests claim each place as a resource name with a half-open range: `card:LO-HI` in card
+  sectors, `record:kit:LO-HI` in a saved kit record, `record:project:LO-HI` in a saved project file. elekloader
+  refuses two mods with the same name. `tools/storage.py` refuses any overlap, and any other mod's code site inside a
+  firmware routine the mod's storage goes through (`_storage` in `mods/<dev>/kits.json`).
+- **Guarded.** The mod writes only over zeros or its own setups, which carry a mark and a CRC seeded with its own
+  value, and reads only its own. Anything else in those bytes is a conflict: the mod leaves it as it is, keeps no
+  setup for that kit, and shows MACRO SETUP CONFLICT in the header.
+
+Checks:
+
+```bash
+MM_WITH="path/to/other.elemod path/to/another/mod.json" tools/check.sh
+```
+
+`tools/check.sh` always checks the built manifests' claims against what the code writes (`CARD_SECTOR`, `KIT_PAD`,
+`PROJ_PAD`, the setup's size). With `MM_WITH`, it also checks them against those mods, and fails on a conflict.
+`tests/test_storage.py` (run by `tools/check.sh`) tests the checker on the fixtures in `tests/storage`. In the
+emulator (tests/emu/README.md has the runner), `tests/emu/compat.py` covers the round trips and a conflict:
+
+```bash
+python3 tests/emu/compat.py --runner RUNNER --stock path/to/Digitakt_II_OS1.17.syx --build out/check/macro-dt2.syx --map out/check/macro-dt2.map.json --out out/emu-compat-dt2 --device dt2
+```
+
 `MM_LED_TEST=1 tools/check.sh` builds a colour test: on the macro screen trig key n lights with value
 `(n − 1) × 0x10 + 1` and TRIG, SRC, FLTR, AMP, FX with `0x11`, `0x21`, `0x31`, `0x51`, `0x61`, to tell which LED value
 is which colour on a unit.
@@ -116,6 +154,7 @@ Test a build in [digikit](https://github.com/toonst/digikit)'s emulator before i
 | `src/mm_glue.c` | The elekloader handlers: `ev_key`, `ev_enc`, `ev_tick`, `ev_draw`, `ev_personalize` |
 | `mods/dt2`, `mods/dn2` | The elekloader manifests, one per device and OS (`mod.json`), and each feature's fragment |
 | `tools/manifest.py` | The manifest a build uses: `mod.json` and the chosen features |
+| `tools/storage.py` | The mod's storage claims, against what it writes and against other mods |
 | `tests/` | Host tests, the preview renderer and the emulator scenarios (`tests/emu`) |
 | `third_party/elekloader` | elekloader, pinned |
 

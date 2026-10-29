@@ -1,0 +1,20 @@
+{
+ "id": "clean",
+ "device": "digitakt-mk2",
+ "sites": [
+  {
+   "addr": "0x4002e000",
+   "stock": "4eb940000000",
+   "op": "jsr",
+   "target": "x"
+  }
+ ],
+ "resources": {
+  "names": [
+   "record:kit:0x5800-0x5900",
+   "record:project:0xde-0x200",
+   "card:0x2df0e02-0x2df0e10",
+   "ui:OTHER"
+  ]
+ }
+}

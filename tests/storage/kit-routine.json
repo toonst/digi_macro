@@ -1,0 +1,15 @@
+{
+ "id": "kit-routine",
+ "device": "digitakt-mk2",
+ "sites": [
+  {
+   "addr": "0x400dbe10",
+   "stock": "4eb940000000",
+   "op": "jsr",
+   "target": "x"
+  }
+ ],
+ "resources": {
+  "names": []
+ }
+}

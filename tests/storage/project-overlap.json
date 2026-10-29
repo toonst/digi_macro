@@ -1,0 +1,10 @@
+{
+ "id": "project-overlap",
+ "device": "digitakt-mk2",
+ "sites": [],
+ "resources": {
+  "names": [
+   "record:project:0x40-0x60"
+  ]
+ }
+}

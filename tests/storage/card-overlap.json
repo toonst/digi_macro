@@ -1,0 +1,10 @@
+{
+ "id": "card-overlap",
+ "device": "digitakt-mk2",
+ "sites": [],
+ "resources": {
+  "names": [
+   "card:0x2df0e01-0x2df0e05"
+  ]
+ }
+}

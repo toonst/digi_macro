@@ -7,7 +7,8 @@
 
 #include "mm.h"
 
-mm_t *mm_get(void); /* the mode's state (mm_glue.c) */
+mm_t *mm_get(void);              /* the mode's state (mm_glue.c) */
+void mm_notice(const char *msg); /* a message in the header, as a page's title (mm_glue.c); on the tick only */
 
 #ifdef MM_FEATURE_KITS
 void mm_kits_tick(mm_t *s);           /* each tick, after the card's configuration is in */

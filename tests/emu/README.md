@@ -32,4 +32,13 @@ about 3 s); every run starts from a fresh one. The second part restarts with the
 (`card-mm.bin`) and checks that the configuration came back. The screens are `out/emu/*.png`. The zero-DSP runner produces no sound:
 the frame values are checked in memory.
 
-The runner also takes `poke ADDR HEXBYTES` (guest memory, for experiments such as docs/findings/s7-project-storage.md).
+With the same arguments, the kits feature (a build with it, the default):
+
+- `tests/emu/project.py` (23 checks): the PERSONALIZE row, a setup following the kit on, the kits' and the
+  project's setups kept apart, pattern copy and paste, SAVE PROJECT AS and LOAD PROJECT.
+- `tests/emu/compat.py` (12 checks): projects round-trip between the mod and the stock OS (the stock `.syx` runs
+  as the build) and differ only in the bytes the mod claims; a project with someone else's bytes in them is a
+  conflict, and the mod leaves those bytes alone (README.md, "Storage and other mods").
+
+The runner also takes `poke ADDR HEXBYTES` and `dump ADDR LEN PATH` (guest memory, for experiments such as
+docs/findings/s7-project-storage.md).

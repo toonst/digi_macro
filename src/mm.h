@@ -166,6 +166,7 @@ int mm_decode(mm_t *s, const uint8_t *in, int len); /* 0, or -1 (unknown version
 #define MM_SETUP_SIZE (1 + (MM_MACROS * MM_SLOTS * (7 + 16 + 16) + MM_MACROS * MM_NAME_LEN * 7 + 7) / 8 + 2)
 void mm_setup_pack(const mm_t *s, uint8_t *out);
 int mm_setup_valid(const uint8_t *in);
+int mm_setup_blank(const uint8_t *in);          /* all zero: what the stock save leaves */
 int mm_setup_unpack(mm_t *s, const uint8_t *in); /* 0, or -1 */
 
 /* The kits feature (src/mm_kits.c; built in unless left out): setups per project or per kit, chosen in PERSONALIZE >
@@ -188,11 +189,14 @@ typedef struct {
     volatile uint8_t gen;         /* bumped when a load or a copy changes a kit's setup */
     uint8_t seen;                 /* gen, as mm_scope_follow last saw it */
     volatile uint8_t proj_loaded; /* a project's header was loaded */
+    volatile uint16_t conflicts;  /* times a load or save met something else in the mod's bytes (a record can pass twice) */
     int16_t cur;                  /* the kit whose setup is on, -1 none */
 } mm_scope;
-void mm_scope_kit_save(const mm_scope *p, int kit, uint8_t *out); /* MM_SETUP_SIZE bytes; kit -1: none */
+/* The areas are shared with the stock OS (and so maybe with a later OS or another mod): a save writes only over zeros
+ * or a setup of this mod's, and a load takes only those; anything else counts as a conflict and is left alone. */
+void mm_scope_kit_save(mm_scope *p, int kit, uint8_t *out); /* MM_SETUP_SIZE bytes; kit -1: none */
 void mm_scope_kit_load(mm_scope *p, int kit, const uint8_t *in);
-void mm_scope_proj_save(const mm_scope *p, uint8_t *out);
+void mm_scope_proj_save(mm_scope *p, uint8_t *out);
 void mm_scope_proj_load(mm_scope *p, const uint8_t *in);
 void mm_scope_copied(mm_scope *p, int dst_kit, uint32_t dst, int src_kit, uint32_t src);
 void mm_scope_edited(mm_scope *p, const mm_t *s);

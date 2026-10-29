@@ -2,7 +2,8 @@
 /* macro-mode, the kits feature: setups per project or per kit (docs/findings/s7-project-storage.md). Each kit keeps
  * its own setup in its saved record, and the project keeps its own in the saved project's header, whichever is on:
  * changing the scope never overwrites the other. The firmware's copies of kits in RAM (paste, undo, pattern copy)
- * take the setups along. Positions are not part of a setup: the knobs stay where they are when the setup changes. */
+ * take the setups along. The saved areas are shared with the stock OS, so the mod writes and reads only its own setups
+ * there and counts anything else as a conflict. Positions are not part of a setup: the knobs stay where they are when the setup changes. */
 #include "mm.h"
 
 static void copy(uint8_t *to, const uint8_t *from)
@@ -20,28 +21,46 @@ static void put(uint8_t *out, const uint8_t *from)
             out[i] = 0;             /* none: the bytes the stock save leaves there */
 }
 
-void mm_scope_kit_save(const mm_scope *p, int kit, uint8_t *out)
+/* Into a saved record: over zeros or a setup of this mod's only. */
+static void save(mm_scope *p, uint8_t *out, const uint8_t *from)
+{
+    if (!mm_setup_blank(out) && !mm_setup_valid(out)) {
+        p->conflicts++;
+        return;
+    }
+    put(out, from);
+}
+
+/* From a saved record: zeros are none, a setup of this mod's is taken, anything else is not this mod's. */
+static void load(mm_scope *p, uint8_t *to, const uint8_t *in)
+{
+    if (!mm_setup_blank(in) && !mm_setup_valid(in))
+        p->conflicts++;
+    put(to, in);
+}
+
+void mm_scope_kit_save(mm_scope *p, int kit, uint8_t *out)
 {
     static const uint8_t none[MM_SETUP_SIZE];
-    put(out, kit >= 0 && kit < MM_KITS ? p->kit[kit] : none);
+    save(p, out, kit >= 0 && kit < MM_KITS ? p->kit[kit] : none);
 }
 
 void mm_scope_kit_load(mm_scope *p, int kit, const uint8_t *in)
 {
     if (kit < 0 || kit >= MM_KITS)
         return;
-    put(p->kit[kit], in);           /* a kit from before the mod, or saved without it: none */
+    load(p, p->kit[kit], in);       /* a kit from before the mod, or saved without it: none */
     p->gen++;
 }
 
-void mm_scope_proj_save(const mm_scope *p, uint8_t *out)
+void mm_scope_proj_save(mm_scope *p, uint8_t *out)
 {
-    put(out, p->proj);
+    save(p, out, p->proj);
 }
 
 void mm_scope_proj_load(mm_scope *p, const uint8_t *in)
 {
-    put(p->proj, in);
+    load(p, p->proj, in);
     p->proj_loaded = 1;
 }
 

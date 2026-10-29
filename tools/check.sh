@@ -8,7 +8,8 @@
 #   4. with DT2_SYX / DN2_SYX set to the stock OS files, elekloader's own build and lint of each mod, and the OS file
 #      out/check/macro-<dev>.syx (never commit it: it holds Elektron's firmware).
 # Each device's manifest is mods/<dev>/mod.json plus its features' fragments (tools/manifest.py): kits.json unless
-# MM_KITS=0. MM_LED_TEST=1 builds the LED colour test.
+# MM_KITS=0. MM_LED_TEST=1 builds the LED colour test. Each built manifest's storage is checked (tools/storage.py),
+# against the other mods MM_WITH names (mod.json or .elemod files, space-separated) too.
 # It runs on the bash macOS ships (3.2) as well as on Linux. The ColdFire toolchain is m68k-linux-gnu- (Debian,
 # Ubuntu) or m68k-elf- (macOS, bare-metal builds), found on the PATH; ELEKLOADER_CROSS names another prefix.
 set -euo pipefail
@@ -17,6 +18,8 @@ set -euo pipefail
 abspath() { [[ -z "$1" || "$1" == /* ]] && echo "$1" || echo "$PWD/$1"; }
 DT2_SYX=$(abspath "${DT2_SYX:-}")
 DN2_SYX=$(abspath "${DN2_SYX:-}")
+WITH=()   # MM_WITH's mods, from where the script is run
+for o in ${MM_WITH:-}; do WITH+=(--with "$(abspath "$o")"); done
 for f in "$DT2_SYX" "$DN2_SYX"; do
     [[ -z "$f" || -f "$f" ]] || { echo "no such file: $f" >&2; exit 1; }
 done
@@ -53,6 +56,7 @@ echo "== host tests"
 "$CC" -std=c99 -Wall -Wextra -Werror -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all \
     -o "$OUT/test_mm" "${SRC[@]}" tests/test_mm.c tests/test_draw.c
 "$OUT/test_mm"
+python3 tests/test_storage.py 2>&1 | tail -1
 
 echo "== previews"
 "$CC" -std=c99 -Wall -Wextra -Werror -O1 -o "$OUT/preview" "${SRC[@]}" tests/preview.c
@@ -95,6 +99,10 @@ for dev in dt2 dn2; do
         "${CROSS}nm" "$OUT/$dev.o" | grep -q " T $fn$" || { echo "$dev: $fn missing"; exit 1; }
     done
     echo "$dev: ok, $("${CROSS}size" "$OUT/$dev.o" | tail -1 | awk '{print "text " $1 ", data " $2 ", bss " $3}')"
+    # the storage it claims, against what the build writes and against MM_WITH's mods
+    "${CROSS}gcc" "${FLAGS[@]}" -c tests/emu/layout.c -o "$OUT/$dev-layout.o"
+    setup_size=$((16#$("${CROSS}nm" "$OUT/$dev-layout.o" | awk '$3 == "MMOFF_setup_size" {print $1}')))
+    python3 tools/storage.py "$OUT/$dev-manifest" --setup-size "$setup_size" ${WITH[@]+"${WITH[@]}"}
 done
 
 if [[ -n "$DT2_SYX$DN2_SYX" ]]; then
@@ -115,8 +123,7 @@ if [[ -n "$DT2_SYX$DN2_SYX" ]]; then
         el -m elekloader.lint "$OUT/$dev-mod"/*.elemod --stock "$syx" --with "$OUT/$dev-core"/*.elemod
         el -m elekloader.patch --stock "$syx" --mod "$OUT/$dev-core"/*.elemod --mod "$OUT/$dev-mod"/*.elemod \
             --out "$OUT/macro-$dev.syx" --version MMDV | tail -2
-        # where the mod's symbols landed, for the emulator scenarios
-        "${CROSS}gcc" "${FLAGS[@]}" -c tests/emu/layout.c -o "$OUT/$dev-layout.o"
+        # where the mod's symbols landed, for the emulator scenarios (the layout object is the cross-compile's)
         el - "$syx" "$OUT/$dev-core"/*.elemod "$OUT/$dev-mod"/*.elemod "$OUT/macro-$dev.map.json" \
             "$OUT/$dev-layout.o" "${CROSS}nm" <<'PY'
 import json, subprocess, sys
