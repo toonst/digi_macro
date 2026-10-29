@@ -24,12 +24,12 @@ They work like the stock modulation: they ride on top of the sound and don't cha
 
 | Do this | And |
 | --- | --- |
-| Hold PAGE + press MOD (or MOD + PAGE) | Macro mode opens: the header says "Macro Mode" and MOD lights blue |
+| Hold PAGE + press MOD (or MOD + PAGE) | Macro mode opens: MOD lights blue |
 | Turn encoders A–H | Move that macro (−64 … +63). Push and turn for bigger steps |
-| Turn LEVEL/DATA | Move all eight macros together |
-| Push an encoder + NO | That macro back to the centre |
-| FUNC + NO, or push LEVEL/DATA | All macros back to the centre |
+| FUNC + push an encoder | Open setup of that macro |
 | FUNC + push and hold an encoder | Name the macro (5 characters) |
+| Turn LEVEL/DATA | Move all eight macros together |
+| FUNC + NO, or push LEVEL/DATA | All macros back to the centre |
 | MOD, or a page key (TRIG, SRC, FLTR, AMP, FX) | Leave macro mode |
 
 **Setup screen**: FUNC + push an encoder opens the setup of that macro.
@@ -40,11 +40,9 @@ They work like the stock modulation: they ride on top of the sound and don't cha
 | Encoders E–H | How far each one moves (its depth, positive or negative; push for whole steps) |
 | LEFT / RIGHT | Select one of the four parameters |
 | Trig keys | Choose the tracks the selected parameter acts on (lit red) |
-| Push an encoder + NO | Clear that parameter |
 | NO or MOD | Back to the macro screen |
 
-PLAY, STOP, RECORD, PTN, SONG, TRK and FUNC keep their normal function. TRK + a trig key leaves macro mode and selects
-that track. The macro setup is saved on the unit and comes back after a restart.
+The macro setup is saved on the unit and comes back after a restart.
 
 ### One setup per project, or one per kit
 
