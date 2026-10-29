@@ -129,7 +129,7 @@ All decided by the user:
 | D1 | Macros apply **on top**, like the other modulations (aftertouch, key tracking, mod wheel): the kit is never changed |
 | D2 | Macros **keep their state** when the mode is left |
 | D3 | **Push + turn** changes a macro in bigger increments, and **push + NO** resets it to the centre, as for the stock parameters |
-| D4 | The configuration is **global** in the first version. Later it is per pattern or per project, chosen by a setting |
+| D4 | The configuration is **global** in the first version. Then per pattern or per project, chosen by a PERSONALIZE row (done) |
 | D5 | Depth per slot as the stock modulation setups: −128.00 … +127.99 (1/256 steps), 0 = off; at full depth and full turn the offset spans the whole parameter range. Macro positions stay whole steps, −64 … +63, as the stock 0–127 parameters |
 | D6 | Outside the setup screen the **trig keys keep their usual function**, in whatever mode they are in (in mute mode they stay mute keys). PLAY, STOP, RECORD, PTN, SONG, TRK and FUNC keep theirs too; they act behind the macro screen. The LEVEL/DATA encoder, its push and FUNC + NO are the mode's (D16); the page keys leave the mode and open their page. Only the setup screen gives the trig keys another function (4.2) |
 | D7 | The setup screen works like the stock modulation setups: **A** = slot 1 destination, **E** = slot 1 depth, **B / F** = slot 2, **C / G** = slot 3, **D / H** = slot 4 |
@@ -261,9 +261,11 @@ value = sat(value + delta, 0, 0x7f00)        /* in the per-frame value array, as
 
 - **Version 1.** The configuration (8 × 4 slots: destination, depth, mask) goes into a global store (W3) in a
   versioned layout, about 120–140 bytes. It is written when the setup screen closes. Positions are not stored (D14).
-- **Later.** The same fields with scope `pattern` or `project`, and a setting (a SETTINGS or PERSONALIZE row from
-  `core_additem`) that chooses the scope. This follows elekloader's mod storage, so a project saved with the mod
-  still loads on the stock OS.
+- **Per pattern or per project** (done; docs/findings/s7-project-storage.md). A PERSONALIZE row from
+  `core_additem`, MACRO SETUP: PROJECT or PATTERN, chooses the scope. The setups (slots and names, not positions) go
+  into bytes of the saved project the stock OS leaves unused: each pattern record's tail on the Digitakt II, each
+  kit record's on the Digitone II. The firmware's own save and load call the mod, so a project saved with the mod
+  still loads on the stock OS. A pattern or project with no setup starts with a copy of the one on.
 
 ## 5. Architecture
 

@@ -14,14 +14,10 @@ static uint16_t crc16(const uint8_t *p, int n)
     return c;
 }
 
-int mm_encode(const mm_t *s, uint8_t *out)
+/* The slots, then the names (zero-padded): the part the blob and the project's setups share. */
+static int body_encode(const mm_t *s, uint8_t *out)
 {
     int o = 0;
-    out[o++] = 'M';
-    out[o++] = 'M';
-    out[o++] = MM_BLOB_VERSION;
-    out[o++] = MM_MACROS;
-    out[o++] = MM_SLOTS;
     for (int k = 0; k < MM_MACROS; k++)
         for (int j = 0; j < MM_SLOTS; j++) {
             const mm_slot *sl = &s->m[k].slot[j];
@@ -33,22 +29,14 @@ int mm_encode(const mm_t *s, uint8_t *out)
         }
     for (int k = 0; k < MM_MACROS; k++)
         for (int i = 0; i < MM_NAME_LEN; i++)
-            out[o++] = (uint8_t)s->m[k].name[i];  /* zero-padded */
-    uint16_t c = crc16(out, o);
-    out[o++] = (uint8_t)(c >> 8);
-    out[o++] = (uint8_t)c;
+            out[o++] = (uint8_t)s->m[k].name[i];
     return o;
 }
 
-/* Versions 1 (depth -64 .. +63 in a byte, no names) and 2. len is what the buffer holds; the version gives the size. */
-int mm_decode(mm_t *s, const uint8_t *in, int len)
+/* v is the blob's version: 1 has a depth byte and no names. */
+static void body_decode(mm_t *s, const uint8_t *in, int v)
 {
-    int v = len >= 5 ? in[2] : 0, size = v == 1 ? MM_BLOB_V1_SIZE : v == 2 ? MM_BLOB_SIZE : 0;
-    if (!size || len < size || in[0] != 'M' || in[1] != 'M' || in[3] != MM_MACROS || in[4] != MM_SLOTS)
-        return -1;
-    if (crc16(in, size - 2) != (uint16_t)(in[size - 2] << 8 | in[size - 1]))
-        return -1;
-    int o = 5;
+    int o = 0;
     for (int k = 0; k < MM_MACROS; k++)
         for (int j = 0; j < MM_SLOTS; j++) {
             mm_slot *sl = &s->m[k].slot[j];
@@ -72,7 +60,60 @@ int mm_decode(mm_t *s, const uint8_t *in, int len)
         s->m[k].name[MM_NAME_LEN] = 0;
     }
     s->dirty_mods = s->dirty_screen = 1;
+}
+
+int mm_encode(const mm_t *s, uint8_t *out)
+{
+    int o = 0;
+    out[o++] = 'M';
+    out[o++] = 'M';
+    out[o++] = MM_BLOB_VERSION;
+    out[o++] = MM_MACROS;
+    out[o++] = MM_SLOTS;
+    o += body_encode(s, out + o);
+    uint16_t c = crc16(out, o);
+    out[o++] = (uint8_t)(c >> 8);
+    out[o++] = (uint8_t)c;
+    return o;
+}
+
+/* Versions 1 (depth -64 .. +63 in a byte, no names) and 2. len is what the buffer holds; the version gives the size. */
+int mm_decode(mm_t *s, const uint8_t *in, int len)
+{
+    int v = len >= 5 ? in[2] : 0, size = v == 1 ? MM_BLOB_V1_SIZE : v == 2 ? MM_BLOB_SIZE : 0;
+    if (!size || len < size || in[0] != 'M' || in[1] != 'M' || in[3] != MM_MACROS || in[4] != MM_SLOTS)
+        return -1;
+    if (crc16(in, size - 2) != (uint16_t)(in[size - 2] << 8 | in[size - 1]))
+        return -1;
+    body_decode(s, in + 5, v);
     return 0;
+}
+
+/* A setup in the project (docs/findings/s7-project-storage.md): "MS", flags, the slots and names, a CRC-16. */
+void mm_setup_pack(const mm_t *s, int flags, uint8_t *out)
+{
+    int o = 0;
+    out[o++] = 'M';
+    out[o++] = 'S';
+    out[o++] = (uint8_t)flags;
+    o += body_encode(s, out + o);
+    uint16_t c = crc16(out, o);
+    out[o++] = (uint8_t)(c >> 8);
+    out[o] = (uint8_t)c;
+}
+
+int mm_setup_valid(const uint8_t *in)
+{
+    return in[0] == 'M' && in[1] == 'S' &&
+           crc16(in, MM_SETUP_SIZE - 2) == (uint16_t)(in[MM_SETUP_SIZE - 2] << 8 | in[MM_SETUP_SIZE - 1]);
+}
+
+int mm_setup_unpack(mm_t *s, const uint8_t *in)
+{
+    if (!mm_setup_valid(in))
+        return -1;
+    body_decode(s, in + 3, MM_BLOB_VERSION);  /* the knobs' positions stay */
+    return in[2];
 }
 
 void mm_set_name(mm_t *s, int macro, const char *name)

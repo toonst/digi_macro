@@ -41,7 +41,7 @@ lines() {
 }
 # manifest DEV EXPR: a Python expression over the manifest m, one line per item
 manifest() { python3 -c "import json; m = json.load(open('mods/$1/mod.json')); print('\n'.join($2))"; }
-SRC=(src/mm_logic.c src/mm_apply.c src/mm_store.c src/mm_draw.c)
+SRC=(src/mm_logic.c src/mm_apply.c src/mm_store.c src/mm_draw.c src/mm_scope.c)
 
 echo "== host tests"
 "$CC" -std=c99 -Wall -Wextra -Werror -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all \
@@ -79,8 +79,9 @@ for dev in dt2 dn2; do
         objs+=("$o")
     done
     "${CROSS}ld" -r -o "$OUT/$dev.o" "${objs[@]}"
-    # the collections the mod declares are the linker's tables
-    undef=$("${CROSS}nm" -u "$OUT/$dev.o" | awk '{print $2}' | grep -v -x -F -f <(printf '%s\n' ${tables[@]+"${tables[@]}"} "") || true)
+    # the collections the mod declares are the linker's tables; core_additem is the core's (PERSONALIZE's row)
+    undef=$("${CROSS}nm" -u "$OUT/$dev.o" | awk '{print $2}' |
+        grep -v -x -F -f <(printf '%s\n' ${tables[@]+"${tables[@]}"} core_additem "") || true)
     if [[ -n "$undef" ]]; then
         echo "$dev: undefined symbols (the mod has no C library):"; echo "$undef"; exit 1
     fi

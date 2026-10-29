@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
-/* Where mm_t's fields lie in the device build, for tests/emu/scenario.py: tools/check.sh compiles this with the
+/* Where mm_t's and mm_scope's fields lie in the device build, for tests/emu/scenario.py: tools/check.sh compiles this with the
  * ColdFire compiler and reads the absolute symbols MMOFF_* (the host's offsets differ: m68k aligns to 2 bytes). */
 #include <stddef.h>
 
@@ -22,4 +22,10 @@ void mm_layout(void)
     OFF(tracks, offsetof(mm_slot, tracks));
     OFF(list, offsetof(mm_t, list));
     OFF(name, offsetof(mm_macro, name));
+    OFF(dirty_config, offsetof(mm_t, dirty_config));
+    OFF(scope_pat, offsetof(mm_scope, pat));
+    OFF(scope_proj, offsetof(mm_scope, proj));
+    OFF(scope_mode, offsetof(mm_scope, mode));
+    OFF(scope_cur, offsetof(mm_scope, cur));
+    OFF(setup_size, MM_SETUP_SIZE);
 }

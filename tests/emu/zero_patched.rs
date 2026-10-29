@@ -115,6 +115,18 @@ fn main() {
                     .collect();
                 rt.write_ram(addr, &bytes).map(|_| "ok".into()).unwrap_or_else(|e| e)
             }
+            ["dump", a, n, path] => {
+                let addr = u32::from_str_radix(a.trim_start_matches("0x"), 16).expect("address");
+                let len = u32::from_str_radix(n.trim_start_matches("0x"), 16).expect("length");
+                let mut out = Vec::with_capacity(len as usize);
+                for k in (0..len).step_by(4) {
+                    out.extend_from_slice(&rt.peek32(addr + k).unwrap_or(0).to_be_bytes());
+                }
+                match std::fs::write(path, &out) {
+                    Ok(()) => format!("ok {}", out.len()),
+                    Err(e) => e.to_string(),
+                }
+            }
             ["leds"] => leds.clone(),
             ["frame", path] => match std::fs::write(path, &frame) {
                 Ok(()) => format!("ok {}", frame.len()),
