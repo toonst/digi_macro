@@ -9,7 +9,7 @@
 //! CF_STATE is the build's ColdFire state at the main screen; when the file does not exist the runner makes it first (a
 //! ColdFire-only cold boot with the SSI diagnostic on, as zero-DSP mode needs). Commands, one per line on stdin, each
 //! answered by one line on stdout:
-//!   step N | down CODE | up CODE | turn ENCODER DETENTS | peek ADDR (a long, hex) | leds | frame PATH
+//!   step N | down CODE | up CODE | turn ENCODER DETENTS | peek ADDR (a long, hex) | poke ADDR HEXBYTES | leds | frame PATH
 //!   | card-save PATH (every sector the guest wrote: a big-endian u64 sector and its 512 bytes each) | quit
 //! CARD_SECTORS is such a file: the card starts with those sectors, as after a restart of the unit.
 use std::io::{BufRead, Write};
@@ -107,6 +107,13 @@ fn main() {
                     Some(v) => format!("{v:08x}"),
                     None => "none".into(),
                 }
+            }
+            ["poke", a, hex] => {
+                let addr = u32::from_str_radix(a.trim_start_matches("0x"), 16).expect("address");
+                let bytes: Vec<u8> = (0..hex.len() / 2)
+                    .map(|i| u8::from_str_radix(&hex[2 * i..2 * i + 2], 16).expect("hex bytes"))
+                    .collect();
+                rt.write_ram(addr, &bytes).map(|_| "ok".into()).unwrap_or_else(|e| e)
             }
             ["leds"] => leds.clone(),
             ["frame", path] => match std::fs::write(path, &frame) {

@@ -31,3 +31,5 @@ the firmware's view stack (the D9 check). The runner first cold-boots the build 
 about 3 s); every run starts from a fresh one. The second part restarts with the card sectors the first part wrote
 (`card-mm.bin`) and checks that the configuration came back. The screens are `out/emu/*.png`. The zero-DSP runner produces no sound:
 the frame values are checked in memory.
+
+The runner also takes `poke ADDR HEXBYTES` (guest memory, for experiments such as docs/findings/s7-project-storage.md).
