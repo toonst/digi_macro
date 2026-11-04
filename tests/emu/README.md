@@ -5,7 +5,7 @@ does not know at start and loads a patched one ColdFire-only, where the frame in
 digikit's `zero_patched` runner (`packages/emulator/coupled/examples/zero_patched.rs`, on its
 `claude/zen-rubin-g8jh03` branch until it is merged; digikit's docs/INSTRUMENTATION.md, "Scripted patched runs") runs
 a patched build with the DSP side answering zeros instead, so the frame interrupt runs. Build it once, in a digikit
-checkout (it needs the Rust toolchain digikit's `mise.toml` names):
+checkout (it needs the Rust toolchain digikit's `mise.toml` names, and on Linux the ALSA headers: `libasound2-dev`):
 
 ```bash
 cargo build --manifest-path DIGIKIT/Cargo.toml --release -p digi-coupled --example zero_patched

@@ -30,11 +30,11 @@ LEVEL = 9                     # the LEVEL/DATA encoder
 # configuration's two card sectors, and indices with a non-zero default, to check the Sound arrays against.
 DEVICES = {
     'dt2': dict(frame=0x80005b72, mirror=0x80003362, stride=142, view_top=0x40216f14, card=0x2df0e00, probe=(36, 59),
-                name_view=0x4021d5ac, ui_states=0x44f370c0,
+                name_view=0x4021d5ac, ui_states=0x44f370c0, mute_view=0x401f8a18,
                 # the Sound pointers at 0x8000470c (the array at +0x14)
                 sounds=lambda r: [r.peek32(0x8000470c + 4 * t) + 0x14 for t in range(16)]),
     'dn2': dict(frame=0x80006906, mirror=0x80003b12, stride=202, view_top=0x402008e8, card=0x7ff000, probe=(67, 90),
-                name_view=0x40206f78, ui_states=0x446488c8,
+                name_view=0x40206f78, ui_states=0x446488c8, mute_view=None,
                 # the kit at *0x800052a0, track t's Sound at + 0x34 + 0x48b t (digikit finding 02, read on 1.11)
                 sounds=lambda r: [r.peek32(0x800052a0) + 0x34 + 0x48b * t + 0x14 for t in range(16)]),
 }
@@ -242,8 +242,9 @@ def views_over(r):
     r.shot('09-mute-mode')
     r.check(r.mode() == 1 and r.led(LED_MOD) == 0x31, 'FUNC + TRK (mute mode) keeps macro mode on')
     mute_vt = r.peek32(r.syms['mm_mute_vt'])
-    r.check(mute_vt not in (0, DEV['view_top']) and top_view(r) == mute_vt,
-            'the view FUNC + TRK opens is learned as mute mode\'s: %08x' % mute_vt)
+    r.check(mute_vt and mute_vt == (DEV['mute_view'] or mute_vt) and top_view(r) == mute_vt,
+            'FUNC + TRK opens mute mode (PermanentMuteMenuView), and the mod knows it: %08x, top %08x'
+            % (mute_vt, top_view(r) or 0))
     knob_moves_macro(r, 'in mute mode')
     before = [r.pos(k) for k in range(8)]       # mute mode leaves the mode its own controls: LEVEL/DATA
     spin(r, LEVEL, 24)

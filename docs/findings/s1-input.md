@@ -57,7 +57,7 @@ good after any FUNC chord: a push alone opened the setup, and NO there reset the
 While FUNC is held the firmware puts `QuickMuteMenuView` on top (DT2 `0x401f9208`, DN2 `0x401e1eb4`), while TRK is
 held `TrackSelectionView` (DT2 `0x401f9ec8`, DN2 `0x401e2b68`).
 
-## Views over the mode **[O]**
+## Views over the mode **[D]**
 
 Macro mode is a page (PLAN.md D6), so a view the firmware puts over a page comes over the macro screen the same
 way. The page's views end with the one on top on the main screen and the parameter pages (`HelpBubbleView`, below);
@@ -65,35 +65,54 @@ every view above it in the view controller's list is over the page: a menu (PRES
 popup (pattern, bank, song), mute mode, `TrackSelectionView`, the naming screen. `QuickMuteMenuView` is not counted:
 the mode keeps the keys under it (FUNC + push, FUNC + NO) and draws over it.
 
-- **Input.** Such a view gets every key (the glue's `covered`). The mode still sees the keys: a page key, or
+The classes, by their RTTI on DT2 1.17 (each vtable's word before slot 0 is its typeinfo, whose `+4` is the mangled
+name; the method gives back the three vtables found before, and NameView's):
+
+| Class | Vtable (DT2 1.17) | EncoderHandler slot 2 | What it is |
+| --- | --- | --- | --- |
+| `HelpBubbleView` | `0x40216f14` | default | the top of the page's views (VIEW_TOP_BASE) |
+| `QuickMuteMenuView` : `MuteMenuView` | `0x401f9208` | default | FUNC held (VIEW_FUNC) |
+| `PermanentMuteMenuView` : `MuteMenuView` | `0x401f8a18` | default | mute mode, FUNC + TRK (on top in the emulator) |
+| `TrackSelectionView` | `0x401f9ec8` | default | TRK held |
+| `PatternSelectView`, `BankSelectMenuView` | `0x40217300`, `0x4021954c` | default | PTN, FUNC + PTN |
+| `TapTempoView`, `PopupWindow` | `0x4021beec`, `0x4021d8c8` | default | |
+| `TempoMenuView` | `0x40207874` | `0x400bac66` | TEMPO (opaque, full screen) |
+| `NameView` | `0x4021d5ac` | `0x40117934` | the naming screen |
+| `SongModePopup`, `SongEditView`, `PatternChainView` | `0x401fc34c`, `0x401fbe14`, `0x40217168` | own | SONG, song edit, chains |
+
+- **The firmware's knob dispatch.** `Brain::enc` (`0x40030b64`) resets the screen saver (`0x40030b50`), copies the
+  `EncoderEvent` (vtable `0x401f10c4`, the same class the UI loop built with `0x401119b8`, which the mod's `ev_enc`
+  gets) and calls the dispatch `0x4011c674`. That walks the view controller's list from the top (`0x4011c41a`, under
+  its lock) and asks each view's EncoderHandler (the base at View `+4`, its vtable slot 2: `0x4011b5da` calls
+  `(view + 4)->vtbl[2](view + 4, event)`, a bool); the first that takes the turn ends the walk, and one whose
+  closing byte (`+0x30`) is set asks for the sweep (controller `+0x22`). The default handler, `0x40111f30`, is
+  `clr.b d0; rts`: a view that keeps it passes every turn on, down to the page.
+- **Knobs.** So a view like mute mode or the pattern popup leaves every knob to the page under it, and the macros
+  are that page: the glue asks the views over the page the same way (`over_takes_enc`), and a turn none of them
+  takes is the mode's, LEVEL/DATA too. TEMPO, the naming screen and the song screens take what their handlers take.
+  Before, with the knobs left to the firmware under any view, knob A in mute mode turned the LFO page's SPD behind
+  the macro screen (seen on a unit).
+- **Keys.** A view over the page gets every key (the glue's `covered`). The mode still sees them: a page key, or
   FUNC + MOD, leaves it (the firmware closes the view and opens the page); MOD goes to the firmware (it closes a
   menu) and the mode stays; a release follows its press.
-- **Knobs.** Mute mode and the pattern popup use no knobs, so the firmware hands a turn on to the page under them:
-  with the knobs left to the firmware, knob A under them turned the LFO page's SPD behind the macro screen (seen on
-  a unit). So under a view that leaves the page in sight (not opaque), knobs A–H stay the
-  mode's, as they stay a page's; LEVEL/DATA goes to the view (TEMPO's BPM, a list). An opaque view gets every
-  knob. Seen on a unit: knob A under mute mode, the pattern popup and TEMPO.
-- **Mute mode** is played over a page, so it leaves the mode its own controls: the trig keys mute and FUNC + trig
-  prepares mutes (the firmware's), but the pushes, FUNC + push (the setup, the naming screen), LEVEL/DATA, MOD
-  (leave) and PAGE + MOD (enter) are the mode's, as if no view were over it. Its view's class is not read here:
-  the glue learns it at run time as the first view over the page, other than FUNC's and TRK's, that appears in the
-  1.5 s after FUNC + TRK, was not on top at the chord and is not opaque (`mm_mute_vt`, which the emulator scenario
-  reads). The mod sees FUNC + TRK on every screen, the mode on or off, so it is learned whenever mute mode starts.
+- **Mute mode** (`PermanentMuteMenuView`, known by its name, so on the Digitone II too) leaves the mode its keys:
+  the trig keys mute and FUNC + trig prepares mutes (they pass to the firmware, as on the macro screen they always
+  do), but the pushes, FUNC + push (the setup, the naming screen), MOD (leave) and PAGE + MOD (enter, D9) are the
+  mode's.
 - **Screen.** `ev_draw` runs after the firmware composed the frame, so to have the views over the page drawn over
   the macro screen it composes the frame again: it clears it, paints the page's views from the topmost opaque one up
   (View vtable slot 4, `paint(view, bitmap)`, as the firmware's render does and digikit's core/ui overrides it),
   draws the macro screen, then paints the views over the page. If one of those is opaque (View `+0x16`; views below
-  the topmost opaque one are not drawn) it hides the page, and the firmware's frame stays as it is.
-- **LEDs.** Under such a view the setup screen's track LEDs are left to the firmware (the pattern popup's patterns,
-  mute mode's mutes); MOD stays blue.
+  the topmost opaque one are not drawn: TEMPO, the menus) it hides the page, and the firmware's frame stays.
+- **LEDs.** Under a view that takes the keys the setup screen's track LEDs are left to the firmware (the pattern
+  popup's patterns); MOD stays blue.
 
-Before this the mode left the frame and every key to the firmware whenever any view other than FUNC's or TRK's was
-on top, so mute mode and the pattern, bank and song popups showed the page macro mode was entered from (the LFO page
-when MOD was pressed first), and the mode took every key it did not know, so PRESET, SETTINGS, SAMPLES, TEMPO and
-KEYBOARD did nothing. Open: measured only on the host so far (tests/test_mm.c `test_covered`); `tests/emu/scenario.py`
-`views_over` drives PRESET, SETTINGS, TEMPO, PTN, mute mode and KEYBOARD in the emulator. Which of these views are
-opaque is not read, nor whether a view that leaves the page in sight uses knobs A–H (TEMPO's, the naming screen's):
-the encoder handler of a View is not traced (digikit finding 71), so the rule above goes by opacity.
+Measured in the emulator (DT2 1.17, `tests/emu/scenario.py` `views_over`): PRESET, SETTINGS, TEMPO and PTN open over
+the mode and close back to it; knob A moves macro A under the pattern popup and in mute mode; in mute mode
+LEVEL/DATA moves and centres the macros, FUNC + push opens the setup, MOD leaves (mute mode stays) and PAGE + MOD
+enters; KEYBOARD keeps the mode; FLTR from a menu leaves it. On a unit: the macro screen stays under mute mode and the
+pattern popup, TEMPO works. Open: the Digitone II, where none of this has run; it needs no new address there (the
+class name, the View layout and the handler slot).
 
 ## Menus and dialogs (D9) **[D]**
 

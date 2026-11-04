@@ -101,12 +101,18 @@ static void enc_block(void)
  * at + 0, prev at + 4, its View at + 8 (the vtable at the View's first word, the opaque flag at its + 0x16; views below
  * the topmost opaque one are not drawn), paint at slot 4 of the View vtable. The page's views end with the view
  * that tops the stack on the main screen and the parameter pages (VIEW_TOP_BASE); every view above it is over the
- * page. Two of them leave the mode its own keys and knobs:
+ * page. Two of them leave the mode its own keys:
  * - FUNC's (QuickMuteMenuView, while FUNC is held): FUNC + push, FUNC + NO. The mode draws over its screen.
- * - mute mode's (FUNC + TRK): the trig keys mute and FUNC + trig prepares mutes, as on any page, but pushes,
- *   FUNC + push, LEVEL/DATA, MOD and PAGE + MOD are the mode's (D6). It is drawn over the macro screen. Its view's
- *   class is not read: the glue learns it as the view FUNC + TRK puts on top (mute_learn), which the mod sees on any
- *   screen, the mode on or off. */
+ * - mute mode's (FUNC + TRK, PermanentMuteMenuView): the trig keys mute and FUNC + trig prepares mutes, as on any
+ *   page, but pushes, FUNC + push, MOD and PAGE + MOD are the mode's (D6). It is drawn over the macro screen. It is
+ *   known by its class's name (RTTI: the vtable's word before slot 0 is the typeinfo, whose + 4 is the name), the
+ *   same on both devices.
+ * The knobs go as the firmware sends them (its encoder dispatch, DT2 0x4011c674): down the stack from the top, each
+ * view's EncoderHandler (View + 4) is asked, vtable slot 2, handler(view + 4, event) -> bool, and the first that
+ * takes the turn ends it. Views that keep the default (0: mute mode, the pattern and bank popups, QuickMute,
+ * TrackSelection) pass it on to the page; TEMPO's, the naming screen's and the song screens' take theirs. The glue
+ * asks the views over the page the same way, and a turn none of them takes is the mode's, as it would be the
+ * page's. */
 #ifdef VIEW_TOP_BASE
 #define NODE_NEXT(n) (*(char **)(n))
 #define NODE_PREV(n) (*(char **)((n) + 4))
@@ -115,13 +121,47 @@ static void enc_block(void)
 #define VIEW_OPAQUE(v) (*(uint8_t *)((v) + 0x16))
 #define VIEW_PAINT 4
 #define STACK_MAX 64                /* a bound on the walk: the stack holds about a dozen views */
-#define MUTE_LEARN_TICKS 45         /* how long after FUNC + TRK the view it opens is looked for: about 1.5 s */
+#define VIEW_ENC 4                  /* the View's EncoderHandler; its handler is slot 2 of that vtable */
+#define VIEW_CLOSING 0x30           /* the View closed itself: the controller sweeps it (+ 0x22) */
+#define DDR_LO 0x40000000u          /* where a vtable, a typeinfo and a name may be: the DDR the OS runs in */
+#define DDR_HI 0x48000000u
+#define MUTE_CLASS "21PermanentMuteMenuView"
 /* OVER: a view to draw over the mode; OVER_OPAQUE: one hides the page; OVER_KEYS: one takes the keys */
 enum { OVER = 1, OVER_OPAQUE = 2, OVER_KEYS = 4 };
 
-uint32_t mm_mute_vt;                /* mute mode's view's vtable, once learned (the emulator scenarios read it) */
-static uint8_t mute_learn;          /* ticks left to look for it */
-static uint32_t mute_learn_top;     /* the top view's vtable when FUNC + TRK was pressed */
+uint32_t mm_mute_vt;                /* mute mode's view's vtable, once seen (the emulator scenarios read it) */
+
+static int in_ddr(uint32_t a, uint32_t len)
+{
+    return a >= DDR_LO && a < DDR_HI - len && !(a & 1);
+}
+
+/* 1 when the class of the view whose vtable is vt is named (mangled) name: RTTI, vtable[-1] the typeinfo, its + 4
+ * the name. */
+static int is_class(uint32_t vt, const char *name)
+{
+    uint32_t ti, nm;
+    const char *p;
+    if (!in_ddr(vt - 4, 8))
+        return 0;
+    ti = ((const uint32_t *)vt)[-1];
+    if (!in_ddr(ti, 8))
+        return 0;
+    nm = ((const uint32_t *)ti)[1];
+    if (nm < DDR_LO || nm >= DDR_HI - 64)
+        return 0;
+    for (p = (const char *)nm; *name; p++, name++)
+        if (*p != *name)
+            return 0;
+    return *p == 0;
+}
+
+static int is_mute(uint32_t vt)
+{
+    if (!mm_mute_vt && is_class(vt, MUTE_CLASS))
+        mm_mute_vt = vt;
+    return vt == mm_mute_vt;
+}
 
 static char *stack_sentinel(void)
 {
@@ -147,16 +187,36 @@ static int over_page(char **base)
         }
         if (vt == VIEW_FUNC)
             continue;
-        over |= OVER | (VIEW_OPAQUE(v) ? OVER_OPAQUE : 0) | (vt != mm_mute_vt ? OVER_KEYS : 0);
+        over |= OVER | (VIEW_OPAQUE(v) ? OVER_OPAQUE : 0) | (is_mute(vt) ? 0 : OVER_KEYS);
     }
     return OVER | OVER_OPAQUE | OVER_KEYS;
 }
 
-static int covered(void)            /* MM_COVER_*: the keys (and, when it hides the mode, the knobs) go to that view */
+static int covered(void)            /* 1: the keys go to the view over the mode */
 {
     char *base;
-    int over = mm_state.state != MM_OFF ? over_page(&base) : 0;
-    return over & OVER_OPAQUE ? MM_COVER_FULL : over & OVER_KEYS ? MM_COVER_VIEW : MM_COVER_NONE;
+    return mm_state.state != MM_OFF && (over_page(&base) & (OVER_KEYS | OVER_OPAQUE)) != 0;
+}
+
+/* A turn, offered to the views over the page as the firmware's dispatch offers it: 1 when one took it. */
+static int over_takes_enc(void *ev)
+{
+    char *sentinel, *n;
+    int k = 0;
+    if (!mm_brain)
+        return 0;
+    sentinel = stack_sentinel();
+    for (n = NODE_PREV(sentinel); n != sentinel && k < STACK_MAX; n = NODE_PREV(n), k++) {
+        char *v = NODE_VIEW(n), *eh = v + VIEW_ENC;
+        if ((uint32_t)VIEW_VT(v) == VIEW_TOP_BASE)
+            return 0;               /* the page: the mode's */
+        if (((uint8_t (*)(void *, void *))(*(uint32_t **)eh)[2])(eh, ev)) {
+            if (v[VIEW_CLOSING])
+                *((uint8_t *)mm_brain + 0x40 + 0x22) = 1;
+            return 1;
+        }
+    }
+    return 0;
 }
 
 /* D9: macro mode starts only on the main screen and the parameter pages, where nothing but FUNC's view and mute
@@ -166,43 +226,6 @@ static int fw_can_enter(void)
     char *base;
     int over = over_page(&base);
     return base && !(over & (OVER_OPAQUE | OVER_KEYS));
-}
-
-static uint32_t top_vt(void)        /* the top view's vtable; 0 for none */
-{
-    char *sentinel = stack_sentinel(), *n = NODE_PREV(sentinel);
-    return mm_brain && n != sentinel ? (uint32_t)VIEW_VT(NODE_VIEW(n)) : 0;
-}
-
-/* FUNC + TRK was pressed: the view it opens (mute mode) is looked for on the next ticks. */
-static void mute_chord(void)
-{
-    mute_learn = MUTE_LEARN_TICKS;
-    mute_learn_top = top_vt();
-}
-
-/* On the tick: the first view over the page, other than FUNC's and TRK's, that was not on top at the chord and does not
- * hide the page is mute mode's. FUNC + TRK that ends mute mode opens none, and the one learned stays. */
-static void mute_learn_tick(void)
-{
-    char *sentinel = stack_sentinel(), *n;
-    int k = 0;
-    if (!mute_learn || !mm_brain)
-        return;
-    mute_learn--;
-    for (n = NODE_PREV(sentinel); n != sentinel && k < STACK_MAX; n = NODE_PREV(n), k++) {
-        char *v = NODE_VIEW(n);
-        uint32_t vt = (uint32_t)VIEW_VT(v);
-        if (vt == VIEW_TOP_BASE)
-            return;
-        if (vt == VIEW_FUNC || vt == VIEW_TRK)
-            continue;
-        if (vt != mute_learn_top && !VIEW_OPAQUE(v)) {
-            mm_mute_vt = vt;
-            mute_learn = 0;
-        }
-        return;                     /* only the topmost such view */
-    }
 }
 
 static void paint(char *node, void *bmp)
@@ -237,7 +260,7 @@ static void compose(mm_t *s, void *bmp, char *base)
 #else
 static int covered(void)
 {
-    return MM_COVER_NONE;
+    return 0;
 }
 #endif
 
@@ -374,14 +397,6 @@ int mm_ev_key(void *brain, void *ev)
     mm_t *s = state();
     int take;
     mm_brain = brain;
-#ifdef VIEW_TOP_BASE
-    {
-        int code = *(int *)((char *)ev + 12), flags = *(int *)((char *)ev + 16);
-        if (code == MM_K_TRK && flags & MM_F_PRESS && !(flags & MM_F_REPEAT) &&
-            (flags & MM_F_FUNC || (s->key_down && s->key_down(MM_K_FUNC))))
-            mute_chord();           /* mute mode, on or off: on any screen, the mode on or not */
-    }
-#endif
     take = mm_key(s, *(int *)((char *)ev + 12), *(int *)((char *)ev + 16));
     mm_keylog[mm_keylog_n++ & 15] = (uint32_t)(*(int *)((char *)ev + 12) << 16 | (*(int *)((char *)ev + 16) & 0xff) << 8 | take);
     return take;
@@ -393,7 +408,11 @@ int mm_ev_enc(void *brain, void *ev)
     int enc = *(int *)((char *)ev + 12);
     (void)brain;
     if (!mm_enc_takes(s, enc))
-        return 0;                   /* off, or the knob of a firmware view over the mode */
+        return 0;                   /* off, or a knob the mode does not know */
+#ifdef VIEW_TOP_BASE
+    if (over_takes_enc(ev))
+        return 1;                   /* a view over the mode took it, as over a page */
+#endif
 #ifdef ENC_FILTER_AT
     {
         int pushed = *((uint8_t *)ev + 20), steps;
@@ -443,7 +462,6 @@ void mm_ev_tick(void *ctrl)
     s->dirty_config = 0;
 #endif
 #ifdef VIEW_TOP_BASE
-    mute_learn_tick();
     {
         static uint8_t was_over;
         char *base;

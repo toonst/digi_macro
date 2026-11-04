@@ -1,7 +1,8 @@
 # Status
 
 Against [PLAN.md](../PLAN.md) section 7. Measured on the Digitakt II 1.17 and the Digitone II 1.12 in digikit's
-emulator with `tests/emu/scenario.py` (68 checks each), `tests/emu/project.py` (23) and `tests/emu/compat.py` (12),
+emulator with `tests/emu/scenario.py` (68 checks each; 94 on DT2 since macro mode became a page, DN2 not rerun),
+`tests/emu/project.py` (23; 25 on DT2) and `tests/emu/compat.py` (12),
 all passing; host tests with `tools/check.sh`.
 
 | Part | State |
@@ -15,7 +16,7 @@ all passing; host tests with `tools/check.sh`.
 | LEVEL/DATA and FUNC + NO (D16) | Done on DT2 and DN2 ([s1](findings/s1-input.md)) |
 | Header title, naming macros, TRK + trig, firmware views over the mode, stock depth format | Done on DT2 and DN2 ([s1](findings/s1-input.md), [s4](findings/s4-screens.md)) |
 | Setups per project or per kit, kept apart, saved in the project; copies take them along; PERSONALIZE > MACRO SETUP (D4); an optional feature | Done on DT2 and DN2, on core's kit and project data ([s7](findings/s7-project-storage.md)) |
-| Macro mode as a page (D6): the keys it doesn't use keep their stock function; menus, popups and mute mode come over the macro screen and the mode stays on; TRK + trig keeps the mode | Host-tested. On a unit: the macro screen stays under mute mode and the pattern popup; knob A there turned the hidden page, now the macros' (not yet on a unit). Not yet run in the emulator: `tests/emu/scenario.py` `views_over` ([s1](findings/s1-input.md), "Views over the mode") |
+| Macro mode as a page (D6): the keys it doesn't use keep their stock function; menus, popups and mute mode come over the macro screen and the mode stays on; TRK + trig keeps the mode | Done on DT2 in the emulator (`tests/emu/scenario.py` `views_over`) and partly on a unit (the screen under mute mode and the pattern popup, TEMPO); DN2 not run ([s1](findings/s1-input.md), "Views over the mode") |
 
 Still open:
 
@@ -25,4 +26,4 @@ Still open:
 | Audio | The zero-DSP runner makes no sound | Coupled emulator or a unit |
 | Storage claims, other mods | elekloader's linker refuses the same names and overlapping card ranges; `tools/storage.py` checks the same from manifests; core's guard at run time | elekloader to take the fork's core-dt2 1.1 / core-dn2 0.3 (the submodule points at the fork) |
 | Kit manager, PASTE KIT, undo | Not driven in the emulator (pattern copy and paste is) | Find their keys and add them to `tests/emu/project.py` (S7) |
-| Views over the mode | The macro screen is drawn under them (the frame composed again), seen on a unit; they get the keys and LEVEL/DATA, knobs A–H stay the macros' unless the view is opaque (on a unit). Mute mode leaves the mode all but the trig keys; its view is learned from FUNC + TRK (not yet on a unit) | Run `views_over` in the emulator; find which views are opaque and which use knobs A–H (TEMPO, the naming screen) (S1) |
+| Views over the mode on the Digitone II | The same code (mute mode by its class name, the knobs by the firmware's handlers), not run there | Run `views_over` on DN2 (S1) |

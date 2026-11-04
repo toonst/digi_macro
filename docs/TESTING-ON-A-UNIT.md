@@ -49,7 +49,7 @@ over the macro screen. In each test, MOD stays blue, and when the menu or popup 
   mode stays; PAGE + MOD enters again.
 - [ ] **Mute mode first:** enter mute mode with macro mode off, then PAGE + MOD: macro mode starts.
 - [ ] **Knobs under the pattern popup** (PTN): turning A moves macro A too.
-- [ ] **TEMPO:** LEVEL/DATA changes the BPM. Note what turning A does there.
+- [ ] **TEMPO:** LEVEL/DATA and knob A change the tempo, as without macro mode.
 - [ ] **PAGE** selects the pattern page; FUNC + PAGE opens its setup.
 - [ ] **A page key from inside a menu** (open SETTINGS, press FLTR): macro mode is left and the FLTR page opens.
 - [ ] **MOD from inside a menu** (open SETTINGS, press MOD): the menu closes and the macro screen is back.

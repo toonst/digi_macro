@@ -321,13 +321,7 @@ static int step(const mm_t *s, int i, int delta)
 
 int mm_enc_takes(const mm_t *s, int enc)
 {
-    int cover;
-    if (s->state == MM_OFF || enc < 1 || enc > MM_ENC_LEVEL)
-        return 0;                   /* off, or a knob the mode does not know */
-    cover = s->covered ? s->covered() : MM_COVER_NONE;
-    if (cover == MM_COVER_FULL)
-        return 0;                   /* a view hides the mode: every knob is that view's */
-    return !(cover && enc == MM_ENC_LEVEL); /* under one that leaves it in sight, LEVEL/DATA only */
+    return s->state != MM_OFF && enc >= 1 && enc <= MM_ENC_LEVEL;
 }
 
 int mm_enc(mm_t *s, int enc, int delta)
