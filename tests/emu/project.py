@@ -1,10 +1,10 @@
-"""The kits feature in the emulator (docs/findings/s7-project-storage.md), on a build from tools/check.sh: the
+"""The kits feature in the emulator (docs/findings/s7-project-storage.md), on a build from tools/build.sh: the
 PERSONALIZE row, a setup following the kit on (the pattern on's), the kits' and the project's setups kept apart across
 scope changes, pattern copy and paste taking the kit's setup along, SAVE PROJECT AS writing them into the kit records
 and the project's header, and LOAD PROJECT bringing them back.
 
-    python3 tests/emu/project.py --runner RUNNER --stock STOCK.syx --build out/check/macro-dt2.syx \\
-        --map out/check/macro-dt2.map.json --out out/emu-project-dt2 --device dt2
+    python3 tests/emu/project.py --runner RUNNER --stock STOCK.syx --build out/macro-dt2.syx \\
+        --map out/build/macro-dt2.map.json --out out/emu/project-dt2 --device dt2
 """
 import argparse
 import json

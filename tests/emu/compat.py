@@ -13,8 +13,8 @@
    project again (after a first save, so the firmware's save starts from the loaded file, as in step 2): those bytes
    stay as they were, the conflict is counted again, and kit 2's setup is saved as before.
 
-    python3 tests/emu/compat.py --runner RUNNER --stock STOCK.syx --build out/check/macro-dt2.syx \\
-        --map out/check/macro-dt2.map.json --out out/emu-compat-dt2 --device dt2
+    python3 tests/emu/compat.py --runner RUNNER --stock STOCK.syx --build out/macro-dt2.syx \\
+        --map out/build/macro-dt2.map.json --out out/emu/compat-dt2 --device dt2
 """
 import argparse
 import json

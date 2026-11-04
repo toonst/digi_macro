@@ -11,16 +11,16 @@ checkout (it needs the Rust toolchain digikit's `mise.toml` names, and on Linux 
 cargo build --manifest-path DIGIKIT/Cargo.toml --release -p digi-coupled --example zero_patched
 ```
 
-Then, with a build from `tools/check.sh`:
+Then, with a build from `tools/build.sh`:
 
 ```bash
-python3 tests/emu/scenario.py --runner DIGIKIT/target/release/examples/zero_patched --stock firmware/Digitakt_II_OS1.17.syx --build out/check/macro-dt2.syx --out out/emu --map out/check/macro-dt2.map.json
+python3 tests/emu/scenario.py --runner DIGIKIT/target/release/examples/zero_patched --stock firmware/Digitakt_II_OS1.17.syx --build out/macro-dt2.syx --out out/emu/scenario-dt2 --map out/build/macro-dt2.map.json
 ```
 
-For the Digitone II, add `--device dn2` and use its stock file, build and map. `--map` is the symbol map `tools/check.sh` writes next to the build: with it the scenario reads the mode's state and
+For the Digitone II, add `--device dn2` and use its stock file, build and map. `--map` is the symbol map `tools/build.sh` writes in `out/build`: with it the scenario reads the mode's state and
 the firmware's view stack (the D9 check). The runner first cold-boots the build to its main screen and saves that state next to the screens (`build.state`,
 about 3 s); every run starts from a fresh one. The second part restarts with the card sectors the first part wrote
-(`card-mm.bin`) and checks that the configuration came back. The screens are `out/emu/*.png`. The zero-DSP runner produces no sound:
+(`card-mm.bin`) and checks that the configuration came back. The screens are `out/emu/scenario-dt2/*.png`. The zero-DSP runner produces no sound:
 the frame values are checked in memory.
 
 With the same arguments, the kits feature (a build with it, the default):

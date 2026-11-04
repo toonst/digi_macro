@@ -157,7 +157,7 @@ class Run:
         return (word >> (24 - 8 * (addr & 3))) & 0xff
 
     def addr(self, field, *index):
-        """The device address of a field of the mode's state (tools/check.sh puts the layout in the map)."""
+        """The device address of a field of the mode's state (tools/build.sh puts the layout in the map)."""
         return self.syms['mm_state'] + self.syms['layout'][field]
 
     def pos(self, k):
@@ -573,7 +573,7 @@ def main():
     ap.add_argument('--build', required=True)
     ap.add_argument('--out', required=True)
     ap.add_argument('--device', choices=sorted(DEVICES), default='dt2')
-    ap.add_argument('--map', required=True, help='the build\'s symbol map (tools/check.sh writes out/check/macro-<dev>.map.json)')
+    ap.add_argument('--map', required=True, help='the build\'s symbol map (tools/build.sh writes out/build/macro-<dev>.map.json)')
     a = ap.parse_args()
     global DEV
     DEV = DEVICES[a.device]

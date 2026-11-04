@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
-/* Writes the screens as PBM files into DIR (tools/check.sh turns them into PNGs in docs/img). */
+/* Writes the screens as PBM files into DIR (tools/check.sh --previews turns them into PNGs in docs/img). */
 #include <stdio.h>
 
 #include "raster.h"

@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
-/* Where mm_t's and mm_scope's fields lie in the device build, for tests/emu/scenario.py: tools/check.sh compiles this with the
+/* Where mm_t's and mm_scope's fields lie in the device build, for tests/emu/scenario.py: tools/common.sh compiles this with the
  * ColdFire compiler and reads the absolute symbols MMOFF_* (the host's offsets differ: m68k aligns to 2 bytes). */
 #include <stddef.h>
 

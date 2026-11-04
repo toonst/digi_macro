@@ -50,7 +50,7 @@ leaving it; in the setup screen trig keys 3 and 5 read `0x11` and the others off
 ## Colours, seen on a unit **[V on hardware]**
 
 The value's high nibble is a palette index, not a colour mask (digikit finding 19 infers bits for red, green and
-blue). With the colour test (`MM_LED_TEST=1 tools/check.sh`: trig key n lit with `(n - 1) << 4 | 1`) on a Digitakt
+blue). With the colour test (`MM_LED_TEST=1 tools/build.sh`: trig key n lit with `(n - 1) << 4 | 1`) on a Digitakt
 II, the owner saw:
 
 | Value | Colour |

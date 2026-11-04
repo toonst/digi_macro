@@ -543,7 +543,7 @@ void mm_ev_key_leds(void *mgr)
     uint8_t code[MM_MAX_LEDS], value[MM_MAX_LEDS];
     int n;
 #ifdef MM_LED_TEST
-    /* A colour test (MM_LED_TEST=1 tools/check.sh): on the macro screen trig key n shows (n - 1) << 4 | 1, and TRIG,
+    /* A colour test (MM_LED_TEST=1 tools/build.sh): on the macro screen trig key n shows (n - 1) << 4 | 1, and TRIG,
      * SRC, FLTR, AMP, FX show 0x11, 0x21, 0x31, 0x51, 0x61, so one look tells which value is which colour. */
     if (mm_state.state == MM_MACRO) {
         static const uint8_t pages[5] = {0x11, 0x21, 0x31, 0x51, 0x61};
