@@ -29,6 +29,9 @@ enum {
     MM_K_TRIG = 1,    /* the page keys: TRIG, SRC, FLTR, AMP, FX (1 .. 5) and MOD */
     MM_K_FX = 5,
     MM_K_MOD = 6,
+    MM_K_PRESET = 7,  /* PRESET (the kit menu; FUNC: PERFORM), SETTINGS, TEMPO: their stock function, over the mode */
+    MM_K_SETTINGS = 8,
+    MM_K_TEMPO = 9,
     MM_K_YES = 10,
     MM_K_UP = 11,
     MM_K_NO = 12,

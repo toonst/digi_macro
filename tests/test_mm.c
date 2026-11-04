@@ -133,7 +133,8 @@ static void test_exit_page_then_mod(void)
 /* The keys the mode gives no meaning keep their stock function, as on any page: PRESET (7), SETTINGS (8), TEMPO (9),
  * KEYBOARD (18), SAMPLES (50; the Digitone II's VOICE, then ARP, +, STACK, -), the arrows, YES, PAGE and the rest. */
 static const int stock_keys[] = {MM_K_PLAY, MM_K_STOP, MM_K_RECORD, MM_K_PTN, MM_K_SONG, MM_K_TRK, MM_K_FUNC,
-                                 MM_K_PAGE, MM_K_YES, MM_K_UP, MM_K_DOWN, 7, 8, 9, 18, 50, 51, 52, 53, 54};
+                                 MM_K_PAGE, MM_K_YES, MM_K_UP, MM_K_DOWN, MM_K_PRESET, MM_K_SETTINGS,
+                                 MM_K_TEMPO, 18, 50, 51, 52, 53, 54};
 
 static void test_pass_through(void)
 {
