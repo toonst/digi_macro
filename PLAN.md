@@ -139,7 +139,7 @@ All decided by the user:
 | D11 | Destinations are the per-track parameters the stock modulation destination list offers (SRC, FLTR, AMP, track FX sends, LFO); kit-wide FX later |
 | D12 | On the setup screen the selected slot is the one whose knob (A–D or E–H) was last turned or pushed; LEFT / RIGHT also step it |
 | D13 | Mod id `macro-mode`, title "MACRO MODE" (not "Digi Macro", which the shop has) |
-| D14 | Macro positions are not stored: every boot starts at the centre |
+| D14 | Macro positions are not stored: every boot starts at the centre. With the kits feature they follow the scope: per kit each kit has its own (RAM only; a kit not turned since the boot or the last project load is at the centre), per project the project has one set |
 | D15 | **Entry and exit act on presses**, never on releases: PAGE + MOD in either order enters, on the second key's press; PAGE held + MOD also exits, from the macro screen only; from the setup screen, leaving takes two MOD presses (4.1) |
 | D16 | **LEVEL/DATA** moves all eight macros by the same amount; **FUNC + NO** (the stock reload) puts all eight back at the centre and does not reload the pattern, on either screen. On the setup screen LEVEL/DATA moves only the macro being edited |
 

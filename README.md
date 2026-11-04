@@ -51,12 +51,14 @@ The macro setup is saved on the unit and comes back after a restart.
 
 In **SETTINGS > PERSONALIZE > MACRO SETUP** you choose where the macro setup lives:
 
-- **PROJECT** (default): one setup for the whole project.
-- **KIT**: each pattern's kit has its own setup, which comes on with the pattern. A kit without one starts as a copy
-  of the current setup.
+- **PROJECT** (default): one setup and one set of knob positions for the whole project.
+- **KIT**: each pattern's kit has its own setup and its own knob positions, which come on with the pattern (while
+  playing, when the new pattern starts). A kit without a setup starts as a copy of the current one; a kit whose
+  macros you haven't turned yet has its knobs at the centre.
 
-Switching between the two loses nothing: the project and every kit keep their own setup. Copying a pattern or a kit
-takes its setup along. The setups are saved inside the project.
+Switching between the two loses nothing: the project and every kit keep their own setup and knob positions. Copying a
+pattern or a kit takes its setup along. The setups are saved inside the project; the knob positions aren't saved, so
+after a restart or loading a project every kit's knobs are at the centre.
 
 ## Your projects stay safe
 

@@ -84,9 +84,14 @@ The kit on is the pattern on's: `*(*PATTERN_OBJ + 0x138)`, with `PATTERN_OBJ` DT
 (the pointer the getter DT2 `0x40198b7e` returns). It was the only word that went 0, 1, 2 on DT2 as A01, A02 and A03
 came on, and DN2's object has the same shape.
 
-In `tests/emu/project.py` (23 checks on each, all passing):
+In `tests/emu/project.py` (23 checks on each, all passing; 28 on DT2 1.17 with the checks since added):
 - The PERSONALIZE row changes with LEFT and RIGHT only; YES leaves it.
 - Per kit, A02's kit starts as a copy of A01's setup, and each keeps its own.
+- Per kit, each kit has its own knob positions: in macro mode, macro A turned on A01, PTN + trig 2 brings A02's
+  knobs at the centre, A turned there, and A01 and A02 each come back with their own. The positions are kept in
+  RAM only (`mm_scope.pos`): a kit record has room for exactly one setup (191 bytes) on the Digitakt II, so they
+  are not saved (PLAN.md D14), and a project load puts every kit's at the centre. Per project there is one set, as
+  before. **[D]** (emulator); on a unit the knobs were shared between kits before this.
 - Per project, an edit leaves the kits' setups. Per kit again, each kit has its own; per project again, the
   project's.
 - A04's kit with its own setup: copying A01 (FUNC + RECORD) and pasting it on A04 (FUNC + STOP) brings A01's kit's

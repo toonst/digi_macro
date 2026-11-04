@@ -1000,15 +1000,61 @@ static void test_scope_per_kit(void)
     CHECK(dest_of(scope.kit[0]) == 30);
     s.m[0].slot[0].dest = 55;                   /* an edit on kit 0 */
     mm_scope_edited(&scope, &s);
-    s.m[1].pos = 9;
-    CHECK(mm_scope_follow(&scope, &s, 5) == 0); /* kit 5: a copy too */
+    s.m[1].pos = 9;                             /* turned on kit 0 */
+    CHECK(mm_scope_follow(&scope, &s, 5) == 0); /* kit 5: a copy too, its knobs at the centre */
+    CHECK(s.m[1].pos == 0);
     s.m[0].slot[0].dest = 64;
     mm_scope_edited(&scope, &s);
-    CHECK(mm_scope_follow(&scope, &s, 0) == 1); /* back on 0: its own */
+    CHECK(mm_scope_follow(&scope, &s, 0) == 1); /* back on 0: its own setup, and its knobs */
     CHECK(s.m[0].slot[0].dest == 55 && s.m[1].pos == 9);
     CHECK(mm_scope_follow(&scope, &s, 0) == 0); /* no change, nothing to do */
     CHECK(dest_of(scope.kit[5]) == 64 && !mm_setup_valid(scope.kit[6])); /* what core saves with each kit */
     CHECK(mm_scope_follow(&scope, &s, -1) == 0); /* no kit on: nothing changes */
+}
+
+/* Per kit, each kit has its own knob positions; per project the project has one set. Not saved: a kit not turned since
+ * the start or the last project load has its knobs at the centre. */
+static void test_scope_positions(void)
+{
+    mm_t s;
+    fresh_scope(MM_SCOPE_PROJECT);
+    mm_init(&s, &dests);
+    mm_scope_follow(&scope, &s, 0);
+    s.m[0].pos = 20;                            /* per project: one set of knobs, whichever kit is on */
+    mm_scope_follow(&scope, &s, 1);
+    CHECK(s.m[0].pos == 20);
+    mm_scope_set(&scope, &s, MM_SCOPE_KIT);
+    mm_scope_follow(&scope, &s, 1);
+    CHECK(s.m[0].pos == 0);                     /* per kit: kit 1 was never turned, its knobs are at the centre */
+    s.m[0].pos = -12;
+    s.m[7].pos = 5;
+    s.dirty_mods = 0;
+    mm_scope_follow(&scope, &s, 2);             /* the next pattern's kit: at the centre too */
+    CHECK(s.m[0].pos == 0 && s.m[7].pos == 0 && s.dirty_mods);
+    s.m[3].pos = 30;
+    mm_scope_follow(&scope, &s, 1);             /* back on kit 1: its own knobs */
+    CHECK(s.m[0].pos == -12 && s.m[7].pos == 5 && s.m[3].pos == 0);
+    s.dirty_mods = 0;
+    mm_scope_follow(&scope, &s, 1);             /* the same kit: nothing moves */
+    CHECK(!s.dirty_mods);
+    mm_scope_follow(&scope, &s, 2);
+    CHECK(s.m[3].pos == 30);
+    mm_scope_set(&scope, &s, MM_SCOPE_PROJECT); /* per project: the project's knobs again */
+    CHECK(s.m[0].pos == 20 && s.m[3].pos == 0);
+    s.m[0].pos = 21;
+    mm_scope_set(&scope, &s, MM_SCOPE_KIT);     /* per kit again: the kit's own */
+    mm_scope_follow(&scope, &s, 2);
+    CHECK(s.m[3].pos == 30 && s.m[0].pos == 0);
+    mm_scope_kit_changed(&scope);               /* a kit loaded or copied: the knobs stay */
+    mm_scope_follow(&scope, &s, 2);
+    CHECK(s.m[3].pos == 30);
+    mm_scope_proj_loaded(&scope);               /* another project: every kit's knobs at the centre */
+    mm_scope_follow(&scope, &s, 2);
+    CHECK(s.m[3].pos == 0);
+    mm_scope_follow(&scope, &s, 1);
+    CHECK(s.m[0].pos == 0 && s.m[7].pos == 0);
+    mm_scope_set(&scope, &s, MM_SCOPE_PROJECT); /* the project's knobs are kept, as before */
+    CHECK(s.m[0].pos == 21);
 }
 
 static void test_scope_loads(void)
@@ -1138,6 +1184,7 @@ int main(void)
     test_scaled_encoders();
     test_setup_pack();
     test_scope_per_kit();
+    test_scope_positions();
     test_scope_loads();
     test_scope_per_project();
     test_scope_shadowed();

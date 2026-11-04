@@ -98,6 +98,9 @@ First give macro A something to do (section 4 has the details): FUNC + push enco
 
 - [ ] **SETTINGS > PERSONALIZE** has a **MACRO SETUP** row at the bottom, showing PROJECT. LEFT and RIGHT switch it
   between PROJECT and KIT; YES leaves it as it is.
+- [ ] **Knobs per kit:** set it to KIT. In macro mode turn macro A on A01, switch to A02 (PTN + trig, also while
+  playing): A02's knobs are at the centre. Turn A there, go back to A01: its A is where you left it, and the sound
+  follows. Back to PROJECT: the project's own knob positions come back.
 - [ ] **Per kit:** set it to KIT. On pattern A01 set macro A to the filter. Switch to A02: it starts with the same
   setup. Change A02's macro A to something else. Back on A01: A01's setup. On A02: A02's.
 - [ ] **Per project:** set it to PROJECT. The setup is the project's, whichever pattern plays. Change it. Back to

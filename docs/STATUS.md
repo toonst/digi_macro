@@ -2,7 +2,7 @@
 
 Against [PLAN.md](../PLAN.md) section 7. Measured on the Digitakt II 1.17 and the Digitone II 1.12 in digikit's
 emulator with `tests/emu/scenario.py` (68 checks each; 94 on DT2 since macro mode became a page, DN2 not rerun),
-`tests/emu/project.py` (23; 25 on DT2) and `tests/emu/compat.py` (12),
+`tests/emu/project.py` (23; 28 on DT2) and `tests/emu/compat.py` (12),
 all passing; host tests with `tools/check.sh`.
 
 | Part | State |
@@ -15,7 +15,7 @@ all passing; host tests with `tools/check.sh`.
 | Stored configuration (W3) | Done on DT2 and DN2 ([s5](findings/s5-storage.md)) |
 | LEVEL/DATA and FUNC + NO (D16) | Done on DT2 and DN2 ([s1](findings/s1-input.md)) |
 | Header title, naming macros, TRK + trig, firmware views over the mode, stock depth format | Done on DT2 and DN2 ([s1](findings/s1-input.md), [s4](findings/s4-screens.md)) |
-| Setups per project or per kit, kept apart, saved in the project; copies take them along; PERSONALIZE > MACRO SETUP (D4); an optional feature | Done on DT2 and DN2, on core's kit and project data ([s7](findings/s7-project-storage.md)) |
+| Setups per project or per kit, kept apart, saved in the project; copies take them along; PERSONALIZE > MACRO SETUP (D4); an optional feature; per kit the knob positions too (RAM only, D14) | Done on DT2 and DN2, on core's kit and project data; the knob positions on DT2, in the emulator ([s7](findings/s7-project-storage.md)) |
 | Macro mode as a page (D6): the keys it doesn't use keep their stock function; menus, popups and mute mode come over the macro screen and the mode stays on; TRK + trig keeps the mode | Done on DT2 in the emulator (`tests/emu/scenario.py` `views_over`) and partly on a unit (the screen under mute mode and the pattern popup, TEMPO); DN2 not run ([s1](findings/s1-input.md), "Views over the mode") |
 
 Still open:

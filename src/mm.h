@@ -183,7 +183,10 @@ int mm_setup_unpack(mm_t *s, const uint8_t *in); /* 0, or -1 (none) */
 /* The kits feature (src/mm_kits.c; built in unless left out): setups per project or per kit, chosen in PERSONALIZE >
  * MACRO SETUP. Every kit keeps its own setup and the project its own. elekloader's core saves, loads and copies them
  * with the kits and the project (kit n is pattern n's) and says when one changed (mm_scope_kit_changed,
- * mm_scope_proj_loaded); the tick calls mm_scope_edited after a change and mm_scope_follow with the kit on. */
+ * mm_scope_proj_loaded); the tick calls mm_scope_edited after a change and mm_scope_follow with the kit on.
+ * The knobs' positions follow the scope too: per kit every kit has its own, per project the project has one. They
+ * are kept in RAM only (D14: a kit record has no room for them on the Digitakt II): a kit not turned since the
+ * start or the last project load has its knobs at the centre. */
 #define MM_KITS 128
 enum { MM_SCOPE_PROJECT = 0, MM_SCOPE_KIT };
 typedef struct {
@@ -194,6 +197,9 @@ typedef struct {
     uint8_t seen;                 /* gen, as mm_scope_follow last saw it */
     volatile uint8_t proj_loaded; /* a project's data was loaded */
     int16_t cur;                  /* the kit whose setup is on, -1 none */
+    int8_t pos[MM_KITS][MM_MACROS]; /* each kit's knob positions, per kit (RAM only) */
+    uint8_t pos_kept[MM_KITS / 8];  /* bit k: kit k has positions in pos; else its knobs are at the centre */
+    int8_t proj_pos[MM_MACROS];     /* the project's, per project */
 } mm_scope;
 void mm_scope_kit_changed(mm_scope *p);
 void mm_scope_proj_loaded(mm_scope *p);

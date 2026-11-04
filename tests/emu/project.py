@@ -1,6 +1,6 @@
 """The kits feature in the emulator (docs/findings/s7-project-storage.md), on a build from tools/build.sh: the
 PERSONALIZE row, a setup following the kit on (the pattern on's), the kits' and the project's setups kept apart across
-scope changes, pattern copy and paste taking the kit's setup along, SAVE PROJECT AS writing them into the kit records
+scope changes, each kit's own knob positions, pattern copy and paste taking the kit's setup along, SAVE PROJECT AS writing them into the kit records
 and the project's header, and LOAD PROJECT bringing them back.
 
     python3 tests/emu/project.py --runner RUNNER --stock STOCK.syx --build out/macro-dt2.syx \\
@@ -133,6 +133,22 @@ def scenario(r, out, dev):
     p.set_dest(0, 0, d1)
     pattern(r, 0)
     r.check(r.slot(0, 0)[0] == d0, "back on A01: its kit's setup (%d)" % r.slot(0, 0)[0])
+
+    # per kit, each kit its own knob positions, in macro mode with PTN + trig: one not turned yet is at the centre
+    S.chord(r, S.PAGE, S.MOD)
+    S.spin_until(r, 1, 1, lambda: r.pos(0) >= 6)
+    a01 = r.pos(0)
+    pattern(r, 1)
+    r.check(r.mode() == 1 and r.pos(0) == 0, "A02's knobs start at the centre (A01's A at %d)" % a01)
+    S.spin_until(r, 1, -1, lambda: r.pos(0) <= -6)
+    a02 = r.pos(0)
+    pattern(r, 0)
+    r.check(r.pos(0) == a01 and a01 >= 6, "back on A01: its knob A (%d)" % r.pos(0))
+    pattern(r, 1)
+    r.check(r.pos(0) == a02 and a02 <= -6, "and on A02 its own (%d)" % r.pos(0))
+    pattern(r, 0)
+    r.tap(S.MOD)
+    r.step(S.SETTLE)
 
     # per project and back: the kits' setups stay as they are, and so does the project's
     scope(r, LEFT)
