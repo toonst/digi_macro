@@ -87,7 +87,9 @@ int mm_leds(const mm_t *s, uint8_t *code, uint8_t *value, int cap)
         code[n] = (uint8_t)k;
         value[n++] = MM_LED_OFF;
     }
-    if (s->state == MM_SETUP) {     /* the selected slot's tracks, red; the playhead does not show */
+    /* the selected slot's tracks, red; the playhead does not show. Not under a firmware view: its trig LEDs (the
+     * patterns of the pattern popup, the mutes of mute mode) show, as over a page */
+    if (s->state == MM_SETUP && !(s->covered && s->covered())) {
         uint16_t tracks = s->m[s->edit].slot[s->sel].tracks;
         for (int t = 0; t < MM_TRACKS && n < cap; t++) {
             code[n] = (uint8_t)(MM_K_TRIG1 + t);

@@ -113,22 +113,6 @@ static void close_setup(mm_t *s)
     s->dirty_config = 1;
 }
 
-/* Keys that keep their stock function in macro mode (D6). The trig keys are added on the macro screen. */
-static int passes(int code)
-{
-    switch (code) {
-    case MM_K_PLAY:
-    case MM_K_STOP:
-    case MM_K_RECORD:
-    case MM_K_PTN:
-    case MM_K_SONG:
-    case MM_K_TRK:
-    case MM_K_FUNC:
-        return 1;
-    }
-    return 0;
-}
-
 static int is_trig(int code)
 {
     return code >= MM_K_TRIG1 && code < MM_K_TRIG1 + MM_TRACKS;
@@ -158,7 +142,12 @@ static int trk_held(const mm_t *s)
     return s->key_down ? s->key_down(MM_K_TRK) : s->trk;
 }
 
-/* A press in macro mode: 1 takes it. */
+/* The input map (PLAN.md 4.2). Macro mode is a page: each screen takes only the keys it gives a meaning of its own,
+ * and every other key keeps its stock function, as on any page (D6): PLAY, STOP, RECORD, PAGE, PTN, SONG, TRK,
+ * FUNC, the trig keys, PRESET, SETTINGS, SAMPLES, TEMPO, KEYBOARD, the arrows, YES, the Digitone II's own keys.
+ * The menus and popups they open come over the mode as over a page, and the mode is back when they close. */
+
+/* A press on the macro screen: 1 takes it. */
 static int press_macro(mm_t *s, int code)
 {
     if (code == MM_K_MOD) {         /* also with PAGE held: PAGE + MOD exits (4.1) */
@@ -187,9 +176,7 @@ static int press_macro(mm_t *s, int code)
         s->dirty_screen = 1;
         return 1;
     }
-    if (passes(code) || is_trig(code) || code == MM_K_NO || code == MM_K_LEFT || code == MM_K_RIGHT)
-        return 0;
-    return 1;                       /* PAGE (held for the exit chord) and everything else */
+    return 0;
 }
 
 /* A press on the setup screen: 1 takes it. */
@@ -252,14 +239,12 @@ static int press_setup(mm_t *s, int code)
         s->dirty_screen = s->dirty_leds = 1;
         return 1;
     }
-    if (is_trig(code)) {
+    if (is_trig(code) && !trk_held(s)) { /* TRK + trig selects that track, as on a page */
         m->slot[s->sel].tracks ^= (uint16_t)(1u << (code - MM_K_TRIG1));
         s->dirty_mods = s->dirty_screen = s->dirty_config = s->dirty_leds = 1;
         return 1;
     }
-    if (passes(code))
-        return 0;
-    return 1;
+    return 0;
 }
 
 int mm_key(mm_t *s, int code, int flags)
@@ -301,10 +286,12 @@ int mm_key(mm_t *s, int code, int flags)
     }
     if (code == MM_K_TRK)
         s->trk = 1;
-    if (s->state != MM_OFF && (is_page(code) || (code == MM_K_MOD && s->func) || (is_trig(code) && trk_held(s)))) {
-        leave(s);                   /* a page key leaves macro mode, as for any page, and opens its page (FUNC + MOD: */
-        take = 0;                   /* the one it opens on any page); TRK + trig selects that track on the page */
-                                    /* macro mode was entered from */
+    if (s->state != MM_OFF && (is_page(code) || (code == MM_K_MOD && s->func))) {
+        leave(s);                   /* a page key leaves macro mode, as any page, and opens its page (FUNC + MOD: the */
+        take = 0;                   /* one it opens on any page); over a firmware view too, which the firmware closes */
+    } else if (s->state != MM_OFF && s->covered && s->covered()) {
+        take = 0;                   /* a firmware view is over the mode: everything else is that view's, MOD too (it */
+                                    /* closes a menu, and the mode is back, as a page key brings its page back) */
     } else if (s->state == MM_OFF) {
         take = 0;
         if (code == MM_K_MOD || code == MM_K_PAGE) {
@@ -335,8 +322,8 @@ static int step(const mm_t *s, int i, int delta)
 int mm_enc(mm_t *s, int enc, int delta)
 {
     int i = enc - 1;
-    if (s->state == MM_OFF || !delta)
-        return 0;
+    if (s->state == MM_OFF || !delta || (s->covered && s->covered()))
+        return 0;                   /* off, or a firmware view over the mode: the knobs are the firmware's */
     if (enc == MM_ENC_LEVEL) {      /* D16: every macro on the macro screen, the edited one on SETUP */
         if (s->state == MM_MACRO) {
             offset_all(s, delta);

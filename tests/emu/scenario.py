@@ -20,6 +20,7 @@ GAP = 48_000_000          # runner step budget between panel events: about 12 M 
 SETTLE = 240_000_000
 
 PAGE, MOD, NO, FUNC, PLAY, STOP = 22, 6, 12, 17, 20, 21
+TRK, PTN, PRESET, SETTINGS, TEMPO, KEYBOARD = 16, 23, 7, 8, 9, 18
 TRIG1, PUSH_A = 25, 41
 LED_MOD, LED_TRIG1 = 24, 25   # LED indices, the same on both (digikit devices/digit*-ii-leds.toml)
 LEVEL = 9                     # the LEVEL/DATA encoder
@@ -199,6 +200,52 @@ def top_view(r):
     node = int(r.cmd('peek %x' % (sentinel + 4)), 16)
     view = int(r.cmd('peek %x' % (node + 8)), 16)
     return int(r.cmd('peek %x' % view), 16)
+
+
+def close_views(r, tries=4):
+    """NO until no firmware view is over the page; True when none is left."""
+    for _ in range(tries):
+        if top_view(r) == DEV['view_top']:
+            return True
+        r.tap(NO)
+        r.step(SETTLE)
+    return top_view(r) == DEV['view_top']
+
+
+def views_over(r):
+    """Macro mode is a page: the keys it gives no meaning open what they open on any page, over the macro screen, and
+    the mode stays on under it and is back when that closes."""
+    r.step(SETTLE)
+    r.shot('09-before-views')
+    for name, key in (('PRESET', PRESET), ('SETTINGS', SETTINGS), ('TEMPO', TEMPO), ('PTN', PTN)):
+        r.tap(key)
+        r.step(SETTLE)
+        over = r.shot('09-over-%s' % name.lower())
+        r.check(r.mode() == 1 and top_view(r) != DEV['view_top'], '%s opens its view over macro mode, which stays on'
+                % name)
+        r.check(r.led(LED_MOD) == 0x31, 'under %s the MOD LED stays blue: %02x' % (name, r.led(LED_MOD) or 0))
+        closed = close_views(r)
+        back = r.shot('09-back-%s' % name.lower())
+        r.check(closed and r.mode() == 1 and back != over, 'closing %s brings the macro screen back' % name)
+    chord(r, FUNC, TRK)                         # mute mode
+    r.step(SETTLE)
+    r.shot('09-mute-mode')
+    r.check(r.mode() == 1 and r.led(LED_MOD) == 0x31, 'FUNC + TRK (mute mode) keeps macro mode on')
+    chord(r, FUNC, TRK)
+    r.step(SETTLE)
+    r.check(close_views(r) and r.mode() == 1, 'after mute mode macro mode is still on')
+    r.tap(KEYBOARD)                             # keyboard mode on and off
+    r.step(SETTLE)
+    r.check(r.mode() == 1, 'KEYBOARD keeps macro mode on')
+    r.tap(KEYBOARD)
+    r.step(SETTLE)
+    r.tap(SETTINGS)                             # a page key under a menu leaves macro mode for its page
+    r.step(SETTLE)
+    r.tap(3)
+    r.step(SETTLE)
+    r.check(r.mode() == 0 and close_views(r), 'FLTR from a menu over macro mode leaves it and opens its page')
+    chord(r, PAGE, MOD)
+    r.check(r.mode() == 1, 'and PAGE + MOD enters again')
 
 
 def settle_boot(r):
@@ -409,11 +456,13 @@ def scenario(r):
             'YES names D (%r) and the macro screen is back' % r.name(3))
     CONFIG['name'] = r.name(3)
 
-    r.down(16)                                  # TRK + trig 4: leaves, and the firmware selects track 4
-    r.tap(TRIG1 + 3)
-    r.up(16)
-    r.check(r.mode() == 0, 'TRK + a trig key leaves macro mode')
-    chord(r, PAGE, MOD)
+    views_over(r)
+
+    r.down(TRK)                                 # TRK + trig 4: the firmware selects track 4; the mode stays, as a
+    r.tap(TRIG1 + 3)                            # page does
+    r.up(TRK)
+    r.step(SETTLE)
+    r.check(r.mode() == 1, 'TRK + a trig key selects the track and keeps macro mode on')
     inside = r.shot('08-inside')
     r.down(FUNC)                                # FUNC + MOD: leaves, and the firmware opens its page for it
     r.tap(MOD)

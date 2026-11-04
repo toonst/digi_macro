@@ -2,7 +2,8 @@
 
 Eight performance macros for the **Elektron Digitakt II** and **Digitone II**. Hold PAGE and press MOD, and encoders
 A–H become eight macro knobs. Each macro moves up to four sound parameters, on the tracks you choose, all at once.
-They work like the stock modulation: they ride on top of the sound and don't change your kit.
+They work like the stock modulation: they ride on top of the sound and don't change your kit. Macro mode is a page
+like the others: every key it doesn't use keeps its usual job.
 
 <img src="docs/img/macro-turned.png" alt="The macro screen" width="380">&nbsp;&nbsp;&nbsp;&nbsp;<img src="docs/img/setup.png" alt="Setting up macro C" width="380">
 
@@ -31,6 +32,7 @@ They work like the stock modulation: they ride on top of the sound and don't cha
 | Turn LEVEL/DATA | Move all eight macros together |
 | FUNC + NO, or push LEVEL/DATA | All macros back to the centre |
 | MOD, or a page key (TRIG, SRC, FLTR, AMP, FX) | Leave macro mode |
+| Any other key: PRESET, SETTINGS, SAMPLES, TEMPO, KEYBOARD, PTN, SONG, TRK, PAGE, the trig keys … | What it does on any page. Menus, popups and mute mode open over the macro screen, and macro mode is back when they close |
 
 **Setup screen**: FUNC + push an encoder opens the setup of that macro.
 

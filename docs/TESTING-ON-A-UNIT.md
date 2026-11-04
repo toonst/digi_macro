@@ -24,9 +24,31 @@ Before you start:
 - [ ] **Hold MOD, press PAGE.** Opens too. Releasing both keys leaves it open.
 - [ ] **Leave with a page key** (TRIG, SRC, FLTR, AMP, FX): that page opens directly.
 - [ ] **FUNC + MOD** in macro mode: leaves and opens the compressor/mixer page, as it does anywhere.
-- [ ] **TRK + a trig key** in macro mode: leaves, and that track is selected.
+- [ ] **TRK + a trig key** in macro mode: that track is selected, and macro mode stays on (as on any page).
 - [ ] **With a menu open** (for example SETTINGS), PAGE + MOD does nothing; close the menu and it works.
 - [ ] **During playback**: entering and leaving doesn't stop or disturb the sound.
+
+## 2b. Other keys in macro mode
+
+Macro mode is a page like the others: the keys it doesn't use do what they do on any page, and what they open comes
+over the macro screen. In each test, MOD stays blue, and when the menu or popup closes the macro screen is back.
+
+- [ ] **PRESET** opens the PRESET/KIT menu; **FUNC + PRESET** toggles PERFORM.
+- [ ] **SETTINGS** opens SETTINGS; **FUNC + SETTINGS** saves the project.
+- [ ] **The key after SETTINGS** (the samples and recorder key on the Digitakt II, VOICE on the Digitone II), alone and
+  with FUNC: opens what it opens on any page.
+- [ ] **TEMPO** opens the tempo menu; tap tempo works.
+- [ ] **KEYBOARD** turns the keyboard on and off: the trig keys play notes, UP / DOWN change the octave.
+  FUNC + KEYBOARD opens its setup.
+- [ ] **PTN** (pattern select), **FUNC + PTN** (bank select), **SONG**: the popup shows over the macro screen, not
+  over the page you came from. Choosing a pattern works, and the macros follow its kit *(kits)*.
+- [ ] **FUNC + TRK** (mute mode): the trig keys mute tracks; macro mode stays on under it, and is back after mute
+  mode. Note what turning a macro knob does while mute mode is on.
+- [ ] **PAGE** selects the pattern page; FUNC + PAGE opens its setup.
+- [ ] **A page key from inside a menu** (open SETTINGS, press FLTR): macro mode is left and the FLTR page opens.
+- [ ] **MOD from inside a menu** (open SETTINGS, press MOD): the menu closes and the macro screen is back.
+- [ ] **The same from the setup screen** (FUNC + push an encoder first): the trig keys don't light the slot's tracks
+  while a popup or mute mode is open, and do again after.
 
 ## 3. Turning macros
 

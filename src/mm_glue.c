@@ -104,40 +104,94 @@ static void enc_block(void)
 }
 #endif
 
+/* Firmware views over the mode (docs/findings/s1-input.md, "Views over the mode"). Macro mode is a page: the views the
+ * firmware puts over a page (a menu, a dialog, the pattern, bank and song popups, mute mode, the track selection
+ * while TRK is held, the naming screen) come over the macro screen the same way. Such a view gets the keys and the
+ * knobs (mm_t.covered), and it is drawn over the macro screen, which stays under it; one that hides the page (an
+ * opaque view: a full-screen menu) hides the macro screen as well. The mode stays on and is back when the view
+ * closes; a page key leaves it, as it leaves any page.
+ *
+ * The view controller (Brain + 0x40) keeps its views in a list, bottom first: the sentinel at + 0x14, a node's next
+ * at + 0, prev at + 4, its View at + 8 (the vtable at the View's first word, the opaque flag at its + 0x16; views below
+ * the topmost opaque one are not drawn), paint at slot 4 of the View vtable. The page's views end with the view
+ * that tops the stack on the main screen and the parameter pages (VIEW_TOP_BASE); every view above it is over the
+ * page. FUNC's (QuickMuteMenuView, while FUNC is held) is not: the mode keeps the keys under it (FUNC + push,
+ * FUNC + NO) and draws over its screen. */
 #ifdef VIEW_TOP_BASE
-/* Firmware views over the mode. The ones FUNC and TRK put on while held (quick mute, track selection) leave the keys
- * to the mode (FUNC + push, TRK + trig), and FUNC's its screen too; any other, as the firmware update's confirmation
- * or the naming screen, takes all: the mode then neither draws nor takes keys and knobs, so that view works as on
- * any page. */
-static uint32_t top_vtable(void)
+#define NODE_NEXT(n) (*(char **)(n))
+#define NODE_PREV(n) (*(char **)((n) + 4))
+#define NODE_VIEW(n) (*(char **)((n) + 8))
+#define VIEW_VT(v) (*(uint32_t **)(v))
+#define VIEW_OPAQUE(v) (*(uint8_t *)((v) + 0x16))
+#define VIEW_PAINT 4
+#define STACK_MAX 64                /* a bound on the walk: the stack holds about a dozen views */
+enum { OVER = 1, OVER_OPAQUE = 2 };
+
+static char *stack_sentinel(void)
 {
-    char *sentinel = (char *)mm_brain + 0x40 + 0x14, *top;
+    return (char *)mm_brain + 0x40 + 0x14;
+}
+
+/* What is over the page: 0, OVER (views the mode is drawn under), or OVER | OVER_OPAQUE (one of them hides the
+ * page). *base gets the page's top node, 0 when there is none (the firmware then keeps the keys and the screen). */
+static int over_page(char **base)
+{
+    char *sentinel, *n;
+    int over = 0, k = 0;
+    *base = 0;
     if (!mm_brain)
-        return VIEW_TOP_BASE;
-    top = *(char **)(sentinel + 4);
-    return top == sentinel ? VIEW_TOP_BASE : **(uint32_t **)(top + 8);
+        return 0;
+    sentinel = stack_sentinel();
+    for (n = NODE_PREV(sentinel); n != sentinel && k < STACK_MAX; n = NODE_PREV(n), k++) {
+        char *v = NODE_VIEW(n);
+        uint32_t vt = (uint32_t)VIEW_VT(v);
+        if (vt == VIEW_TOP_BASE) {
+            *base = n;
+            return over;
+        }
+        if (vt != VIEW_FUNC)
+            over |= OVER | (VIEW_OPAQUE(v) ? OVER_OPAQUE : 0);
+    }
+    return OVER | OVER_OPAQUE;
 }
 
 static int covered(void)            /* keys and knobs go to the firmware */
 {
-    uint32_t vt;
-    if (mm_state.state == MM_OFF)
-        return 0;
-    vt = top_vtable();
-    return vt != VIEW_TOP_BASE && vt != VIEW_FUNC && vt != VIEW_TRK;
+    char *base;
+    return mm_state.state != MM_OFF && over_page(&base) != 0;
 }
 
-static int hidden(void)             /* the firmware draws */
+static void paint(char *node, void *bmp)
 {
-    return mm_state.state != MM_OFF && (covered() || top_vtable() == VIEW_TRK);
+    char *v = NODE_VIEW(node);
+    ((void (*)(void *, void *))VIEW_VT(v)[VIEW_PAINT])(v, bmp);
+}
+
+static void draw_mode(mm_t *s, void *bmp);
+
+/* The frame as the firmware composes it, with the mode as the page's top view: the page's views (from the topmost
+ * opaque one, as the firmware draws them), the macro screen, then the views over the page, in their order. */
+static void compose(mm_t *s, void *bmp, char *base)
+{
+    char *sentinel = stack_sentinel(), *n = base;
+    int k;
+    for (k = 0; n != sentinel && !VIEW_OPAQUE(NODE_VIEW(n)) && k < STACK_MAX; k++)
+        n = NODE_PREV(n);
+    if (n == sentinel || k == STACK_MAX)
+        n = NODE_NEXT(sentinel);    /* none is opaque: from the bottom */
+    FILLRECT(bmp, 0, 0, 127, 63, 0);
+    for (k = 0; n != sentinel && k < STACK_MAX; n = NODE_NEXT(n), k++) {
+        paint(n, bmp);
+        if (n == base)
+            break;
+    }
+    draw_mode(s, bmp);
+    for (n = NODE_NEXT(base), k = 0; n != sentinel && k < STACK_MAX; n = NODE_NEXT(n), k++)
+        if ((uint32_t)VIEW_VT(NODE_VIEW(n)) != VIEW_FUNC)
+            paint(n, bmp);
 }
 #else
 static int covered(void)
-{
-    return 0;
-}
-
-static int hidden(void)
 {
     return 0;
 }
@@ -231,6 +285,7 @@ static mm_t *state(void)
         mm_init(&mm_state, mm_device_dests());
 #ifdef VIEW_TOP_BASE
         mm_state.can_enter = fw_can_enter;
+        mm_state.covered = covered;
 #endif
 #ifdef KEY_DOWN_AT
         mm_state.key_down = fw_key_down;
@@ -264,27 +319,19 @@ static void fw_text(void *bmp, int x, int ytop, int flags, const char *str)
 }
 #endif
 
-static int mm_ev_key_take(mm_t *s, void *ev);
 /* The last key events (code << 16 | flags << 8 | taken), for the emulator scenarios. */
 uint32_t mm_keylog[16];
 uint8_t mm_keylog_n;
 
+/* Every key goes through mm_key, under a firmware view too (mm_t.covered): there it takes nothing, but a page key
+ * still leaves the mode and a release still follows its press. */
 int mm_ev_key(void *brain, void *ev)
 {
     mm_t *s = state();
     int take;
     mm_brain = brain;
-    take = mm_ev_key_take(s, ev);
-    mm_keylog[mm_keylog_n++ & 15] = (uint32_t)(*(int *)((char *)ev + 12) << 16 | (*(int *)((char *)ev + 16) & 0xff) << 8 | take);
-    return take;
-}
-
-static int mm_ev_key_take(mm_t *s, void *ev)
-{
-    int take;
-    if (covered())
-        return 0;
     take = mm_key(s, *(int *)((char *)ev + 12), *(int *)((char *)ev + 16));
+    mm_keylog[mm_keylog_n++ & 15] = (uint32_t)(*(int *)((char *)ev + 12) << 16 | (*(int *)((char *)ev + 16) & 0xff) << 8 | take);
     return take;
 }
 
@@ -343,13 +390,16 @@ void mm_ev_tick(void *ctrl)
 #else
     s->dirty_config = 0;
 #endif
+#ifdef VIEW_TOP_BASE
     {
-        static uint8_t was_covered;
-        uint8_t now = (uint8_t)hidden();
-        if (now != was_covered)     /* a firmware view came or went: the mode's screen is drawn again after it */
+        static uint8_t was_over;
+        char *base;
+        uint8_t now = (uint8_t)(s->state != MM_OFF ? over_page(&base) : 0);
+        if (now != was_over)        /* a firmware view came or went: the frame and the LEDs again */
             s->dirty_screen = s->dirty_leds = 1;
-        was_covered = now;
+        was_over = now;
     }
+#endif
     if (mm_tick(s))
         *((unsigned char *)ctrl + 0x20) = 1;  /* recompose the frame */
     if (s->announce) {              /* on the tick, out of the key handler: the header's own time base */
@@ -369,20 +419,37 @@ void mm_ev_tick(void *ctrl)
     }
 }
 
-void mm_ev_draw(void *bmp, void *ctrl)
+static void draw_mode(mm_t *s, void *bmp)
 {
-    mm_t *s = state();
 #ifdef TEXT_AT
     mm_canvas c = {fw_fill, bmp, fw_text};
 #else
     mm_canvas c = {fw_fill, bmp, 0};
 #endif
-    (void)ctrl;
-    if (s->state == MM_OFF || hidden())
-        return;
     /* the macro screen keeps the stock header (pattern, name, tempo); the setup screen has its own title */
     FILLRECT(bmp, 0, 0, 127, s->state == MM_MACRO ? 63 - MM_HEADER : 63, 0);
     mm_draw(s, &c);
+}
+
+void mm_ev_draw(void *bmp, void *ctrl)
+{
+    mm_t *s = state();
+    (void)ctrl;
+    if (s->state == MM_OFF)
+        return;
+#ifdef VIEW_TOP_BASE
+    {
+        char *base;
+        int over = over_page(&base);
+        if (over & OVER_OPAQUE)
+            return;                 /* a view that hides the page hides the mode: the firmware's frame */
+        if (over) {
+            compose(s, bmp, base);  /* the mode under the views over it */
+            return;
+        }
+    }
+#endif
+    draw_mode(s, bmp);
 }
 
 /* W2: ev_frame_params (core-dt2 1.1, core-dn2 0.3): each frame's per-track values, before the stock modulators. Interrupt

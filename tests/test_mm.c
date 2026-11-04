@@ -122,34 +122,115 @@ static void test_exit_page_then_mod(void)
     mm_t s;
     fresh(&s);
     enter(&s);
-    CHECK(press(&s, MM_K_PAGE) == 1);   /* taken in macro mode */
+    CHECK(press(&s, MM_K_PAGE) == 0);   /* PAGE keeps its stock function in macro mode: the pattern pages */
     CHECK(press(&s, MM_K_MOD) == 1);
     CHECK(s.state == MM_OFF);
-    CHECK(release(&s, MM_K_PAGE) == 1);
+    CHECK(release(&s, MM_K_PAGE) == 0); /* its release follows its press: the firmware's */
     CHECK(release(&s, MM_K_MOD) == 1);
     CHECK(press(&s, MM_K_PAGE) == 0);   /* off again: PAGE is the firmware's */
 }
+
+/* The keys the mode gives no meaning keep their stock function, as on any page: PRESET (7), SETTINGS (8), TEMPO (9),
+ * KEYBOARD (18), SAMPLES (50; the Digitone II's VOICE, then ARP, +, STACK, -), the arrows, YES, PAGE and the rest. */
+static const int stock_keys[] = {MM_K_PLAY, MM_K_STOP, MM_K_RECORD, MM_K_PTN, MM_K_SONG, MM_K_TRK, MM_K_FUNC,
+                                 MM_K_PAGE, MM_K_YES, MM_K_UP, MM_K_DOWN, 7, 8, 9, 18, 50, 51, 52, 53, 54};
 
 static void test_pass_through(void)
 {
     mm_t s;
     fresh(&s);
     enter(&s);
-    int pass[] = {MM_K_PLAY, MM_K_STOP, MM_K_RECORD, MM_K_PTN, MM_K_SONG, MM_K_TRK, MM_K_FUNC, MM_K_TRIG1,
-                  MM_K_TRIG1 + 15, MM_K_LEFT, MM_K_RIGHT, MM_K_NO};
+    int pass[] = {MM_K_TRIG1, MM_K_TRIG1 + 15, MM_K_LEFT, MM_K_RIGHT, MM_K_NO};
     for (unsigned i = 0; i < sizeof pass / sizeof pass[0]; i++) {
         CHECK(press(&s, pass[i]) == 0);
         CHECK(repeat(&s, pass[i]) == 0);
         CHECK(release(&s, pass[i]) == 0);
     }
-    int taken[] = {MM_K_YES, MM_K_UP, MM_K_DOWN, 7, 8, 9, 18, 50, 52};
-    for (unsigned i = 0; i < sizeof taken / sizeof taken[0]; i++) {
-        CHECK(press(&s, taken[i]) == 1);
-        CHECK(repeat(&s, taken[i]) == 1);
-        CHECK(release(&s, taken[i]) == 1);
+    for (unsigned i = 0; i < sizeof stock_keys / sizeof stock_keys[0]; i++) {
+        CHECK(press(&s, stock_keys[i]) == 0);
+        CHECK(repeat(&s, stock_keys[i]) == 0);
+        CHECK(release(&s, stock_keys[i]) == 0);
+        CHECK(s.state == MM_MACRO);         /* and the mode stays: what they open comes over it */
     }
     CHECK(mm_enc(&s, 12, 2) == 0);            /* an encoder the mode does not know stays the firmware's */
     CHECK(s.state == MM_MACRO);
+}
+
+static void open_setup_of(mm_t *s, int macro)
+{
+    press(s, MM_K_FUNC);
+    press(s, MM_K_PUSH_A + macro);
+    release(s, MM_K_PUSH_A + macro);
+    release(s, MM_K_FUNC);
+}
+
+static void test_pass_through_setup(void)
+{
+    mm_t s;
+    fresh(&s);
+    enter(&s);
+    open_setup_of(&s, 1);
+    CHECK(s.state == MM_SETUP);
+    for (unsigned i = 0; i < sizeof stock_keys / sizeof stock_keys[0]; i++) {
+        if (stock_keys[i] == MM_K_YES)
+            continue;                       /* YES closes the destination list (below) */
+        CHECK(press(&s, stock_keys[i]) == 0);
+        CHECK(release(&s, stock_keys[i]) == 0);
+        CHECK(s.state == MM_SETUP);
+    }
+    CHECK(press(&s, MM_K_YES) == 0);        /* YES without the list: the firmware's */
+    mm_enc(&s, 1, 1);                       /* the list opens */
+    CHECK(s.list && press(&s, MM_K_YES) == 1 && !s.list);
+}
+
+/* A firmware view over the mode (a menu, a popup, mute mode): it gets the keys and the knobs, as over a page; the mode
+ * stays on under it, and a page key still leaves it. */
+static int view_over;
+static int is_view_over(void) { return view_over; }
+
+static void test_covered(void)
+{
+    mm_t s;
+    uint8_t code[MM_MAX_LEDS], val[MM_MAX_LEDS];
+    fresh(&s);
+    s.covered = is_view_over;
+    view_over = 0;
+    enter(&s);
+    CHECK(press(&s, MM_K_PTN) == 0);        /* the pattern popup opens */
+    view_over = 1;
+    CHECK(s.state == MM_MACRO);
+    CHECK(press(&s, MM_K_TRIG1 + 2) == 0);  /* its keys: a pattern */
+    CHECK(press(&s, MM_K_PUSH_A) == 0 && !s.pushes);
+    CHECK(press(&s, MM_K_LEVEL) == 0);
+    CHECK(press(&s, MM_K_NO) == 0);         /* NO closes it */
+    CHECK(mm_enc(&s, 1, 3) == 0 && s.m[0].pos == 0); /* its knobs */
+    CHECK(mm_enc(&s, MM_ENC_LEVEL, 3) == 0);
+    CHECK(press(&s, MM_K_MOD) == 0 && s.state == MM_MACRO); /* MOD too: it closes the view, the mode is back */
+    release(&s, MM_K_MOD);
+    view_over = 0;
+    CHECK(s.state == MM_MACRO && mm_enc(&s, 1, 3) == 1 && s.m[0].pos == 3);
+
+    press(&s, MM_K_PUSH_A);                 /* a press taken before a view came: its release follows it */
+    view_over = 1;
+    CHECK(release(&s, MM_K_PUSH_A) == 1 && !s.pushes);
+    CHECK(press(&s, 3) == 0 && s.state == MM_OFF); /* a page key leaves, under a view too */
+    release(&s, 3);
+    view_over = 0;
+
+    enter(&s);                              /* the setup screen: the same */
+    open_setup_of(&s, 0);
+    s.m[0].slot[0].tracks = 0x0001;
+    CHECK(mm_leds(&s, code, val, MM_MAX_LEDS) == 22); /* the slot's tracks */
+    press(&s, MM_K_FUNC);
+    view_over = 1;                          /* mute mode (FUNC + TRK) */
+    CHECK(mm_leds(&s, code, val, MM_MAX_LEDS) == 6);  /* its trig LEDs show, not the slot's tracks */
+    release(&s, MM_K_FUNC);
+    CHECK(press(&s, MM_K_TRIG1 + 1) == 0 && s.m[0].slot[0].tracks == 0x0001); /* a mute, not a track of the slot */
+    CHECK(s.state == MM_SETUP);
+    s.dirty_config = 0;
+    press(&s, MM_K_FUNC);                   /* FUNC + MOD leaves too */
+    CHECK(press(&s, MM_K_MOD) == 0 && s.state == MM_OFF && s.dirty_config);
+    view_over = 0;
 }
 
 static void test_release_of_key_held_before_entry(void)
@@ -553,19 +634,18 @@ static void test_trk_trig_selects_track(void)
     fresh(&s);
     enter(&s);
     CHECK(press(&s, MM_K_TRK) == 0);            /* TRK held: its usual function */
-    CHECK(press(&s, MM_K_TRIG1 + 3) == 0);      /* + trig 4: leaves, and the firmware selects track 4 */
-    CHECK(s.state == MM_OFF);
+    CHECK(press(&s, MM_K_TRIG1 + 3) == 0);      /* + trig 4: the firmware selects track 4, and the mode stays, */
+    CHECK(s.state == MM_MACRO);                 /* as a page does */
     release(&s, MM_K_TRIG1 + 3);
     release(&s, MM_K_TRK);
-    enter(&s);
-    CHECK(press(&s, MM_K_TRIG1 + 3) == 0 && s.state == MM_MACRO); /* a trig key alone stays */
+    CHECK(press(&s, MM_K_TRIG1 + 3) == 0 && s.state == MM_MACRO); /* a trig key alone too */
     release(&s, MM_K_TRIG1 + 3);
-    press(&s, MM_K_FUNC);
-    press(&s, MM_K_PUSH_A);
-    release(&s, MM_K_PUSH_A);
-    release(&s, MM_K_FUNC);
-    press(&s, MM_K_TRK);                        /* from the setup screen too */
-    CHECK(press(&s, MM_K_TRIG1) == 0 && s.state == MM_OFF);
+    open_setup_of(&s, 0);
+    press(&s, MM_K_TRK);                        /* from the setup screen too: the slot's tracks stay */
+    CHECK(press(&s, MM_K_TRIG1) == 0 && s.state == MM_SETUP && s.m[0].slot[0].tracks == 0);
+    release(&s, MM_K_TRIG1);
+    release(&s, MM_K_TRK);
+    CHECK(press(&s, MM_K_TRIG1) == 1 && s.m[0].slot[0].tracks == 1); /* without TRK: a track of the slot */
 }
 
 static void test_release_without_flags(void)
@@ -579,8 +659,8 @@ static void test_release_without_flags(void)
     press(&s, MM_K_PUSH_A);
     release(&s, MM_K_PUSH_A);
     CHECK(s.state == MM_MACRO);               /* so a push after it is not FUNC + push */
-    CHECK(press(&s, MM_K_PAGE) == 1);
-    CHECK(mm_key(&s, MM_K_PAGE, 0) == 1);     /* a taken press's flagless release is taken too */
+    CHECK(press(&s, MM_K_LEVEL) == 1);
+    CHECK(mm_key(&s, MM_K_LEVEL, 0) == 1);    /* a taken press's flagless release is taken too */
     CHECK(mm_key(&s, MM_K_PUSH_A, MM_F_PRESS | MM_F_REPEAT) == 0); /* a repeat of a press not taken */
 }
 
@@ -1030,6 +1110,8 @@ int main(void)
     test_exit_mod_then_page_does_not_reenter();
     test_exit_page_then_mod();
     test_pass_through();
+    test_pass_through_setup();
+    test_covered();
     test_release_of_key_held_before_entry();
     test_turns_and_coarse();
     test_push_no_resets();

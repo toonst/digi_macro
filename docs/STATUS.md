@@ -15,6 +15,7 @@ all passing; host tests with `tools/check.sh`.
 | LEVEL/DATA and FUNC + NO (D16) | Done on DT2 and DN2 ([s1](findings/s1-input.md)) |
 | Header title, naming macros, TRK + trig, firmware views over the mode, stock depth format | Done on DT2 and DN2 ([s1](findings/s1-input.md), [s4](findings/s4-screens.md)) |
 | Setups per project or per kit, kept apart, saved in the project; copies take them along; PERSONALIZE > MACRO SETUP (D4); an optional feature | Done on DT2 and DN2, on core's kit and project data ([s7](findings/s7-project-storage.md)) |
+| Macro mode as a page (D6): the keys it doesn't use keep their stock function; menus, popups and mute mode come over the macro screen and the mode stays on; TRK + trig keeps the mode | Host-tested; not yet run in the emulator or on a unit ([s1](findings/s1-input.md), "Views over the mode"): `tests/emu/scenario.py` `views_over` |
 
 Still open:
 
@@ -24,3 +25,4 @@ Still open:
 | Audio | The zero-DSP runner makes no sound | Coupled emulator or a unit |
 | Storage claims, other mods | elekloader's linker refuses the same names and overlapping card ranges; `tools/storage.py` checks the same from manifests; core's guard at run time | elekloader to take the fork's core-dt2 1.1 / core-dn2 0.3 (the submodule points at the fork) |
 | Kit manager, PASTE KIT, undo | Not driven in the emulator (pattern copy and paste is) | Find their keys and add them to `tests/emu/project.py` (S7) |
+| Views over the mode | The macro screen is drawn under them (the frame composed again); they get every key and knob | Run `views_over` in the emulator; find which views are opaque; whether mute mode should leave the knobs to the macros (S1) |

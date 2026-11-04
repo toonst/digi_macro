@@ -131,7 +131,7 @@ All decided by the user:
 | D3 | **Push + turn** changes a macro in bigger increments, and **push + NO** resets it to the centre, as for the stock parameters |
 | D4 | The configuration is **global** in the first version. Then per kit or per project, chosen by a PERSONALIZE row (done) |
 | D5 | Depth per slot as the stock modulation setups: −128.00 … +127.99 (1/256 steps), 0 = off; at full depth and full turn the offset spans the whole parameter range. Macro positions stay whole steps, −64 … +63, as the stock 0–127 parameters |
-| D6 | Outside the setup screen the **trig keys keep their usual function**, in whatever mode they are in (in mute mode they stay mute keys). PLAY, STOP, RECORD, PTN, SONG, TRK and FUNC keep theirs too; they act behind the macro screen. The LEVEL/DATA encoder, its push and FUNC + NO are the mode's (D16); the page keys leave the mode and open their page. Only the setup screen gives the trig keys another function (4.2) |
+| D6 | **Macro mode is a page.** Outside the setup screen the **trig keys keep their usual function**, in whatever mode they are in (in mute mode they stay mute keys). Every key the mode gives no meaning of its own keeps its stock function too, as on any page: PLAY, STOP, RECORD, PAGE, PTN, SONG, TRK, FUNC, PRESET, SETTINGS, SAMPLES, TEMPO, KEYBOARD, the arrows, YES. The menus, popups and modes they open (pattern, bank and song select, mute mode, the track selection) come over the macro screen as over a page; the mode stays on under them and is back when they close. The LEVEL/DATA encoder, its push and FUNC + NO are the mode's (D16); the page keys leave the mode and open their page, from under a menu too. Only the setup screen gives the trig keys another function (4.2) |
 | D7 | The setup screen works like the stock modulation setups: **A** = slot 1 destination, **E** = slot 1 depth, **B / F** = slot 2, **C / G** = slot 3, **D / H** = slot 4 |
 | D8 | On the setup screen **MOD goes back** to the macro screen, as NO does; a second MOD press, on the macro screen, exits macro mode |
 | D9 | Macro mode can be entered from the main screen and the parameter pages (no menu or dialog open) |
@@ -169,7 +169,7 @@ All decided by the user:
   screen (D8), with or without PAGE held: PAGE held + MOD exits from the macro screen only. So from the setup
   screen, leaving macro mode takes two MOD presses. With MOD held first, MOD's own press has already acted
   (exit, or back from the setup screen), and a PAGE press after it makes no chord: after an exit it goes to the
-  firmware as usual, and on the macro screen it is taken.
+  firmware as usual, and on the macro screen too (D6).
 - **Releases follow their press.** The mod remembers which presses it took and also takes their repeats and
   releases; a key whose press went to the firmware (the first key of the entry chord) has its release go there
   too. So the firmware's own record of held keys stays right.
@@ -186,7 +186,7 @@ All decided by the user:
 | Push A–H alone | Taken (for push + turn, push + NO); it never opens SETUP | Selects that slot |
 | FUNC + push A–H, let go | Open SETUP for that macro | Switch to that macro's setup |
 | FUNC + push A–H, held (about 0.5 s) | Name that macro: the firmware's naming screen, as a MIDI machine's parameter (5 characters); the name labels its knob | The same |
-| TRK + trig | Leave; the firmware selects that track on the page underneath | The same |
+| TRK + trig | Pass: the firmware selects that track; the mode stays, as a page does | The same (the slot's tracks stay) |
 | FUNC + MOD | Leave; the firmware opens its FUNC + MOD page (compressor, mixer), as from any page | The same |
 | LEFT / RIGHT | Pass | Step the selected slot |
 | Trig 1–16 | Pass: their usual function, in their current mode (D6) | Toggle that track in the selected slot's mask |
@@ -197,9 +197,9 @@ All decided by the user:
 | TRIG, SRC, FLTR, AMP, FX | Leave, and pass on: the firmware opens that page | The same (the configuration is saved) |
 | MOD | Exit, on the press (4.1) | Back to MACRO, on the press (D8) |
 | PAGE held + MOD | Exit | Back to MACRO, as MOD alone |
-| PAGE | Taken (held for the exit chord) | Taken (held for the exit chord) |
-| PLAY, STOP, RECORD, PTN, SONG, TRK, FUNC | Pass | Pass |
-| Any other key or encoder | Taken | Taken |
+| YES | Pass | Close the destination list; else pass |
+| Any other key (PAGE, PLAY, STOP, RECORD, PTN, SONG, TRK, FUNC, PRESET, SETTINGS, SAMPLES, TEMPO, KEYBOARD, UP, DOWN, the Digitone II's own keys) | Pass (D6) | Pass (D6) |
+| Under a firmware view (a menu, a popup, mute mode, the track selection, the naming screen) | That view's: every key and knob; the mode stays on under it (4.4). A page key or FUNC + MOD still leaves the mode; MOD closes a menu and the mode is back | The same |
 
 `ev_key` runs at a low `order` (before other mods) and `ev_enc` likewise. Both stay `.run` code on the Digitakt II
 (a key can come before the first tick).
@@ -229,6 +229,11 @@ Both copy the stock Digitakt II 1.17 screens ([s4-screens](docs/findings/s4-scre
   heading is inverted.
 - **Drawing.** The firmware's `fillRect` and printf text routine with its 5-pixel font; the knob raster is the mod's
   own (integer sine table). `ev_tick` sets the redraw flag only when the state changed.
+- **Under firmware views.** A view the firmware puts over the page (a menu, a popup, mute mode) is drawn over the
+  macro screen: `ev_draw` composes the frame again with the mode as the page's top view (the page's views, the
+  mode's screen, then the views over it). A view that hides the page (opaque) hides the macro screen too
+  ([s1](docs/findings/s1-input.md), "Views over the mode"). FUNC's quick-mute view is not one: the mode keeps its
+  keys and its screen.
 
 ### 4.5 LEDs
 

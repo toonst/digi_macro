@@ -109,6 +109,10 @@ typedef struct mm {
     mm_macro m[MM_MACROS];
     const mm_dests *dests;
     int (*can_enter)(void); /* D9: 0 when a menu or dialog is open; a null pointer allows entry */
+    /* 1 while a firmware view is over the mode, as over a page: a menu, a dialog, a popup (pattern, bank, song), mute
+     * mode, the naming screen. That view gets the keys and knobs; the mode stays on under it and only leaves for a
+     * page key, as a page does. A null pointer: never. */
+    int (*covered)(void);
     /* The firmware's key state, 1 while key code c is down. With it, FUNC, the pushes and the entry chord are read
      * from the panel, not from releases, which the firmware does not always pass on (FUNC's, after FUNC + NO). */
     int (*key_down)(int code);

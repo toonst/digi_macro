@@ -55,9 +55,34 @@ good after any FUNC chord: a push alone opened the setup, and NO there reset the
 ## Views FUNC and TRK put on **[D]**
 
 While FUNC is held the firmware puts `QuickMuteMenuView` on top (DT2 `0x401f9208`, DN2 `0x401e1eb4`), while TRK is
-held `TrackSelectionView` (DT2 `0x401f9ec8`, DN2 `0x401e2b68`). The mode keeps the keys under both (FUNC + push,
-TRK + trig) and its screen under the first; any other view over it (a dialog, the firmware update's confirmation,
-the naming screen) gets the keys, the knobs and the screen, as on any page.
+held `TrackSelectionView` (DT2 `0x401f9ec8`, DN2 `0x401e2b68`).
+
+## Views over the mode **[O]**
+
+Macro mode is a page (PLAN.md D6), so a view the firmware puts over a page comes over the macro screen the same
+way. The page's views end with the one on top on the main screen and the parameter pages (`HelpBubbleView`, below);
+every view above it in the view controller's list is over the page: a menu (PRESET, SETTINGS, SAMPLES, TEMPO), a
+popup (pattern, bank, song), mute mode, `TrackSelectionView`, the naming screen. `QuickMuteMenuView` is not counted:
+the mode keeps the keys under it (FUNC + push, FUNC + NO) and draws over it.
+
+- **Input.** Such a view gets every key and knob (the glue's `covered`). The mode still sees the keys: a page key,
+  or FUNC + MOD, leaves it (the firmware closes the view and opens the page); MOD goes to the firmware (it closes a
+  menu) and the mode stays; a release follows its press.
+- **Screen.** `ev_draw` runs after the firmware composed the frame, so to have the views over the page drawn over
+  the macro screen it composes the frame again: it clears it, paints the page's views from the topmost opaque one up
+  (View vtable slot 4, `paint(view, bitmap)`, as the firmware's render does and digikit's core/ui overrides it),
+  draws the macro screen, then paints the views over the page. If one of those is opaque (View `+0x16`; views below
+  the topmost opaque one are not drawn) it hides the page, and the firmware's frame stays as it is.
+- **LEDs.** Under such a view the setup screen's track LEDs are left to the firmware (the pattern popup's patterns,
+  mute mode's mutes); MOD stays blue.
+
+Before this the mode left the frame and every key to the firmware whenever any view other than FUNC's or TRK's was
+on top, so mute mode and the pattern, bank and song popups showed the page macro mode was entered from (the LFO page
+when MOD was pressed first), and the mode took every key it did not know, so PRESET, SETTINGS, SAMPLES, TEMPO and
+KEYBOARD did nothing. Open: measured only on the host so far (tests/test_mm.c `test_covered`); `tests/emu/scenario.py`
+`views_over` drives PRESET, SETTINGS, TEMPO, PTN, mute mode and KEYBOARD in the emulator. Which of these views are
+opaque, and whether a view over the page that uses no knobs (mute mode) should leave them to the macros, is not
+read.
 
 ## Menus and dialogs (D9) **[D]**
 
