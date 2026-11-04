@@ -72,7 +72,13 @@ the mode keeps the keys under it (FUNC + push, FUNC + NO) and draws over it.
   with the knobs left to the firmware, knob A under them turned the LFO page's SPD behind the macro screen (seen on
   a unit). So under a view that leaves the page in sight (not opaque), knobs A–H stay the
   mode's, as they stay a page's; LEVEL/DATA goes to the view (TEMPO's BPM, a list). An opaque view gets every
-  knob.
+  knob. Seen on a unit: knob A under mute mode, the pattern popup and TEMPO.
+- **Mute mode** is played over a page, so it leaves the mode its own controls: the trig keys mute and FUNC + trig
+  prepares mutes (the firmware's), but the pushes, FUNC + push (the setup, the naming screen), LEVEL/DATA, MOD
+  (leave) and PAGE + MOD (enter) are the mode's, as if no view were over it. Its view's class is not read here:
+  the glue learns it at run time as the first view over the page, other than FUNC's and TRK's, that appears in the
+  1.5 s after FUNC + TRK, was not on top at the chord and is not opaque (`mm_mute_vt`, which the emulator scenario
+  reads). The mod sees FUNC + TRK on every screen, the mode on or off, so it is learned whenever mute mode starts.
 - **Screen.** `ev_draw` runs after the firmware composed the frame, so to have the views over the page drawn over
   the macro screen it composes the frame again: it clears it, paints the page's views from the topmost opaque one up
   (View vtable slot 4, `paint(view, bitmap)`, as the firmware's render does and digikit's core/ui overrides it),

@@ -44,6 +44,10 @@ over the macro screen. In each test, MOD stays blue, and when the menu or popup 
   over the page you came from. Choosing a pattern works, and the macros follow its kit *(kits)*.
 - [ ] **FUNC + TRK** (mute mode): the trig keys mute tracks; macro mode stays on under it, and is back after mute
   mode. Turning A moves macro A (no other page's popup), and the sound follows.
+- [ ] **In mute mode:** FUNC + trig prepares mutes as usual. LEVEL/DATA moves all macros, and pushed centres them.
+  FUNC + push an encoder opens its setup (MOD back); FUNC + push and hold names it. MOD leaves macro mode and mute
+  mode stays; PAGE + MOD enters again.
+- [ ] **Mute mode first:** enter mute mode with macro mode off, then PAGE + MOD: macro mode starts.
 - [ ] **Knobs under the pattern popup** (PTN): turning A moves macro A too.
 - [ ] **TEMPO:** LEVEL/DATA changes the BPM. Note what turning A does there.
 - [ ] **PAGE** selects the pattern page; FUNC + PAGE opens its setup.

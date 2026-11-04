@@ -33,6 +33,7 @@ like the others: every key it doesn't use keeps its usual job.
 | FUNC + NO, or push LEVEL/DATA | All macros back to the centre |
 | MOD, or a page key (TRIG, SRC, FLTR, AMP, FX) | Leave macro mode |
 | Any other key: PRESET, SETTINGS, SAMPLES, TEMPO, KEYBOARD, PTN, SONG, TRK, PAGE, the trig keys … | What it does on any page. Menus, popups and mute mode open over the macro screen, and macro mode is back when they close |
+| In mute mode (FUNC + TRK) | The trig keys mute and FUNC + trig prepares mutes, while the encoders, their pushes, LEVEL/DATA and MOD stay macro mode's. PAGE + MOD enters macro mode from mute mode too |
 
 **Setup screen**: FUNC + push an encoder opens the setup of that macro.
 

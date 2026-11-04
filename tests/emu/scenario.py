@@ -241,7 +241,25 @@ def views_over(r):
     r.step(SETTLE)
     r.shot('09-mute-mode')
     r.check(r.mode() == 1 and r.led(LED_MOD) == 0x31, 'FUNC + TRK (mute mode) keeps macro mode on')
+    mute_vt = r.peek32(r.syms['mm_mute_vt'])
+    r.check(mute_vt not in (0, DEV['view_top']) and top_view(r) == mute_vt,
+            'the view FUNC + TRK opens is learned as mute mode\'s: %08x' % mute_vt)
     knob_moves_macro(r, 'in mute mode')
+    before = [r.pos(k) for k in range(8)]       # mute mode leaves the mode its own controls: LEVEL/DATA
+    spin(r, LEVEL, 24)
+    r.check([r.pos(k) for k in range(8)] != before, 'in mute mode LEVEL/DATA moves the macros')
+    r.tap(LEVEL_PUSH)
+    r.check(all(r.pos(k) == 0 for k in range(8)), 'in mute mode LEVEL/DATA pushed centres them')
+    r.down(FUNC)                                # FUNC + push: the setup, and back
+    r.tap(PUSH_A + 1)
+    r.up(FUNC)
+    r.check(r.mode() == 2, 'in mute mode FUNC + push opens the setup')
+    r.tap(MOD)
+    r.check(r.mode() == 1, 'and MOD goes back')
+    r.tap(MOD)                                  # MOD leaves, PAGE + MOD enters, in mute mode too
+    r.check(r.mode() == 0 and top_view(r) == mute_vt, 'in mute mode MOD leaves macro mode, mute mode stays')
+    chord(r, PAGE, MOD)
+    r.check(r.mode() == 1, 'in mute mode PAGE + MOD enters macro mode')
     chord(r, FUNC, TRK)
     r.step(SETTLE)
     r.check(close_views(r) and r.mode() == 1, 'after mute mode macro mode is still on')
