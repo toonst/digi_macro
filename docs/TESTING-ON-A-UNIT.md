@@ -90,8 +90,8 @@ First give macro A something to do (section 4 has the details): FUNC + push enco
 
 ## 6. One setup per project or per kit *(kits)*
 
-- [ ] **SETTINGS > PERSONALIZE** has a **MACRO SETUP** row at the bottom, showing PROJECT. YES, LEFT and RIGHT switch it
-  between PROJECT and KIT.
+- [ ] **SETTINGS > PERSONALIZE** has a **MACRO SETUP** row at the bottom, showing PROJECT. LEFT and RIGHT switch it
+  between PROJECT and KIT; YES leaves it as it is.
 - [ ] **Per kit:** set it to KIT. On pattern A01 set macro A to the filter. Switch to A02: it starts with the same
   setup. Change A02's macro A to something else. Back on A01: A01's setup. On A02: A02's.
 - [ ] **Per project:** set it to PROJECT. The setup is the project's, whichever pattern plays. Change it. Back to

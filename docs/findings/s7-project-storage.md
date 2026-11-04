@@ -85,7 +85,7 @@ The kit on is the pattern on's: `*(*PATTERN_OBJ + 0x138)`, with `PATTERN_OBJ` DT
 came on, and DN2's object has the same shape.
 
 In `tests/emu/project.py` (23 checks on each, all passing):
-- The PERSONALIZE row toggles with YES, LEFT and RIGHT.
+- The PERSONALIZE row changes with LEFT and RIGHT only; YES leaves it.
 - Per kit, A02's kit starts as a copy of A01's setup, and each keeps its own.
 - Per project, an edit leaves the kits' setups. Per kit again, each kit has its own; per project again, the
   project's.
@@ -129,7 +129,8 @@ The claims and `tools/storage.py` are described in docs/DEVELOPING.md, "Storage 
 The row is core's `core_addvalue`, a stock `MenuItem` drawn as LED INTENSITY is (DT2 `0x4009c722`: the text routine
 DT2 `0x40113fd4`, DN2 `0x40115948`, font DT2 `0x402a9be0`, DN2 `0x40294710`, at the row's x + 19, y + 2,
 right-aligned). Its change callback gets (storage, item, delta) and redraws with `View::invalidate(menu + 0x38)` (DT2
-`0x4011b126`, DN2 `0x4011ca9a`). LEFT and RIGHT call it; the LEVEL encoder does not, in this menu.
+`0x4011b126`, DN2 `0x4011ca9a`). LEFT and RIGHT call it; YES (the item's select callback) does nothing, and the
+LEVEL encoder does not call it, in this menu.
 
 ## Open **[O]**
 
