@@ -65,9 +65,14 @@ every view above it in the view controller's list is over the page: a menu (PRES
 popup (pattern, bank, song), mute mode, `TrackSelectionView`, the naming screen. `QuickMuteMenuView` is not counted:
 the mode keeps the keys under it (FUNC + push, FUNC + NO) and draws over it.
 
-- **Input.** Such a view gets every key and knob (the glue's `covered`). The mode still sees the keys: a page key,
-  or FUNC + MOD, leaves it (the firmware closes the view and opens the page); MOD goes to the firmware (it closes a
+- **Input.** Such a view gets every key (the glue's `covered`). The mode still sees the keys: a page key, or
+  FUNC + MOD, leaves it (the firmware closes the view and opens the page); MOD goes to the firmware (it closes a
   menu) and the mode stays; a release follows its press.
+- **Knobs.** Mute mode and the pattern popup use no knobs, so the firmware hands a turn on to the page under them:
+  with the knobs left to the firmware, knob A under them turned the LFO page's SPD behind the macro screen (seen on
+  a unit). So under a view that leaves the page in sight (not opaque), knobs A–H stay the
+  mode's, as they stay a page's; LEVEL/DATA goes to the view (TEMPO's BPM, a list). An opaque view gets every
+  knob.
 - **Screen.** `ev_draw` runs after the firmware composed the frame, so to have the views over the page drawn over
   the macro screen it composes the frame again: it clears it, paints the page's views from the topmost opaque one up
   (View vtable slot 4, `paint(view, bitmap)`, as the firmware's render does and digikit's core/ui overrides it),
@@ -81,8 +86,8 @@ on top, so mute mode and the pattern, bank and song popups showed the page macro
 when MOD was pressed first), and the mode took every key it did not know, so PRESET, SETTINGS, SAMPLES, TEMPO and
 KEYBOARD did nothing. Open: measured only on the host so far (tests/test_mm.c `test_covered`); `tests/emu/scenario.py`
 `views_over` drives PRESET, SETTINGS, TEMPO, PTN, mute mode and KEYBOARD in the emulator. Which of these views are
-opaque, and whether a view over the page that uses no knobs (mute mode) should leave them to the macros, is not
-read.
+opaque is not read, nor whether a view that leaves the page in sight uses knobs A–H (TEMPO's, the naming screen's):
+the encoder handler of a View is not traced (digikit finding 71), so the rule above goes by opacity.
 
 ## Menus and dialogs (D9) **[D]**
 

@@ -43,7 +43,9 @@ over the macro screen. In each test, MOD stays blue, and when the menu or popup 
 - [ ] **PTN** (pattern select), **FUNC + PTN** (bank select), **SONG**: the popup shows over the macro screen, not
   over the page you came from. Choosing a pattern works, and the macros follow its kit *(kits)*.
 - [ ] **FUNC + TRK** (mute mode): the trig keys mute tracks; macro mode stays on under it, and is back after mute
-  mode. Note what turning a macro knob does while mute mode is on.
+  mode. Turning A moves macro A (no other page's popup), and the sound follows.
+- [ ] **Knobs under the pattern popup** (PTN): turning A moves macro A too.
+- [ ] **TEMPO:** LEVEL/DATA changes the BPM. Note what turning A does there.
 - [ ] **PAGE** selects the pattern page; FUNC + PAGE opens its setup.
 - [ ] **A page key from inside a menu** (open SETTINGS, press FLTR): macro mode is left and the FLTR page opens.
 - [ ] **MOD from inside a menu** (open SETTINGS, press MOD): the menu closes and the macro screen is back.

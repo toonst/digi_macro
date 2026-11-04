@@ -112,9 +112,9 @@ typedef struct mm {
     mm_macro m[MM_MACROS];
     const mm_dests *dests;
     int (*can_enter)(void); /* D9: 0 when a menu or dialog is open; a null pointer allows entry */
-    /* 1 while a firmware view is over the mode, as over a page: a menu, a dialog, a popup (pattern, bank, song), mute
-     * mode, the naming screen. That view gets the keys and knobs; the mode stays on under it and only leaves for a
-     * page key, as a page does. A null pointer: never. */
+    /* A firmware view over the mode, as over a page (MM_COVER_*): a menu, a dialog, a popup (pattern, bank, song),
+     * mute mode, the naming screen. That view gets the keys; the mode stays on under it and only leaves for a page
+     * key, as a page does. A null pointer: never. */
     int (*covered)(void);
     /* The firmware's key state, 1 while key code c is down. With it, FUNC, the pushes and the entry chord are read
      * from the panel, not from releases, which the firmware does not always pass on (FUNC's, after FUNC + NO). */
@@ -130,12 +130,18 @@ typedef struct mm {
 } mm_t;
 
 #define MM_LIST_ROWS 7    /* the destination list's visible lines */
+/* What covered() says. MM_COVER_VIEW: a view over the page that leaves it in sight (mute mode, the pattern popup).
+ * Under it the knobs A-H stay the mode's, as they stay the page's under it, and LEVEL/DATA is the view's (TEMPO's
+ * BPM, a list). MM_COVER_FULL: a view that hides the page (a full-screen menu) gets every knob too. */
+enum { MM_COVER_NONE = 0, MM_COVER_VIEW, MM_COVER_FULL };
 /* A fresh state: every macro at the centre, every slot on all tracks. */
 void mm_init(mm_t *s, const mm_dests *dests);
 
 /* Input, on the UI task. Each returns 1 when the mode takes the event, 0 when it goes on to the firmware. */
 int mm_key(mm_t *s, int code, int flags);
 int mm_enc(mm_t *s, int enc, int delta);
+/* 1 when encoder enc is the mode's now: on, not hidden by a view (MM_COVER_*), and A-H or LEVEL/DATA. */
+int mm_enc_takes(const mm_t *s, int enc);
 /* Once per ev_tick: returns 1 when the frame must be recomposed (and clears dirty_screen). dirty_leds is the glue's. */
 int mm_tick(mm_t *s);
 

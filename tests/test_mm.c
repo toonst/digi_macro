@@ -198,21 +198,27 @@ static void test_covered(void)
     view_over = 0;
     enter(&s);
     CHECK(press(&s, MM_K_PTN) == 0);        /* the pattern popup opens */
-    view_over = 1;
+    view_over = MM_COVER_VIEW;
     CHECK(s.state == MM_MACRO);
     CHECK(press(&s, MM_K_TRIG1 + 2) == 0);  /* its keys: a pattern */
     CHECK(press(&s, MM_K_PUSH_A) == 0 && !s.pushes);
     CHECK(press(&s, MM_K_LEVEL) == 0);
     CHECK(press(&s, MM_K_NO) == 0);         /* NO closes it */
-    CHECK(mm_enc(&s, 1, 3) == 0 && s.m[0].pos == 0); /* its knobs */
-    CHECK(mm_enc(&s, MM_ENC_LEVEL, 3) == 0);
+    CHECK(mm_enc_takes(&s, 1) && mm_enc(&s, 1, 3) == 1 && s.m[0].pos == 3); /* A-H stay the macros, as a page's */
+    CHECK(!mm_enc_takes(&s, MM_ENC_LEVEL) && mm_enc(&s, MM_ENC_LEVEL, 3) == 0); /* LEVEL/DATA is the view's */
+    CHECK(s.m[1].pos == 0);
+    view_over = MM_COVER_FULL;              /* a view that hides the mode: every knob is its */
+    CHECK(!mm_enc_takes(&s, 1) && mm_enc(&s, 1, 3) == 0 && s.m[0].pos == 3);
+    CHECK(mm_enc(&s, 8, 3) == 0 && mm_enc(&s, MM_ENC_LEVEL, 3) == 0);
+    view_over = MM_COVER_VIEW;
     CHECK(press(&s, MM_K_MOD) == 0 && s.state == MM_MACRO); /* MOD too: it closes the view, the mode is back */
     release(&s, MM_K_MOD);
     view_over = 0;
-    CHECK(s.state == MM_MACRO && mm_enc(&s, 1, 3) == 1 && s.m[0].pos == 3);
+    CHECK(s.state == MM_MACRO && mm_enc(&s, MM_ENC_LEVEL, 1) == 1 && s.m[1].pos == 1);
+    CHECK(!mm_enc_takes(&s, 10));           /* a knob the mode does not know */
 
     press(&s, MM_K_PUSH_A);                 /* a press taken before a view came: its release follows it */
-    view_over = 1;
+    view_over = MM_COVER_VIEW;
     CHECK(release(&s, MM_K_PUSH_A) == 1 && !s.pushes);
     CHECK(press(&s, 3) == 0 && s.state == MM_OFF); /* a page key leaves, under a view too */
     release(&s, 3);
@@ -223,7 +229,7 @@ static void test_covered(void)
     s.m[0].slot[0].tracks = 0x0001;
     CHECK(mm_leds(&s, code, val, MM_MAX_LEDS) == 22); /* the slot's tracks */
     press(&s, MM_K_FUNC);
-    view_over = 1;                          /* mute mode (FUNC + TRK) */
+    view_over = MM_COVER_VIEW;                          /* mute mode (FUNC + TRK) */
     CHECK(mm_leds(&s, code, val, MM_MAX_LEDS) == 6);  /* its trig LEDs show, not the slot's tracks */
     release(&s, MM_K_FUNC);
     CHECK(press(&s, MM_K_TRIG1 + 1) == 0 && s.m[0].slot[0].tracks == 0x0001); /* a mute, not a track of the slot */

@@ -199,7 +199,7 @@ All decided by the user:
 | PAGE held + MOD | Exit | Back to MACRO, as MOD alone |
 | YES | Pass | Close the destination list; else pass |
 | Any other key (PAGE, PLAY, STOP, RECORD, PTN, SONG, TRK, FUNC, PRESET, SETTINGS, SAMPLES, TEMPO, KEYBOARD, UP, DOWN, the Digitone II's own keys) | Pass (D6) | Pass (D6) |
-| Under a firmware view (a menu, a popup, mute mode, the track selection, the naming screen) | That view's: every key and knob; the mode stays on under it (4.4). A page key or FUNC + MOD still leaves the mode; MOD closes a menu and the mode is back | The same |
+| Under a firmware view (a menu, a popup, mute mode, the track selection, the naming screen) | That view's: every key, and LEVEL/DATA; the mode stays on under it (4.4). Knobs A–H stay the mode's while the macro screen shows under the view (mute mode, the pattern popup), as a page's do; a view that hides it (a full-screen menu) gets them too. A page key or FUNC + MOD still leaves the mode; MOD closes a menu and the mode is back | The same |
 
 `ev_key` runs at a low `order` (before other mods) and `ev_enc` likewise. Both stay `.run` code on the Digitakt II
 (a key can come before the first tick).

@@ -212,6 +212,14 @@ def close_views(r, tries=4):
     return top_view(r) == DEV['view_top']
 
 
+def knob_moves_macro(r, where):
+    """Under a view that leaves the macro screen in sight, knob A moves macro A (not the page under the mode)."""
+    before = r.pos(0)
+    sign = -1 if before > 0 else 1
+    ok = spin_until(r, 1, sign, lambda: r.pos(0) != before, tries=8)
+    r.check(ok, '%s knob A moves macro A: %d -> %d' % (where, before, r.pos(0)))
+
+
 def views_over(r):
     """Macro mode is a page: the keys it gives no meaning open what they open on any page, over the macro screen, and
     the mode stays on under it and is back when that closes."""
@@ -224,6 +232,8 @@ def views_over(r):
         r.check(r.mode() == 1 and top_view(r) != DEV['view_top'], '%s opens its view over macro mode, which stays on'
                 % name)
         r.check(r.led(LED_MOD) == 0x31, 'under %s the MOD LED stays blue: %02x' % (name, r.led(LED_MOD) or 0))
+        if key == PTN:                          # a popup that leaves the page in sight: A still moves macro A
+            knob_moves_macro(r, 'under the pattern popup')
         closed = close_views(r)
         back = r.shot('09-back-%s' % name.lower())
         r.check(closed and r.mode() == 1 and back != over, 'closing %s brings the macro screen back' % name)
@@ -231,6 +241,7 @@ def views_over(r):
     r.step(SETTLE)
     r.shot('09-mute-mode')
     r.check(r.mode() == 1 and r.led(LED_MOD) == 0x31, 'FUNC + TRK (mute mode) keeps macro mode on')
+    knob_moves_macro(r, 'in mute mode')
     chord(r, FUNC, TRK)
     r.step(SETTLE)
     r.check(close_views(r) and r.mode() == 1, 'after mute mode macro mode is still on')

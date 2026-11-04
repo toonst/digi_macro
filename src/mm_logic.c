@@ -290,8 +290,8 @@ int mm_key(mm_t *s, int code, int flags)
         leave(s);                   /* a page key leaves macro mode, as any page, and opens its page (FUNC + MOD: the */
         take = 0;                   /* one it opens on any page); over a firmware view too, which the firmware closes */
     } else if (s->state != MM_OFF && s->covered && s->covered()) {
-        take = 0;                   /* a firmware view is over the mode: everything else is that view's, MOD too (it */
-                                    /* closes a menu, and the mode is back, as a page key brings its page back) */
+        take = 0;                   /* a firmware view is over the mode: every other key is that view's, MOD too */
+                                    /* (it closes a menu, and the mode is back, as a page key brings its page back) */
     } else if (s->state == MM_OFF) {
         take = 0;
         if (code == MM_K_MOD || code == MM_K_PAGE) {
@@ -319,11 +319,22 @@ static int step(const mm_t *s, int i, int delta)
     return (s->pushes & (1u << i)) && !s->enc_scaled ? delta * MM_COARSE : delta;
 }
 
+int mm_enc_takes(const mm_t *s, int enc)
+{
+    int cover;
+    if (s->state == MM_OFF || enc < 1 || enc > MM_ENC_LEVEL)
+        return 0;                   /* off, or a knob the mode does not know */
+    cover = s->covered ? s->covered() : MM_COVER_NONE;
+    if (cover == MM_COVER_FULL)
+        return 0;                   /* a view hides the mode: every knob is that view's */
+    return !(cover && enc == MM_ENC_LEVEL); /* under one that leaves it in sight, LEVEL/DATA only */
+}
+
 int mm_enc(mm_t *s, int enc, int delta)
 {
     int i = enc - 1;
-    if (s->state == MM_OFF || !delta || (s->covered && s->covered()))
-        return 0;                   /* off, or a firmware view over the mode: the knobs are the firmware's */
+    if (!delta || !mm_enc_takes(s, enc))
+        return 0;
     if (enc == MM_ENC_LEVEL) {      /* D16: every macro on the macro screen, the edited one on SETUP */
         if (s->state == MM_MACRO) {
             offset_all(s, delta);

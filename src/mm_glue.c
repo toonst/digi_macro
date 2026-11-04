@@ -106,9 +106,10 @@ static void enc_block(void)
 
 /* Firmware views over the mode (docs/findings/s1-input.md, "Views over the mode"). Macro mode is a page: the views the
  * firmware puts over a page (a menu, a dialog, the pattern, bank and song popups, mute mode, the track selection
- * while TRK is held, the naming screen) come over the macro screen the same way. Such a view gets the keys and the
- * knobs (mm_t.covered), and it is drawn over the macro screen, which stays under it; one that hides the page (an
- * opaque view: a full-screen menu) hides the macro screen as well. The mode stays on and is back when the view
+ * while TRK is held, the naming screen) come over the macro screen the same way. Such a view gets the keys and
+ * LEVEL/DATA (mm_t.covered), and it is drawn over the macro screen, which stays under it, with knobs A-H still
+ * moving the macros, as they move a page's parameters under it; one that hides the page (an opaque view: a
+ * full-screen menu) hides the macro screen as well and gets every knob. The mode stays on and is back when the view
  * closes; a page key leaves it, as it leaves any page.
  *
  * The view controller (Brain + 0x40) keeps its views in a list, bottom first: the sentinel at + 0x14, a node's next
@@ -155,10 +156,11 @@ static int over_page(char **base)
     return OVER | OVER_OPAQUE;
 }
 
-static int covered(void)            /* keys and knobs go to the firmware */
+static int covered(void)            /* MM_COVER_*: the keys (and, when it hides the mode, the knobs) go to that view */
 {
     char *base;
-    return mm_state.state != MM_OFF && over_page(&base) != 0;
+    int over = mm_state.state != MM_OFF ? over_page(&base) : 0;
+    return over & OVER_OPAQUE ? MM_COVER_FULL : over ? MM_COVER_VIEW : MM_COVER_NONE;
 }
 
 static void paint(char *node, void *bmp)
@@ -193,7 +195,7 @@ static void compose(mm_t *s, void *bmp, char *base)
 #else
 static int covered(void)
 {
-    return 0;
+    return MM_COVER_NONE;
 }
 #endif
 
@@ -340,10 +342,10 @@ int mm_ev_enc(void *brain, void *ev)
     mm_t *s = state();
     int enc = *(int *)((char *)ev + 12);
     (void)brain;
-    if (covered())
-        return 0;
+    if (!mm_enc_takes(s, enc))
+        return 0;                   /* off, or the knob of a firmware view over the mode */
 #ifdef ENC_FILTER_AT
-    if (s->state != MM_OFF && enc >= 1 && enc <= MM_ENC_LEVEL) {
+    {
         int pushed = *((uint8_t *)ev + 20), steps;
         enc_block();
         if (s->state == MM_SETUP && enc <= MM_SLOTS) {
