@@ -935,10 +935,15 @@ static void test_setup_pack(void)
     a.m[0].slot[1] = (mm_slot){30, MM_DEPTH_MAX, 0};
     mm_set_name(&a, 2, "WOBL");
     mm_set_name(&a, 7, "A-Z9!");
+    mm_set_name(&a, 4, "\xc5 \xd1=~");               /* the naming screen's Latin-1 letters, a space inside */
+    mm_set_name(&a, 5, "ab");                   /* not the naming screen's: spaces, so none */
     a.m[2].pos = 20;
+    a.m[0].pos = MM_POS_MIN;
+    a.m[7].pos = MM_POS_MAX;
     mm_setup_pack(&a, rec);
-    CHECK(MM_SETUP_SIZE == 191);                /* all the room core has for kit data on the Digitakt II */
+    CHECK(MM_SETUP_BITS <= 191 * 8 && MM_SETUP_SIZE == 191); /* all the room core has for kit data on the Digitakt II */
     CHECK(MM_PROJ_SIZE == 192 && MM_PROJ_SIZE % 4 == 0);
+    CHECK(70 * 70 * 70 < 1 << MM_DEST3_BITS && 70 * 70 < 1 << MM_DEST2_BITS && 777600000 < 1 << MM_NAME_BITS);
     mm_init(&b, &dests);
     b.m[2].pos = -7;
     CHECK(mm_setup_valid(rec) && mm_setup_unpack(&b, rec) == 0);
@@ -947,7 +952,27 @@ static void test_setup_pack(void)
     CHECK(b.m[0].slot[1].dest == 30 && b.m[0].slot[1].depth == MM_DEPTH_MAX && b.m[0].slot[1].tracks == 0);
     CHECK(b.m[5].slot[2].dest == 0 && b.m[5].slot[2].tracks == 0xffff);
     CHECK(strcmp(b.m[2].name, "WOBL") == 0 && strcmp(b.m[7].name, "A-Z9!") == 0 && b.m[1].name[0] == 0);
-    CHECK(b.m[2].pos == -7);                    /* the knob stays where it is */
+    CHECK(strcmp(b.m[4].name, "\xc5 \xd1=~") == 0 && b.m[5].name[0] == 0);
+    CHECK(b.m[2].pos == 20 && b.m[0].pos == MM_POS_MIN && b.m[7].pos == MM_POS_MAX && b.m[1].pos == 0); /* knobs too */
+    for (int i = 0; i < MM_MACROS * MM_SLOTS; i++) /* every slot's own destination, the last pair's too */
+        a.m[i / MM_SLOTS].slot[i % MM_SLOTS].dest = (uint8_t)(i % 3 ? 64 : 25);
+    a.m[7].slot[3].dest = 30;
+    a.m[6].slot[0].dest = 69;                   /* below the bound, but not a destination: none */
+    mm_setup_pack(&a, rec);
+    mm_setup_unpack(&b, rec);
+    for (int i = 0; i < MM_MACROS * MM_SLOTS - 1; i++)
+        if (i != 24)
+            CHECK(b.m[i / MM_SLOTS].slot[i % MM_SLOTS].dest == (i % 3 ? 64 : 25));
+    CHECK(b.m[7].slot[3].dest == 30 && b.m[6].slot[0].dest == 0);
+    a.m[0].pos = MM_POS_MIN;                    /* all zero but the last bit: still a setup */
+    for (int k = 0; k < MM_MACROS; k++) {
+        a.m[k].pos = MM_POS_MIN;
+        a.m[k].name[0] = 0;
+        for (int j = 0; j < MM_SLOTS; j++)
+            a.m[k].slot[j] = (mm_slot){0, 0, 0};
+    }
+    mm_setup_pack(&a, rec);
+    CHECK(mm_setup_valid(rec) && mm_setup_unpack(&b, rec) == 0 && b.m[3].pos == MM_POS_MIN);
     memset(rec, 0, sizeof rec);                 /* zeros: none (what core gives a kit saved without the mod) */
     CHECK(!mm_setup_valid(rec) && mm_setup_unpack(&b, rec) == -1);
     mm_init(&a, &dests);                        /* a fresh setup is not none: its slots have every track */
@@ -1000,8 +1025,8 @@ static void test_scope_per_kit(void)
     CHECK(dest_of(scope.kit[0]) == 30);
     s.m[0].slot[0].dest = 55;                   /* an edit on kit 0 */
     mm_scope_edited(&scope, &s);
-    s.m[1].pos = 9;                             /* turned on kit 0 */
-    CHECK(mm_scope_follow(&scope, &s, 5) == 0); /* kit 5: a copy too, its knobs at the centre */
+    s.m[1].pos = 9;                             /* turned on kit 0: the tick keeps it in kit 0's block */
+    CHECK(mm_scope_tick(&scope, &s, 5) == 0);   /* kit 5: a copy too, its knobs at the centre */
     CHECK(s.m[1].pos == 0);
     s.m[0].slot[0].dest = 64;
     mm_scope_edited(&scope, &s);
@@ -1012,49 +1037,63 @@ static void test_scope_per_kit(void)
     CHECK(mm_scope_follow(&scope, &s, -1) == 0); /* no kit on: nothing changes */
 }
 
-/* Per kit, each kit has its own knob positions; per project the project has one set. Not saved: a kit not turned since
- * the start or the last project load has its knobs at the centre. */
+/* The knobs' positions are part of the setup: per kit each kit has its own, per project the project; saved, loaded
+ * and copied with the block. A kit with none yet has its knobs at the centre. */
 static void test_scope_positions(void)
 {
     mm_t s;
+    uint8_t rec[MM_SETUP_SIZE];
     fresh_scope(MM_SCOPE_PROJECT);
     mm_init(&s, &dests);
-    mm_scope_follow(&scope, &s, 0);
+    mm_scope_tick(&scope, &s, 0);
     s.m[0].pos = 20;                            /* per project: one set of knobs, whichever kit is on */
-    mm_scope_follow(&scope, &s, 1);
+    mm_scope_tick(&scope, &s, 1);
     CHECK(s.m[0].pos == 20);
     mm_scope_set(&scope, &s, MM_SCOPE_KIT);
-    mm_scope_follow(&scope, &s, 1);
-    CHECK(s.m[0].pos == 0);                     /* per kit: kit 1 was never turned, its knobs are at the centre */
-    s.m[0].pos = -12;
+    mm_scope_tick(&scope, &s, 1);
+    CHECK(s.m[0].pos == 0);                     /* per kit: kit 1 has no setup yet, its knobs are at the centre */
+    s.m[0].pos = -12;                           /* turned on kit 1 */
     s.m[7].pos = 5;
     s.dirty_mods = 0;
-    mm_scope_follow(&scope, &s, 2);             /* the next pattern's kit: at the centre too */
+    mm_scope_tick(&scope, &s, 2);               /* the next pattern's kit: at the centre too */
     CHECK(s.m[0].pos == 0 && s.m[7].pos == 0 && s.dirty_mods);
     s.m[3].pos = 30;
-    mm_scope_follow(&scope, &s, 1);             /* back on kit 1: its own knobs */
+    mm_scope_tick(&scope, &s, 1);               /* back on kit 1: its own knobs */
     CHECK(s.m[0].pos == -12 && s.m[7].pos == 5 && s.m[3].pos == 0);
     s.dirty_mods = 0;
-    mm_scope_follow(&scope, &s, 1);             /* the same kit: nothing moves */
+    mm_scope_tick(&scope, &s, 1);               /* the same kit: nothing moves */
     CHECK(!s.dirty_mods);
-    mm_scope_follow(&scope, &s, 2);
+    mm_scope_tick(&scope, &s, 2);
     CHECK(s.m[3].pos == 30);
     mm_scope_set(&scope, &s, MM_SCOPE_PROJECT); /* per project: the project's knobs again */
     CHECK(s.m[0].pos == 20 && s.m[3].pos == 0);
     s.m[0].pos = 21;
+    mm_scope_tick(&scope, &s, 2);
     mm_scope_set(&scope, &s, MM_SCOPE_KIT);     /* per kit again: the kit's own */
-    mm_scope_follow(&scope, &s, 2);
+    mm_scope_tick(&scope, &s, 2);
     CHECK(s.m[3].pos == 30 && s.m[0].pos == 0);
-    mm_scope_kit_changed(&scope);               /* a kit loaded or copied: the knobs stay */
-    mm_scope_follow(&scope, &s, 2);
-    CHECK(s.m[3].pos == 30);
-    mm_scope_proj_loaded(&scope);               /* another project: every kit's knobs at the centre */
-    mm_scope_follow(&scope, &s, 2);
-    CHECK(s.m[3].pos == 0);
-    mm_scope_follow(&scope, &s, 1);
-    CHECK(s.m[0].pos == 0 && s.m[7].pos == 0);
-    mm_scope_set(&scope, &s, MM_SCOPE_PROJECT); /* the project's knobs are kept, as before */
-    CHECK(s.m[0].pos == 21);
+    core_kit(9, scope.kit[1]);                  /* a copy of kit 1 on kit 9 (a paste): its knobs come along */
+    mm_scope_tick(&scope, &s, 9);
+    CHECK(s.m[0].pos == -12 && s.m[7].pos == 5);
+    s.m[0].pos = 40;                            /* turned, then the kit on is loaded before a tick: the load wins */
+    core_kit(9, scope.kit[2]);
+    mm_scope_tick(&scope, &s, 9);
+    CHECK(s.m[0].pos == 0 && s.m[3].pos == 30);
+    memcpy(rec, scope.kit[1], sizeof rec);      /* another project: its kits' and its own knobs, as saved */
+    core_kit(2, rec);
+    core_proj(0);
+    mm_scope_tick(&scope, &s, 2);
+    CHECK(s.m[0].pos == -12 && s.m[7].pos == 5);
+    mm_scope_set(&scope, &s, MM_SCOPE_PROJECT); /* that project has no setup of its own: a copy, at the centre */
+    CHECK(s.m[0].pos == 0 && s.m[7].pos == 0 && s.m[0].slot[0].dest == 0);
+    s.m[4].pos = -3;                            /* turned as a kit loads: per project the turn is the project's */
+    core_kit(5, 0);
+    mm_scope_tick(&scope, &s, 2);
+    memcpy(rec, scope.proj, sizeof rec);
+    s.m[4].pos = 0;
+    core_proj(rec);                             /* the project loaded again: its knobs come back */
+    mm_scope_tick(&scope, &s, 2);
+    CHECK(s.m[4].pos == -3);
 }
 
 static void test_scope_loads(void)

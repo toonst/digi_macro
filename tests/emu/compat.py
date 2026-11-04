@@ -90,6 +90,7 @@ def main():
     a = ap.parse_args()
     dev = a.device
     S.DEV = S.DEVICES[dev]
+    P.FMT = P.PROJECT[dev]
     out = pathlib.Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     syms = json.load(open(a.map))

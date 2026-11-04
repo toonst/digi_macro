@@ -93,9 +93,10 @@ int mm_decode(mm_t *s, const uint8_t *in, int len)
     return 0;
 }
 
-/* A setup with a kit or the project (docs/findings/s7-project-storage.md): a bit stream, high bit first: per slot the
- * destination (7 bits), depth (16) and tracks (16), then the names' characters (7 bits each). elekloader's core keeps
- * it apart from other mods' data and other tools' bytes, so it needs no mark or check of its own. */
+/* A setup with a kit or the project (docs/findings/s7-project-storage.md, mm.h's MM_SETUP_SIZE): a bit stream, high
+ * bit first: the destinations three by three in base MM_DEST_RADIX, per slot the depth (16 bits) and tracks (16),
+ * the names in base 60, the positions + 64 (7 bits), a 1. elekloader's core keeps it apart from other mods' data and other
+ * tools' bytes, so it needs no mark or check of its own. */
 static void put_bits(uint8_t *p, int *bit, uint32_t v, int n)
 {
     while (n--) {
@@ -115,21 +116,55 @@ static uint32_t get_bits(const uint8_t *p, int *bit, int n)
     return v;
 }
 
+/* The naming screen's characters, after the space (code 0): DT2 1.17's NameView set (the string at 0x4025dea9), its
+ * Latin-1 letters included. A character outside it is kept as a space. */
+static const char name_chars[MM_NAME_RADIX] =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZ\xc5\xc4\xd6\xdc\xdf\xc6\xd8\xc7\xd1" "0123456789~!@#$%^&()_+-=";
+
+static uint32_t name_code(char c)
+{
+    for (int i = 0; i < MM_NAME_RADIX - 1; i++)
+        if (name_chars[i] == c)
+            return (uint32_t)i + 1;
+    return 0;
+}
+
+static const mm_slot *slot_at(const mm_t *s, int i)
+{
+    return &s->m[i / MM_SLOTS].slot[i % MM_SLOTS];
+}
+
+static uint32_t dest_code(const mm_t *s, int i)
+{
+    int d = slot_at(s, i)->dest;
+    return d > 0 && d < MM_DEST_RADIX ? (uint32_t)d : 0;
+}
+
 void mm_setup_pack(const mm_t *s, uint8_t *out)
 {
-    int bit = 0;
-    for (int i = 0; i < MM_SETUP_SIZE; i++)
+    int bit = 0, i;
+    for (i = 0; i < MM_SETUP_SIZE; i++)
         out[i] = 0;
+    for (i = 0; i + 2 < MM_MACROS * MM_SLOTS; i += 3)
+        put_bits(out, &bit, dest_code(s, i) + MM_DEST_RADIX * (dest_code(s, i + 1) + MM_DEST_RADIX * dest_code(s, i + 2)),
+                 MM_DEST3_BITS);
+    put_bits(out, &bit, dest_code(s, i) + MM_DEST_RADIX * dest_code(s, i + 1), MM_DEST2_BITS);
+    for (i = 0; i < MM_MACROS * MM_SLOTS; i++) {
+        put_bits(out, &bit, (uint16_t)slot_at(s, i)->depth, 16);
+        put_bits(out, &bit, slot_at(s, i)->tracks, 16);
+    }
+    for (int k = 0; k < MM_MACROS; k++) {
+        uint32_t v = 0;
+        int n = 0;
+        while (n < MM_NAME_LEN && s->m[k].name[n])
+            n++;
+        while (n--)                 /* the first character is the lowest digit */
+            v = v * MM_NAME_RADIX + name_code(s->m[k].name[n]);
+        put_bits(out, &bit, v, MM_NAME_BITS);
+    }
     for (int k = 0; k < MM_MACROS; k++)
-        for (int j = 0; j < MM_SLOTS; j++) {
-            const mm_slot *sl = &s->m[k].slot[j];
-            put_bits(out, &bit, sl->dest < 0x80 ? sl->dest : 0, 7);
-            put_bits(out, &bit, (uint16_t)sl->depth, 16);
-            put_bits(out, &bit, sl->tracks, 16);
-        }
-    for (int k = 0; k < MM_MACROS; k++)
-        for (int i = 0; i < MM_NAME_LEN; i++)
-            put_bits(out, &bit, (uint8_t)s->m[k].name[i] & 0x7f, 7);
+        put_bits(out, &bit, (uint32_t)(s->m[k].pos - MM_POS_MIN), 7);
+    put_bits(out, &bit, 1, 1);      /* a setup is never all zero */
 }
 
 int mm_setup_valid(const uint8_t *in)
@@ -140,24 +175,47 @@ int mm_setup_valid(const uint8_t *in)
     return 0;
 }
 
+static void set_dest(mm_t *s, int i, uint32_t d)
+{
+    mm_slot *sl = &s->m[i / MM_SLOTS].slot[i % MM_SLOTS];
+    sl->dest = (uint8_t)(d < MM_DEST_RADIX && mm_dest_pos(s->dests, (int)d) >= 0 ? d : 0);
+}
+
 int mm_setup_unpack(mm_t *s, const uint8_t *in)
 {
-    int bit = 0;
+    int bit = 0, i;
+    uint32_t v;
     if (!mm_setup_valid(in))
         return -1;
-    for (int k = 0; k < MM_MACROS; k++)     /* the knobs' positions stay */
-        for (int j = 0; j < MM_SLOTS; j++) {
-            mm_slot *sl = &s->m[k].slot[j];
-            int dest = (int)get_bits(in, &bit, 7);
-            sl->dest = (uint8_t)(mm_dest_pos(s->dests, dest) < 0 ? 0 : dest);
-            sl->depth = (int16_t)get_bits(in, &bit, 16);
-            sl->tracks = (uint16_t)get_bits(in, &bit, 16);
-        }
-    for (int k = 0; k < MM_MACROS; k++) {
-        for (int i = 0; i < MM_NAME_LEN; i++)
-            s->m[k].name[i] = (char)get_bits(in, &bit, 7);
-        s->m[k].name[MM_NAME_LEN] = 0;
+    for (i = 0; i + 2 < MM_MACROS * MM_SLOTS; i += 3) {
+        v = get_bits(in, &bit, MM_DEST3_BITS);
+        set_dest(s, i, v % MM_DEST_RADIX);
+        set_dest(s, i + 1, v / MM_DEST_RADIX % MM_DEST_RADIX);
+        set_dest(s, i + 2, v / (MM_DEST_RADIX * MM_DEST_RADIX));
     }
+    v = get_bits(in, &bit, MM_DEST2_BITS);
+    set_dest(s, i, v % MM_DEST_RADIX);
+    set_dest(s, i + 1, v / MM_DEST_RADIX);
+    for (i = 0; i < MM_MACROS * MM_SLOTS; i++) {
+        mm_slot *sl = &s->m[i / MM_SLOTS].slot[i % MM_SLOTS];
+        sl->depth = (int16_t)get_bits(in, &bit, 16);
+        sl->tracks = (uint16_t)get_bits(in, &bit, 16);
+    }
+    for (int k = 0; k < MM_MACROS; k++) {
+        char *n = s->m[k].name;
+        int len = 0;
+        v = get_bits(in, &bit, MM_NAME_BITS);
+        for (int c = 0; c < MM_NAME_LEN; c++, v /= MM_NAME_RADIX) {
+            uint32_t code = v % MM_NAME_RADIX;
+            n[c] = code ? name_chars[code - 1] : ' ';
+            if (code)
+                len = c + 1;
+        }
+        for (int c = len; c <= MM_NAME_LEN; c++) /* trailing spaces dropped, as the naming does */
+            n[c] = 0;
+    }
+    for (int k = 0; k < MM_MACROS; k++)
+        s->m[k].pos = (int8_t)((int)get_bits(in, &bit, 7) + MM_POS_MIN);
     s->dirty_mods = s->dirty_screen = 1;
     return 0;
 }

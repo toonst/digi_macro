@@ -17,19 +17,34 @@ import scenario as S  # noqa: E402
 SETTINGS, YES, NO, UP, LEFT, DOWN, RIGHT, FUNC, RECORD, STOP, PTN = 8, 10, 12, 11, 13, 14, 15, 17, 19, 21, 23
 # Per device: the saved project's first sector (slot 001: digikit finding 14), where kit n's mod data lies in the
 # saved file (elekloader core's, after the kit record's end mark), and three destinations it has.
+# The setup's format (src/mm.h, MM_SETUP_SIZE): the destination radix and the bits of a group of three and of the last
+# pair, the setup's size.
 PROJECT = {
-    'dt2': dict(sector=0x58000, record=lambda i: 0xae0200 + i * 0x5800 + 0x573e, dests=(36, 40, 50)),
-    'dn2': dict(sector=0x58000, record=lambda i: 0xae0200 + i * 0x2a00 + 0x28af, dests=(67, 71, 80)),
+    'dt2': dict(sector=0x58000, record=lambda i: 0xae0200 + i * 0x5800 + 0x573e, dests=(36, 40, 50),
+                radix=70, bits3=19, bits2=13, size=191),
+    'dn2': dict(sector=0x58000, record=lambda i: 0xae0200 + i * 0x2a00 + 0x28af, dests=(67, 71, 80),
+                radix=100, bits3=20, bits2=14, size=192),
 }
-SIZE = 191      # MM_SETUP_SIZE
+FMT = PROJECT['dt2']
 # core's kit data: 'K', the layout's id, then the blocks (the mod's is the only one); project data in the header's
 # gap at + 0x1c: 'ELKP', then the block's tag, its size and its bytes
-KIT_HEAD, PROJ_AT, PROJ_HEAD = 3, 0x1c, b'ELKP' + b'MMPS' + (192).to_bytes(4, 'big')
+KIT_HEAD, PROJ_AT, PROJ_HEAD = 3, 0x1c, b'ELKP' + b'MMP2' + (192).to_bytes(4, 'big')
+
+
+def bits(rec, at, n):
+    v = int.from_bytes(rec, 'big')
+    return v >> (len(rec) * 8 - at - n) & ((1 << n) - 1)
 
 
 def first_dest(rec):
-    """Slot 1 of macro A's destination in a setup: the stream's first 7 bits; None for none (all zero)."""
-    return rec[0] >> 1 if any(rec) else None
+    """Slot 1 of macro A's destination in a setup: the first group's lowest digit; None for none (all zero)."""
+    return bits(rec, 0, FMT['bits3']) % FMT['radix'] if any(rec) else None
+
+
+def position(rec, k):
+    """Macro k's knob position in a setup: after the destinations, the slots, the names."""
+    at = 10 * FMT['bits3'] + FMT['bits2'] + 32 * 32 + 8 * 30 + 7 * k
+    return bits(rec[:FMT['size']], at, 7) - 64
 
 
 class Project:
@@ -44,7 +59,7 @@ class Project:
 
     def setup(self, i):
         a = self.scope + self.L['scope_kit'] + i * self.L['setup_size']
-        return bytes(self.r.peek8(a + k) for k in range(8))   # a setup's first slot: none has these all zero
+        return bytes(self.r.peek8(a + k) for k in range(FMT['size']))
 
     def has_setup(self, i):
         return any(self.setup(i))
@@ -180,6 +195,7 @@ def scenario(r, out, dev):
     r.shot('pasted')
     r.check(p.kit_dest(3) == d0 and r.slot(0, 0)[0] == d0,
             'the paste of A01 on A04 brings A01\'s kit\'s setup: kit %s, on %d' % (p.kit_dest(3), r.slot(0, 0)[0]))
+    r.check(r.pos(0) == a01, 'and its knobs: A at %d (A01\'s %d)' % (r.pos(0), a01))
     pattern(r, 0)
     scope(r, LEFT)
 
@@ -193,10 +209,13 @@ def scenario(r, out, dev):
     after = card(r, out, 'card-1.bin')
     sec, rec = PROJECT[dev]['sector'], PROJECT[dev]['record']
     r.check(any(after.get(k) != before.get(k) for k in range(sec, sec + 64)), 'the project was saved')
+    SIZE = FMT['size']
     a, b, c = (read(after, sec, rec(i), KIT_HEAD + SIZE) for i in range(3))
     h = read(after, sec, PROJ_AT, len(PROJ_HEAD) + SIZE)
     r.check(a[0] == 0x4b and first_dest(a[KIT_HEAD:]) == d0, 'the saved kit 1 has its own setup: %s' % a[:5].hex())
     r.check(b[:3] == a[:3] and first_dest(b[KIT_HEAD:]) == d1, 'the saved kit 2 has its own: %s' % b[:5].hex())
+    r.check(position(a[KIT_HEAD:], 0) == a01 and position(b[KIT_HEAD:], 0) == a02,
+            'and each its knob A: %d, %d' % (position(a[KIT_HEAD:], 0), position(b[KIT_HEAD:], 0)))
     r.check(c[:3] == a[:3] and c[KIT_HEAD:] == bytes(SIZE), 'kit 3, never on, has none')
     r.check(h.startswith(PROJ_HEAD) and first_dest(h[len(PROJ_HEAD):]) == d2,
             'the header has the project\'s: %s' % h[:16].hex())
@@ -220,6 +239,9 @@ def scenario(r, out, dev):
     r.check(r.slot(0, 0)[0] == d2, 'per project, another kit changes nothing (%d)' % r.slot(0, 0)[0])
     scope(r, RIGHT)
     r.check(r.slot(0, 0)[0] == d1, 'per kit, A02\'s kit\'s own (%d)' % r.slot(0, 0)[0])
+    r.check(r.pos(0) == a02, 'with its knob A as saved (%d)' % r.pos(0))
+    pattern(r, 0)
+    r.check(r.pos(0) == a01, 'and A01\'s (%d)' % r.pos(0))
 
 
 def scope(r, key):
@@ -257,6 +279,8 @@ def main():
     ap.add_argument('--map', required=True)
     a = ap.parse_args()
     S.DEV = S.DEVICES[a.device]
+    global FMT
+    FMT = PROJECT[a.device]
     out = pathlib.Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     state = out / 'build.state'

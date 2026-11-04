@@ -172,21 +172,35 @@ int mm_leds(const mm_t *s, uint8_t *code, uint8_t *value, int cap);
 int mm_encode(const mm_t *s, uint8_t *out);         /* -> MM_BLOB_SIZE */
 int mm_decode(mm_t *s, const uint8_t *in, int len); /* 0, or -1 (unknown version, bad size or check) */
 /* A setup kept with a kit and with the project (docs/findings/s7-project-storage.md), as elekloader core's kit and
- * project data: the slots and names packed in bits, MM_SETUP_SIZE bytes; all zero is none (a setup always has a
- * track). Unpacking keeps the knobs' positions. 191 bytes: all the room core has for kit data on the Digitakt II. */
-#define MM_SETUP_SIZE ((MM_MACROS * MM_SLOTS * (7 + 16 + 16) + MM_MACROS * MM_NAME_LEN * 7 + 7) / 8)
+ * project data: the slots, the names and the knobs' positions, MM_SETUP_SIZE bytes; all zero is none (the stream
+ * ends with a 1 bit). A bit stream, high bit first, packed to fit the 191 bytes core has for kit data on the
+ * Digitakt II: the 32 destinations in groups of three (and a last pair) as numbers in base MM_DEST_RADIX (every
+ * destination is below the device's bound), each slot's depth (16 bits) and tracks (16), each name as a number in
+ * base 60 (the naming screen's characters, mm_store.c; 30 bits), each position + 64 (7 bits), then a 1. */
+#if defined(MM_DN2)
+#define MM_DEST_RADIX 100 /* the LFO DEST bound on the Digitone II */
+#define MM_DEST3_BITS 20  /* 100^3 < 2^20 */
+#define MM_DEST2_BITS 14  /* 100^2 < 2^14 */
+#else
+#define MM_DEST_RADIX 70  /* the Digitakt II's (and the host tests') */
+#define MM_DEST3_BITS 19  /* 70^3 < 2^19 */
+#define MM_DEST2_BITS 13  /* 70^2 < 2^13 */
+#endif
+#define MM_NAME_RADIX 60  /* a name character's code: 0 space (or none), 1 .. 59 the naming screen's */
+#define MM_NAME_BITS 30   /* 60^5 < 2^30 */
+#define MM_SETUP_BITS (((MM_MACROS * MM_SLOTS) / 3) * MM_DEST3_BITS + MM_DEST2_BITS + MM_MACROS * MM_SLOTS * 32 + \
+                       MM_MACROS * MM_NAME_BITS + MM_MACROS * 7 + 1)
+#define MM_SETUP_SIZE ((MM_SETUP_BITS + 7) / 8) /* 191 on the Digitakt II, 192 on the Digitone II */
 #define MM_PROJ_SIZE ((MM_SETUP_SIZE + 3) & ~3) /* core's project data comes in longs */
 void mm_setup_pack(const mm_t *s, uint8_t *out);
 int mm_setup_valid(const uint8_t *in);          /* holds a setup: not all zero */
-int mm_setup_unpack(mm_t *s, const uint8_t *in); /* 0, or -1 (none) */
+int mm_setup_unpack(mm_t *s, const uint8_t *in); /* 0, or -1 (none); the positions come too */
 
 /* The kits feature (src/mm_kits.c; built in unless left out): setups per project or per kit, chosen in PERSONALIZE >
- * MACRO SETUP. Every kit keeps its own setup and the project its own. elekloader's core saves, loads and copies them
- * with the kits and the project (kit n is pattern n's) and says when one changed (mm_scope_kit_changed,
- * mm_scope_proj_loaded); the tick calls mm_scope_edited after a change and mm_scope_follow with the kit on.
- * The knobs' positions follow the scope too: per kit every kit has its own, per project the project has one. They
- * are kept in RAM only (D14: a kit record has no room for them on the Digitakt II): a kit not turned since the
- * start or the last project load has its knobs at the centre. */
+ * MACRO SETUP. Every kit keeps its own setup and the project its own, the knobs' positions included. elekloader's core
+ * saves, loads and copies them with the kits and the project (kit n is pattern n's) and says when one changed
+ * (mm_scope_kit_changed, mm_scope_proj_loaded); each tick mm_scope_tick keeps the setup on (and a knob turned since)
+ * in its kit's or the project's block and follows the kit on. */
 #define MM_KITS 128
 enum { MM_SCOPE_PROJECT = 0, MM_SCOPE_KIT };
 typedef struct {
@@ -197,14 +211,13 @@ typedef struct {
     uint8_t seen;                 /* gen, as mm_scope_follow last saw it */
     volatile uint8_t proj_loaded; /* a project's data was loaded */
     int16_t cur;                  /* the kit whose setup is on, -1 none */
-    int8_t pos[MM_KITS][MM_MACROS]; /* each kit's knob positions, per kit (RAM only) */
-    uint8_t pos_kept[MM_KITS / 8];  /* bit k: kit k has positions in pos; else its knobs are at the centre */
-    int8_t proj_pos[MM_MACROS];     /* the project's, per project */
+    int8_t kept[MM_MACROS];       /* the knobs' positions as the block on holds them */
 } mm_scope;
 void mm_scope_kit_changed(mm_scope *p);
 void mm_scope_proj_loaded(mm_scope *p);
-void mm_scope_edited(mm_scope *p, const mm_t *s);
+void mm_scope_edited(mm_scope *p, const mm_t *s);              /* the setup on, into its block */
 int mm_scope_follow(mm_scope *p, mm_t *s, int kit);            /* 1 when the setup changed */
+int mm_scope_tick(mm_scope *p, mm_t *s, int kit);              /* edited when needed, then follow */
 void mm_scope_set(mm_scope *p, mm_t *s, int mode);
 
 /* A macro's name from the naming screen: up to MM_NAME_LEN characters, trailing spaces dropped. */

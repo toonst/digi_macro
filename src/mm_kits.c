@@ -20,9 +20,10 @@ static void proj_loaded(int found)
     mm_scope_proj_loaded(&mm_scopes);
 }
 
-/* contributed to core's tables (mods/<dev>/kits.json), claimed as kitdata:MMKS and projdata:MMPS */
-const core_kitdata_t mm_kitdata = {{'M', 'M', 'K', 'S'}, MM_SETUP_SIZE, mm_scopes.kit, kit_changed};
-const core_projdata_t mm_projdata = {{'M', 'M', 'P', 'S'}, MM_PROJ_SIZE, mm_scopes.proj, proj_loaded};
+/* contributed to core's tables (mods/<dev>/kits.json), claimed as kitdata:MMK2 and projdata:MMP2 (MMKS and MMPS
+ * were the format without the knobs' positions: core takes neither for these) */
+const core_kitdata_t mm_kitdata = {{'M', 'M', 'K', '2'}, MM_SETUP_SIZE, mm_scopes.kit, kit_changed};
+const core_projdata_t mm_projdata = {{'M', 'M', 'P', '2'}, MM_PROJ_SIZE, mm_scopes.proj, proj_loaded};
 
 void mm_kits_tick(mm_t *s)
 {
@@ -33,9 +34,7 @@ void mm_kits_tick(mm_t *s)
         conflicts = core_store_conflicts;
         ready = 1;
     }
-    if (s->dirty_config)            /* the setup the kit or project has, as it is now */
-        mm_scope_edited(&mm_scopes, s);
-    mm_scope_follow(&mm_scopes, s, core_kit_on());
+    mm_scope_tick(&mm_scopes, s, core_kit_on()); /* the setup and knobs on into their block; the kit on followed */
     if (core_store_conflicts != conflicts) { /* a project's bytes for mods held something else: core left them */
         conflicts = core_store_conflicts;
         mm_notice("MACRO SETUP CONFLICT");

@@ -60,7 +60,7 @@ and the kit and project storage. Where it keeps its data:
 | --- | --- | --- |
 | The mode's state, every kit's and the project's setup while the unit runs | The mod's own RAM (its `.bss`, placed by elekloader's linker) | |
 | The configuration (the setup on, the MACRO SETUP choice) | Two card sectors the stock OS never writes | `card:0x2df0e00-0x2df0e02` (DT2), `card:0x7ff000-0x7ff002` (DN2) |
-| A kit's setup, the project's setup (kits feature) | core's kit data (after each kit record's end mark) and project data (the project header's gap) | `kitdata:MMKS`, `projdata:MMPS` |
+| A kit's setup, the project's setup, each with its knob positions (kits feature) | core's kit data (after each kit record's end mark) and project data (the project header's gap) | `kitdata:MMK2`, `projdata:MMP2` |
 
 - **Compatible either way.** core's areas are bytes the stock OS writes as zeros and never reads, and keeps when it
   saves a project it loaded. The stock OS loads and saves a project the mod saved, and the files differ only there;

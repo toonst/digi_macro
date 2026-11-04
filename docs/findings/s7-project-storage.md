@@ -46,14 +46,30 @@ there carries a mark (core's) and is never taken from bytes without it.
 ## The setups in the records **[D]**
 
 Each kit keeps its own setup, and the project its own, whichever is on, so changing the scope never overwrites one
-with the other. They are elekloader core's kit data and project data (`kitdata:MMKS`, `projdata:MMPS`):
+with the other. They are elekloader core's kit data and project data (`kitdata:MMK2`, `projdata:MMP2`):
 
 - after a kit record's end mark (DT2 194 bytes, DN2 337): `K`, core's 16-bit layout id, then the setup;
-- in the header's gap at + `0x1c`: `ELKP`, then `MMPS`, the size (192) and the setup.
+- in the header's gap at + `0x1c`: `ELKP`, then `MMP2`, the size (192) and the setup.
 
-A setup is 191 bytes, all the room a DT2 kit record has left after core's three: a bit stream (high bit first) with per
-slot the destination (7 bits), depth (16) and tracks (16), then the 40 name characters (7 bits each). All zero is
-none; a setup always has a track, so none is never a setup.
+A setup holds the slots, the names and the knobs' positions, so the positions are per kit (or per project) as the
+rest is: saved, loaded, and copied with the kit. It is a bit stream, high bit first, of 191 bytes on DT2 (192 on
+DN2), all the room a DT2 kit record has left after core's three:
+
+| Part | Bits (DT2) | How |
+| --- | --- | --- |
+| The 32 destinations | 10 x 19 + 13 | three by three, the first the lowest digit, in base 70 (DN2: 100, 10 x 20 + 14): every destination is below the device's LFO DEST bound (`src/mm_dests.c`), so 0 is none |
+| Each slot's depth and tracks | 32 x (16 + 16) | as they are |
+| Each name | 8 x 30 | its five characters in base 60, the first the lowest digit: 0 a space (or none), then the naming screen's characters (below) |
+| Each knob's position | 8 x 7 | + 64 |
+| A 1 | 1 | so a setup is never all zero, which is none |
+
+That is 1524 of the 1528 bits (DN2 1535 of 1536). The naming screen (`NameView`) offers 60 characters: on DT2 1.17
+its set is the `std::string` at `0x44d2e714`, built at boot (`0x401d1d66`) from `0x4025dea9`:
+`ABCDEFGHIJKLMNOPQRSTUVWXYZ`, the Latin-1 letters `ÅÄÖÜßÆØÇÑ`, `0123456789~!@#$%^&()_+-=` and space. The format
+before (`MMKS`, `MMPS`: 7 bits a destination, 7 a character, no positions) kept only 7 bits of a character, so a
+name with one of the Latin-1 letters came back as another; a character outside the set is now kept as a space. core
+takes a block only under its tag and size (its layout id is a CRC of them), so the old blocks are not read: a kit or
+project saved with them starts as one with no setup, and core overwrites its own area as before (no conflict).
 
 The routines have the same shape on both OSes, and so do core's sites:
 
@@ -84,14 +100,14 @@ The kit on is the pattern on's: `*(*PATTERN_OBJ + 0x138)`, with `PATTERN_OBJ` DT
 (the pointer the getter DT2 `0x40198b7e` returns). It was the only word that went 0, 1, 2 on DT2 as A01, A02 and A03
 came on, and DN2's object has the same shape.
 
-In `tests/emu/project.py` (23 checks on each, all passing; 28 on DT2 1.17 with the checks since added):
+In `tests/emu/project.py` (23 checks on each, all passing; 32 on DT2 1.17 with the checks since added):
 - The PERSONALIZE row changes with LEFT and RIGHT only; YES leaves it.
 - Per kit, A02's kit starts as a copy of A01's setup, and each keeps its own.
 - Per kit, each kit has its own knob positions: in macro mode, macro A turned on A01, PTN + trig 2 brings A02's
-  knobs at the centre, A turned there, and A01 and A02 each come back with their own. The positions are kept in
-  RAM only (`mm_scope.pos`): a kit record has room for exactly one setup (191 bytes) on the Digitakt II, so they
-  are not saved (PLAN.md D14), and a project load puts every kit's at the centre. Per project there is one set, as
-  before. **[D]** (emulator); on a unit the knobs were shared between kits before this.
+  knobs at the centre, A turned there, and A01 and A02 each come back with their own (on a unit the knobs were
+  shared between kits before).
+- The paste of A01 on A04 brings A01's knobs too; the saved kit records hold each kit's knob A, and after LOAD
+  PROJECT each pattern's knobs are back as saved.
 - Per project, an edit leaves the kits' setups. Per kit again, each kit has its own; per project again, the
   project's.
 - A04's kit with its own setup: copying A01 (FUNC + RECORD) and pasting it on A04 (FUNC + STOP) brings A01's kit's

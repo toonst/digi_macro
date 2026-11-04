@@ -56,9 +56,10 @@ In **SETTINGS > PERSONALIZE > MACRO SETUP** you choose where the macro setup liv
   playing, when the new pattern starts). A kit without a setup starts as a copy of the current one; a kit whose
   macros you haven't turned yet has its knobs at the centre.
 
-Switching between the two loses nothing: the project and every kit keep their own setup and knob positions. Copying a
-pattern or a kit takes its setup along. The setups are saved inside the project; the knob positions aren't saved, so
-after a restart or loading a project every kit's knobs are at the centre.
+The knob positions are part of the setup: they're saved with it, inside the project, and come back when you load the
+project or restart the unit. Switching between the two loses nothing: the project and every kit keep their own.
+Copying a pattern or a kit takes its setup and knob positions along. Projects saved with an earlier build of
+macro-mode open fine, but their macro setups are not read (the format changed to make room for the positions).
 
 ## Your projects stay safe
 

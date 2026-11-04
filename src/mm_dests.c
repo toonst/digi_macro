@@ -76,6 +76,7 @@ static const mm_dest table[] = {
 
 #if defined(MM_DT2) || defined(MM_DN2)
 static const mm_dests dests = {table, sizeof table / sizeof table[0], BOUND};
+typedef char mm_bound_is_the_radix[BOUND == MM_DEST_RADIX ? 1 : -1]; /* a stored destination is below it */
 
 const mm_dests *mm_device_dests(void)
 {

@@ -57,7 +57,7 @@ class Storage(unittest.TestCase):
         self.assertEqual(code, 0, out)
 
     def test_the_same_data_or_overlapping_sectors_conflict(self):
-        for other, ours in (('kit-overlap', 'kitdata:MMKS too'), ('project-overlap', 'projdata:MMPS too'),
+        for other, ours in (('kit-overlap', 'kitdata:MMK2 too'), ('project-overlap', 'projdata:MMP2 too'),
                             ('card-overlap', 'overlaps this mod\'s card')):
             code, out = check(self.kits, other)
             self.assertEqual(code, 1, other)

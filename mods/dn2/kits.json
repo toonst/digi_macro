@@ -45,8 +45,8 @@
  "resources": {
   "names": [
    "personalize:MACRO SETUP",
-   "kitdata:MMKS",
-   "projdata:MMPS"
+   "kitdata:MMK2",
+   "projdata:MMP2"
   ]
  }
 }
