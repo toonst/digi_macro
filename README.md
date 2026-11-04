@@ -66,28 +66,66 @@ takes its setup along. The setups are saved inside the project.
 
 ## Installing
 
-1. Install Python 3, Git and the ColdFire compiler:
+You build the firmware file yourself, on your computer, from Elektron's official OS: one script,
+`tools/check.sh`, runs the tests, compiles macro-mode and, **when you give it the official OS file**, patches
+macro-mode into it. Without the OS file it only runs the checks and writes no firmware file.
+
+1. **Install the tools:** Python 3.9 or newer, Git, a C compiler and the ColdFire (m68k) cross-compiler.
    - Ubuntu or Debian: `sudo apt install python3 git gcc gcc-m68k-linux-gnu binutils-m68k-linux-gnu`
    - macOS: the Xcode command line tools (`xcode-select --install`), then with [Homebrew](https://brew.sh):
      `brew install python m68k-elf-gcc`
-2. Get this project and the loader it builds with:
+2. **Get this project** with the loader it builds with (the `--recurse-submodules` matters: the loader is a
+   submodule, and without it the build stops with "third_party/elekloader is empty"):
 
    ```bash
    git clone --recurse-submodules https://github.com/toonst/digi_macro.git
    ```
 
-3. In the `digi_macro` folder, build it, pointing to the official OS file(s) you downloaded (one is enough):
+   Already have it? Update both: in the `digi_macro` folder, `git pull` and then `git submodule update --init`
+   (a pull alone keeps the old loader).
+3. **Download the official OS** from [Elektron's website](https://www.elektron.se/support-downloads): **Digitakt II
+   OS 1.17** or **Digitone II OS 1.12**, exactly that version. If the download is a `.zip`, give the build the `.zip`
+   itself or the `.syx` inside it. The build knows the file by its checksum and refuses any other version or a changed file.
+4. **Build.** In the `digi_macro` folder, name the OS file in `DT2_SYX` (Digitakt II) or `DN2_SYX` (Digitone II),
+   or both:
 
    ```bash
-   DT2_SYX=path/to/Digitakt_II_OS1.17.syx DN2_SYX=path/to/Digitone_II_OS1.12.syx tools/check.sh
+   DT2_SYX=path/to/Digitakt_II_OS1.17.syx tools/check.sh
    ```
 
-   It ends with `WROTE out/check/macro-dt2.syx` (Digitakt II) or `out/check/macro-dn2.syx` (Digitone II).
-4. Send that file to the unit as you would an official OS update (see "Updating the OS" in Elektron's manual).
-5. Check it worked: hold PAGE and press MOD. The header should say "Macro Mode".
+   ```bash
+   DN2_SYX=path/to/Digitone_II_OS1.12.syx tools/check.sh
+   ```
+
+   A build that worked ends, for each device, with
+
+   ```text
+   WROTE out/check/macro-dt2.syx
+     sha256 …, version MMDV, … bytes
+   ```
+
+   `out/check/macro-dt2.syx` (Digitakt II) or `out/check/macro-dn2.syx` (Digitone II) is the firmware file. It holds
+   Elektron's firmware: keep it for yourself, don't share it. If something goes wrong:
+
+   | It says | Then |
+   | --- | --- |
+   | `elekloader build skipped: set DT2_SYX and/or DN2_SYX` | No OS file was given: the checks ran, but no firmware file was made. Put `DT2_SYX=…` or `DN2_SYX=…` before `tools/check.sh`, on the same line |
+   | `no such file: …` | The path to the OS file is wrong |
+   | `no ColdFire compiler` | Step 1: the cross-compiler is missing (or set `ELEKLOADER_CROSS` to its prefix) |
+   | `third_party/elekloader is empty` | Step 2: `git submodule update --init` |
+   | `BUILD FAILED: not a stock firmware elekloader knows` (or `the zip holds no stock firmware …`) | Not OS 1.17 (Digitakt II) or 1.12 (Digitone II), or not Elektron's file as published |
+   | Any other `BUILD FAILED` or `REFUSED`, or a failed test | No firmware file was written. Open an issue with the whole output |
+
+5. **Flash it** as you would an official OS update: connect the unit over USB, open Elektron Transfer, select the
+   unit and **Connect**, drag the `.syx` onto **Drop files here**, and press **YES** on the unit. Don't turn it off
+   until the update is done.
+6. **Check it worked:** hold PAGE and press MOD. The header should say "Macro Mode".
+
+To rebuild after an update, repeat steps 2 (the update) and 4: the new file replaces the old one in `out/check`.
 
 **Going back to the official OS:** send the official `.syx` the same way. If the unit doesn't start, hold FUNC while
-powering on, press TRIG 4, and send the official `.syx` over DIN MIDI.
+powering on, press TRIG 4 (OS UPGRADE), and send the official `.syx` with Transfer's legacy OS upgrade mode, over the unit's
+MIDI ports (not USB).
 
 ## Good to know
 
