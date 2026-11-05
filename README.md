@@ -8,9 +8,9 @@ like the others: every key it doesn't use keeps its usual job.
 <img src="docs/img/macro-turned.png" alt="The macro screen" width="380">&nbsp;&nbsp;&nbsp;&nbsp;<img src="docs/img/setup.png" alt="Setting up macro C" width="380">
 
 > [!WARNING]
-> **Experimental.** Earlier builds have run on a Digitakt II; this one, with the per-kit setups, has so far only run
-> in an emulator, and the Digitone II version has never been on a unit. Don't install it on a device you rely on. This is unofficial custom firmware: you use it at your own risk, and
-> it is not made or supported by Elektron.
+> **Experimental.** This version runs on a Digitakt II (tested on a unit). The Digitone II version has only run in an
+> emulator, never on a unit. Don't install it on a device you rely on. This is unofficial custom firmware: you use it
+> at your own risk, and it is not made or supported by Elektron.
 
 ## What you need
 
@@ -31,6 +31,7 @@ like the others: every key it doesn't use keeps its usual job.
 | FUNC + push and hold an encoder | Name the macro |
 | Turn LEVEL/DATA | Move all eight macros together |
 | FUNC + NO, or push LEVEL/DATA | All macros back to the centre |
+| MOD, or another page key | Leave macro mode |
 
 **Setup screen**: FUNC + push an encoder opens the setup of that macro.
 
@@ -138,5 +139,5 @@ MIDI ports (not USB).
 - [docs/TESTING-ON-A-UNIT.md](docs/TESTING-ON-A-UNIT.md): a checklist for trying it on your unit
 - [SPEC.md](SPEC.md) and [PLAN.md](PLAN.md): what it should do and how it was planned
 
-Built with [elekloader](https://github.com/elekloader/elekloader) and tested in
-[digikit](https://github.com/toonst/digikit)'s emulator. Licence: GPL-2.0-or-later ([LICENSE](LICENSE)).
+Built with [elekloader](https://github.com/elekloader/elekloader), tested in
+[digikit](https://github.com/toonst/digikit)'s emulator and on a Digitakt II. Licence: GPL-2.0-or-later ([LICENSE](LICENSE)).
