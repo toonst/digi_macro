@@ -3,7 +3,8 @@
 Against [PLAN.md](../PLAN.md) section 7. Measured on the Digitakt II 1.17 in digikit's emulator (its `zero_patched`
 runner) on 5 November 2026, with this repository at bc2295e on core-dt2 1.1 as elekloader#221 now has it (0df8409):
 `tests/emu/scenario.py` 94 checks, `tests/emu/project.py` 32 and `tests/emu/compat.py` 12, all passing; host tests
-with `tools/check.sh`. The Digitone II (68, 23 and 12 on the earlier core-dn2 0.3) is not built now (DEVELOPING.md).
+with `tools/check.sh`. On a unit: the same build (tools/build.sh, core 0df8409) runs on a Digitakt II, OS 1.17, as toonst
+reported on 5 November 2026. The Digitone II (68, 23 and 12 on the earlier core-dn2 0.3) is not built now (DEVELOPING.md).
 
 | Part | State |
 | --- | --- |
