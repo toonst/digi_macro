@@ -38,10 +38,21 @@ def claims(doc, who, problems):
 
 
 def cflag(doc, name):
+    """A define the mod is built with: from the manifest's cflags, or else from src/mm_os.h for the device the
+    manifest's MM_DT2 or MM_DN2 chooses."""
     for f in doc.get('cflags', []):
         if f.startswith('-D%s=' % name):
             return int(f.split('=', 1)[1], 0)
-    return None
+    dev = next((f[2:] for f in doc.get('cflags', []) if f in ('-DMM_DT2', '-DMM_DN2')), None)
+    if dev is None:
+        return None
+    block, found = None, None
+    for line in (pathlib.Path(__file__).resolve().parent.parent / 'src' / 'mm_os.h').read_text().splitlines():
+        if line.startswith(('#if defined(', '#elif defined(')):
+            block = line.split('(', 1)[1].split(')', 1)[0]
+        elif block == dev and line.split()[:2] == ['#define', name]:
+            found = int(line.split()[2], 0)
+    return found
 
 
 def device(doc):

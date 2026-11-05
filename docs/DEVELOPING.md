@@ -109,6 +109,7 @@ Test a build in [digikit](https://github.com/toonst/digikit)'s emulator before i
 | `src/mm_draw.c` | The two screens, in the stock layout (the previews use the mod's own font; the device the firmware's) |
 | `src/mm_dests.c` | The destinations per device: both from the firmware's parameter tables |
 | `src/mm_glue.c` | The elekloader handlers: `ev_key`, `ev_enc`, `ev_tick`, `ev_draw`, `ev_frame_params`, `ev_key_leds` |
+| `src/mm_os.h` | The firmware locations the glue uses, per device and OS, chosen by `MM_DT2` or `MM_DN2` (the manifests' only define) |
 | `mods/dt2`, `mods/dn2` | The elekloader manifests, one per device and OS (`mod.json`), and each feature's fragment |
 | `tools/manifest.py` | The manifest a build uses: `mod.json` and the chosen features |
 | `tools/storage.py` | The mod's storage claims, against the card sectors it writes and against other mods |

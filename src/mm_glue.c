@@ -3,11 +3,12 @@
  * ev_draw, ev_frame_params and ev_key_leds. It draws with the firmware's Bitmap::fillRect (FILLRECT_AT) and, where
  * the device has it, its text routine (TEXT_AT, with the font object at TEXT_FONT).
  *
- * The device's addresses come from mod.json's cflags; docs/findings has what each is. */
+ * The device's addresses are in mm_os.h, chosen by mod.json's MM_DT2 or MM_DN2; docs/findings has what each is. */
 #include "mm_kits.h"
+#include "mm_os.h"
 
 #ifndef FILLRECT_AT
-#error "FILLRECT_AT: Bitmap::fillRect's address in the target OS (mod.json cflags)"
+#error "FILLRECT_AT: Bitmap::fillRect's address in the target OS (mm_os.h)"
 #endif
 
 typedef void (*fillrect_t)(void *bmp, int x0, int y0, int x1, int y1, int colour);

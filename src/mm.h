@@ -7,6 +7,12 @@
 
 #include <stdint.h>
 
+/* The mod has no C library: keep GCC from turning a loop into a call to memset or memcpy (it did so at -O2). A pragma
+ * rather than -fno-tree-loop-distribute-patterns, which some builders do not take; the host tests are not affected. */
+#if defined(__mcoldfire__) && defined(__GNUC__) && !defined(__clang__)
+#pragma GCC optimize("no-tree-loop-distribute-patterns")
+#endif
+
 #define MM_MACROS 8
 #define MM_SLOTS 4
 #define MM_TRACKS 16

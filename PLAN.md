@@ -380,7 +380,7 @@ risky half.
 SPEC.md, PLAN.md, README.md, LICENSE (GPL-2.0-or-later)
 third_party/elekloader/        git submodule, pinned (the build, lint and patch tools; core-dt2, core-dn2)
 src/                           mm_logic.c, mm_ui.c, mm_apply.c, leds_mk2.s, params_mk2.s, store_mk2.c, mm.h
-mods/dt2/mod.json              device digitakt-mk2, os 1.17: sources, cflags with routine addresses, subscribe, sites, claims
+mods/dt2/mod.json              device digitakt-mk2, os 1.17: sources, the device define (routine addresses in src/mm_os.h), subscribe, sites, claims
 mods/dn2/mod.json              device digitone-mk2, os 1.12
 tests/test_logic.py            host build of mm_logic.c
 tests/emu/                     scenarios against digikit's emulator (a digikit checkout and its daemon, given by path)
