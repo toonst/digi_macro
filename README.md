@@ -4,7 +4,7 @@ Eight performance macros for the **Elektron Digitakt II** and **Digitone II**. H
 A–H become eight macro knobs. Each macro moves up to four sound parameters, on multiple tracks you choose.
 They work like the stock modulation: they ride on top of the sound and don't change your kit. This is especially useful when using the Digitakt as a MPE sound module.
 
-<img src="docs/img/macro-turned.png" alt="The macro screen" width="380">&nbsp;&nbsp;&nbsp;&nbsp;<img src="docs/img/setup.png" alt="Setting up macro C" width="380">
+<img src="docs/img/macro-screen.png" alt="The macro screen" width="380">&nbsp;&nbsp;&nbsp;&nbsp;<img src="docs/img/setup.png" alt="Setting up macro C" width="380">
 
 > [!WARNING]
 > **Experimental.** This version runs on a Digitakt II (tested on a unit). The Digitone II version has only run in an

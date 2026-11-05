@@ -21,7 +21,7 @@ and run on the bash macOS ships. First `git submodule update --init`. Then:
 
 | Command | Does | Needs the OS file |
 | --- | --- | --- |
-| `tools/check.sh` | The host tests (ASan, UBSan), the storage checker's tests, the screen previews (`--previews` rewrites `docs/img`), a ColdFire cross-compile of both devices' manifests and their storage claims | No |
+| `tools/check.sh` | The host tests (ASan, UBSan), the storage checker's tests, the screen previews (`--previews` rewrites `docs/img`'s previews; the README's macro screen, `docs/img/macro-screen.png`, is an emulator capture with the stock header: `tests/emu/readme_shot.py`), a ColdFire cross-compile of both devices' manifests and their storage claims | No |
 | `tools/build.sh OS.syx [OS.syx]` | For each OS file (the device known by its checksum): the cross-compile, elekloader's core and this mod as `.elemod` files, elekloader's lint, and the firmware file | Yes |
 
 ```text
