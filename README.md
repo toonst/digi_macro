@@ -26,21 +26,18 @@ like the others: every key it doesn't use keeps its usual job.
 | Do this | And |
 | --- | --- |
 | Hold PAGE + press MOD (or MOD + PAGE) | Macro mode opens: MOD lights blue |
-| Turn encoders A–H | Move that macro (−64 … +63). Push and turn for bigger steps. A macro with no parameter yet shows a dotted square with a cross, as a free knob on a MIDI track's pages |
+| Turn encoders A–H | Move that macro (−64 … +63). A macro with no parameter yet shows a dotted square with a cross |
 | FUNC + push an encoder | Open setup of that macro |
-| FUNC + push and hold an encoder | Name the macro (5 characters) |
+| FUNC + push and hold an encoder | Name the macro |
 | Turn LEVEL/DATA | Move all eight macros together |
 | FUNC + NO, or push LEVEL/DATA | All macros back to the centre |
-| MOD, or a page key (TRIG, SRC, FLTR, AMP, FX) | Leave macro mode |
-| Any other key: PRESET, SETTINGS, SAMPLES, TEMPO, KEYBOARD, PTN, SONG, TRK, PAGE, the trig keys … | What it does on any page. Menus, popups and mute mode open over the macro screen, and macro mode is back when they close |
-| In mute mode (FUNC + TRK) | The trig keys mute and FUNC + trig prepares mutes, while the encoders, their pushes, LEVEL/DATA and MOD stay macro mode's. PAGE + MOD enters macro mode from mute mode too |
 
 **Setup screen**: FUNC + push an encoder opens the setup of that macro.
 
 | Do this | And |
 | --- | --- |
 | Encoders A–D | Choose what parameters 1–4 control, from a list like the stock modulation setup |
-| Encoders E–H | How far each one moves (its depth, positive or negative; push for whole steps) |
+| Encoders E–H | How far each one moves (its depth, positive or negative) |
 | LEFT / RIGHT | Select one of the four parameters |
 | Trig keys | Choose the tracks the selected parameter acts on (lit red) |
 | NO or MOD | Back to the macro screen |
