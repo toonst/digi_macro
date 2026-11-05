@@ -1,9 +1,9 @@
 # Status
 
-Against [PLAN.md](../PLAN.md) section 7. Measured on the Digitakt II 1.17 and the Digitone II 1.12 in digikit's
-emulator with `tests/emu/scenario.py` (68 checks each; 94 on DT2 since macro mode became a page, DN2 not rerun),
-`tests/emu/project.py` (23; 32 on DT2) and `tests/emu/compat.py` (12),
-all passing; host tests with `tools/check.sh`.
+Against [PLAN.md](../PLAN.md) section 7. Measured on the Digitakt II 1.17 in digikit's emulator (its `zero_patched`
+runner) on 5 November 2026, with this repository at bc2295e on core-dt2 1.1 as elekloader#221 now has it (0df8409):
+`tests/emu/scenario.py` 94 checks, `tests/emu/project.py` 32 and `tests/emu/compat.py` 12, all passing; host tests
+with `tools/check.sh`. The Digitone II (68, 23 and 12 on the earlier core-dn2 0.3) is not built now (DEVELOPING.md).
 
 | Part | State |
 | --- | --- |
