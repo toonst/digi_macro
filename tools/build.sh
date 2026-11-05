@@ -2,10 +2,11 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 # Builds the firmware file: macro-mode patched into your copy of the official OS (README.md, "Installing").
 #
-#   tools/build.sh Digitakt_II_OS1.17.syx [Digitone_II_OS1.12.syx]
+#   tools/build.sh Digitakt_II_OS1.17.syx
 #
-# Each file (a .syx, or Elektron's .zip around it) is known by its checksum: a Digitakt II OS 1.17 gives
-# out/macro-dt2.syx, a Digitone II OS 1.12 out/macro-dn2.syx. Those are the files to send to the unit; they hold
+# The file (a .syx, or Elektron's .zip around it) is known by its checksum: a Digitakt II OS 1.17 gives
+# out/macro-dt2.syx (a Digitone II OS 1.12 is refused until its core has macro mode's events: DEVICES in
+# tools/common.sh). Those are the files to send to the unit; they hold
 # Elektron's firmware, so never commit or share them. Everything else (elekloader's core and the mod as .elemod files,
 # the symbol maps the emulator scenarios read) goes to out/build. MM_KITS, MM_LED_TEST and MM_WITH: tools/common.sh.
 set -euo pipefail
@@ -14,7 +15,7 @@ cd "$(dirname "$0")/.."
 source tools/common.sh
 
 if [[ $# -eq 0 ]]; then
-    echo "usage: tools/build.sh path/to/Digitakt_II_OS1.17.syx [path/to/Digitone_II_OS1.12.syx]" >&2
+    echo "usage: tools/build.sh path/to/Digitakt_II_OS1.17.syx" >&2
     exit 2
 fi
 need_cross
@@ -41,6 +42,11 @@ for f in "$@"; do
     syx=$(abspath "$f")
     [[ -f "$syx" ]] || { echo "no such file: $f" >&2; exit 1; }
     dev=$(device "$syx")
+    [[ " ${DEVICES[*]} " == *" $dev "* ]] || {
+        echo "$f: the Digitone II build waits for a Digitone II core with macro mode's events in elekloader;" \
+            "until then macro-mode builds for the Digitakt II only" >&2
+        exit 1
+    }
     core=core-$dev
     echo "== $dev, from $f"
     compile "$dev"

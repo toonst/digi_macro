@@ -1,9 +1,9 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 /* macro-mode, the kits feature on the device (src/mm_kits.h): the setups as elekloader core's kit and project data,
- * the kit on, and SETTINGS > PERSONALIZE > MACRO SETUP (core-dt2 1.1, core-dn2 0.3: elekloader's docs/ADAPTING.md,
- * "Frames, LEDs, project and kit data, value rows"). The logic is mm_scope.c's. */
+ * the kit on, and SETTINGS > PERSONALIZE > MACRO SETUP (core-dt2 1.1: elekloader's docs/ADAPTING.md,
+ * "Project data, kit data and value rows (core-dt2 1.1, Digitakt II)"). The logic is mm_scope.c's. */
 #include "mm_kits.h"
-#include "mk2/core.h"
+#include "digitakt-mk2/core.h"
 
 /* Not static, for the emulator scenarios (tests/emu/project.py). */
 mm_scope mm_scopes;

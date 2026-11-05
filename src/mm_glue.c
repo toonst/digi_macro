@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
-/* macro-mode on elekloader's hook bus (core-dt2 1.1, core-dn2 0.3; PLAN.md 2.1 and 5): ev_key, ev_enc, ev_tick,
+/* macro-mode on elekloader's hook bus (core-dt2 1.1; PLAN.md 2.1 and 5): ev_key, ev_enc, ev_tick,
  * ev_draw, ev_frame_params and ev_key_leds. It draws with the firmware's Bitmap::fillRect (FILLRECT_AT) and, where
  * the device has it, its text routine (TEXT_AT, with the font object at TEXT_FONT).
  *
@@ -524,7 +524,7 @@ void mm_ev_draw(void *bmp, void *ctrl)
     draw_mode(s, bmp);
 }
 
-/* W2: ev_frame_params (core-dt2 1.1, core-dn2 0.3): each frame's per-track values, before the stock modulators. Interrupt
+/* W2: ev_frame_params (core-dt2 1.1): each frame's per-track values, before the stock modulators. Interrupt
  * level: it only reads the lists the UI task published. */
 void mm_ev_frame_params(int16_t *values, int stride)
 {
@@ -534,7 +534,7 @@ void mm_ev_frame_params(int16_t *values, int stride)
 }
 
 #ifdef LEDSET_AT
-/* W1: ev_key_leds (core-dt2 1.1, core-dn2 0.3). LedManager's setter (mgr, logical id, layer, value): layer 2 lights the LED with
+/* W1: ev_key_leds (core-dt2 1.1). LedManager's setter (mgr, logical id, layer, value): layer 2 lights the LED with
  * the value, layer 1 turns it off, and either keeps the views' later sets out (docs/findings/s2-leds.md). The logical
  * id of key code c is c + 19 for the page keys (TRIG 20 .. MOD 25) and c + 1 for the trig keys (digikit finding 19,
  * devices/digit*-ii-leds.toml: the same on both). */

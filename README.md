@@ -7,13 +7,14 @@ They work like the stock modulation: they ride on top of the sound and don't cha
 <img src="docs/img/macro-screen.png" alt="The macro screen" width="380" vspace="12" hspace="6">&nbsp;&nbsp;&nbsp;&nbsp;<img src="docs/img/setup.png" alt="Setting up macro C" width="380" vspace="12" hspace="6">
 
 > [!WARNING]
-> **Experimental.** This version runs on a Digitakt II (tested on a unit). The Digitone II version has only run in an
-> emulator, never on a unit. This is unofficial custom firmware: you use it
+> **Experimental.** This version runs on a Digitakt II (tested on a unit). The Digitone II version is paused: it
+> builds again once elekloader has a Digitone II core with the events macro mode needs (until then
+> `tools/build.sh` refuses a Digitone II OS). This is unofficial custom firmware: you use it
 > at your own risk, and it is not made or supported by Elektron.
 
 ## What you need
 
-- A **Digitakt II on OS 1.17** or a **Digitone II on OS 1.12**. Other OS versions won't work.
+- A **Digitakt II on OS 1.17**. Other OS versions won't work, and the Digitone II (OS 1.12) is paused for now.
 - The matching official OS file (`.syx`) from [Elektron's website](https://www.elektron.se/support-downloads).
 - A computer with Linux or macOS to build the firmware. There is no ready-made download: the result contains
   Elektron's firmware, so it can't be shared. You build it yourself from your own copy of the OS.
@@ -85,22 +86,22 @@ macro-mode into the OS file you give it.
    Already have it? Update both: in the `digi_macro` folder, `git pull` and then `git submodule update --init`
    (a pull alone keeps the old loader).
 3. **Download the official OS** from [Elektron's website](https://www.elektron.se/support-downloads): **Digitakt II
-   OS 1.17** or **Digitone II OS 1.12**, exactly that version. If the download is a `.zip`, give the build the `.zip`
+   OS 1.17**, exactly that version. If the download is a `.zip`, give the build the `.zip`
    itself or the `.syx` inside it. The build knows the file by its checksum and refuses any other version or a changed file.
-4. **Build.** In the `digi_macro` folder, give the build the OS file (or both, one after the other):
+4. **Build.** In the `digi_macro` folder, give the build the OS file:
 
    ```bash
    tools/build.sh path/to/Digitakt_II_OS1.17.syx
    ```
 
-   It knows from the file which device it is for, and ends with
+   It checks the file, and ends with
 
    ```text
    == firmware ready (send it to the unit as an OS update; keep it to yourself: it holds Elektron's OS)
      …/digi_macro/out/macro-dt2.syx
    ```
 
-   `out/macro-dt2.syx` (Digitakt II) or `out/macro-dn2.syx` (Digitone II) is the firmware file. It holds Elektron's
+   `out/macro-dt2.syx` is the firmware file. It holds Elektron's
    firmware: keep it for yourself, don't share it. Everything else the build makes is in `out/build`. If something
    goes wrong:
 

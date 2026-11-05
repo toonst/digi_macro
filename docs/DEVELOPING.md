@@ -2,10 +2,12 @@
 
 How the mod is built, checked and laid out. For what it does and how to use it, see the [README](../README.md).
 
-The mod is an [elekloader](https://github.com/elekloader/elekloader) format-2 mod. It needs core-dt2 1.1 (Digitakt II)
-and core-dn2 0.3 (Digitone II), which are in
-[a fork](https://github.com/toonst/elekloader/tree/claude/zen-rubin-g8jh03) until elekloader takes them; the submodule
-`third_party/elekloader` points there. Requirements: [SPEC.md](../SPEC.md); plan and decisions: [PLAN.md](../PLAN.md);
+The mod is an [elekloader](https://github.com/elekloader/elekloader) format-2 mod. It needs core-dt2 1.1 (Digitakt II),
+proposed to elekloader in [elekloader#221](https://github.com/elekloader/elekloader/pull/221) and, until it is merged,
+on [toonst's branch](https://github.com/toonst/elekloader/tree/claude/zen-rubin-g8jh03); the submodule
+`third_party/elekloader` points there. The Digitone II build (`mods/dn2`, its addresses in `src/mm_os.h`) is kept but
+not built or checked (`DEVICES` in `tools/common.sh`): it waits for a Digitone II core with the same events and kit
+data, which is elekloader's next step after #221. Requirements: [SPEC.md](../SPEC.md); plan and decisions: [PLAN.md](../PLAN.md);
 where it stands: [STATUS.md](STATUS.md); firmware findings: [findings/](findings/).
 
 ## Building
@@ -66,8 +68,9 @@ and the kit and project storage. Where it keeps its data:
   saves a project it loaded. The stock OS loads and saves a project the mod saved, and the files differ only there;
   the mod loads a stock OS's project and finds no setups. Patterns and kits are the project's records, so the same
   holds for them.
-- **Claimed.** elekloader's linker refuses another mod that claims the same names, a card range that overlaps
-  ours, or a site on core's.
+- **Claimed.** elekloader's linker refuses another mod that claims the same names or a site on core's.
+  `tools/storage.py` also refuses a card range that overlaps ours (`MM_WITH`, below); the linker compares
+  card claims by name only.
 - **Guarded.** core writes its areas only over zeros or its own data. Anything else there (another tool's, a later
   OS's) is left as it is; the mod then keeps no setup for that kit and shows MACRO SETUP CONFLICT in the header.
 
@@ -114,4 +117,4 @@ Test a build in [digikit](https://github.com/toonst/digikit)'s emulator before i
 | `tools/manifest.py` | The manifest a build uses: `mod.json` and the chosen features |
 | `tools/storage.py` | The mod's storage claims, against the card sectors it writes and against other mods |
 | `tests/` | Host tests, the preview renderer and the emulator scenarios (`tests/emu`) |
-| `third_party/elekloader` | elekloader with core-dt2 1.1 and core-dn2 0.3 (the fork), pinned |
+| `third_party/elekloader` | elekloader with core-dt2 1.1 (#221's branch), pinned |

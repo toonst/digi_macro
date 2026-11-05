@@ -3,7 +3,7 @@
 # The checks of this repository (docs/DEVELOPING.md, "Checks"); it makes no firmware file (that is tools/build.sh):
 #   1. host tests of the device-independent code, with ASan and UBSan, and of the storage checker;
 #   2. the screen previews (--previews rewrites docs/img);
-#   3. a ColdFire cross-compile of each device's manifest, its storage claims checked (tools/common.sh).
+#   3. a ColdFire cross-compile of each device's manifest (DEVICES in tools/common.sh), its storage claims checked (tools/common.sh).
 #
 #   tools/check.sh [--previews]
 set -euo pipefail
@@ -27,7 +27,7 @@ fi
 
 echo "== ColdFire cross-compile"
 need_cross
-for dev in dt2 dn2; do
+for dev in "${DEVICES[@]}"; do
     compile "$dev"
 done
 echo "== all checks passed"

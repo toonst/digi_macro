@@ -34,6 +34,10 @@ for o in ${MM_WITH:-}; do
     [[ "$o" != *.elemod ]] || LINT_WITH+=(--with "$(abspath "$o")")
 done
 
+# The devices the mod builds for. The Digitone II (dn2: mods/dn2, its addresses in src/mm_os.h) waits for a
+# core-dn2 with core-dt2 1.1's events and kit data in elekloader; until then it is not built or checked.
+DEVICES=(dt2)
+
 SRC=(src/mm_logic.c src/mm_apply.c src/mm_store.c src/mm_draw.c src/mm_scope.c)
 FEATURES=()
 [[ "${MM_KITS:-1}" == 0 ]] || FEATURES+=(kits)
@@ -96,7 +100,7 @@ compile() {
         objs+=("$o")
     done
     "${CROSS}ld" -r -o "$BUILD/$dev.o" "${objs[@]}"
-    # the collections the mod declares are the linker's tables; core_* are the core's (mk2/core.h)
+    # the collections the mod declares are the linker's tables; core_* are the core's (digitakt-mk2/core.h)
     undef=$("${CROSS}nm" -u "$BUILD/$dev.o" | awk '{print $2}' |
         grep -v -x -F -f <(printf '%s\n' ${tables[@]+"${tables[@]}"} core_addvalue core_kit_on \
             core_store_conflicts "") || true)

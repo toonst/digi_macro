@@ -24,6 +24,7 @@ Still open:
 | --- | --- | --- |
 | Machine-dependent source parameters (all of DN2's), LFO parameters | Not offered | S6 |
 | Audio | The zero-DSP runner makes no sound | Coupled emulator or a unit |
-| Storage claims, other mods | elekloader's linker refuses the same names and overlapping card ranges; `tools/storage.py` checks the same from manifests; core's guard at run time | elekloader to take the fork's core-dt2 1.1 / core-dn2 0.3 (the submodule points at the fork) |
+| Storage claims, other mods | elekloader's linker refuses the same names; `tools/storage.py` also checks overlapping card ranges from manifests; core's guard at run time | elekloader to merge core-dt2 1.1 (#221; the submodule points at its branch) |
+| The Digitone II | Its code and manifest are kept; not built or checked since core-dn2 0.3 left #221 (elekloader released another 0.3) | A Digitone II core with core-dt2 1.1's events and kit data, then `DEVICES` in `tools/common.sh` |
 | Kit manager, PASTE KIT, undo | Not driven in the emulator (pattern copy and paste is) | Find their keys and add them to `tests/emu/project.py` (S7) |
 | Views over the mode on the Digitone II | The same code (mute mode by its class name, the knobs by the firmware's handlers), not run there | Run `views_over` on DN2 (S1) |
