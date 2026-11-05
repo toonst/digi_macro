@@ -1,15 +1,14 @@
 # Elektron Digitakt 2 & Digitone 2 macro-mode
 
 Eight performance macros for the **Elektron Digitakt II** and **Digitone II**. Hold PAGE and press MOD, and encoders
-A–H become eight macro knobs. Each macro moves up to four sound parameters, on the tracks you choose, all at once.
-They work like the stock modulation: they ride on top of the sound and don't change your kit. Macro mode is a page
-like the others: every key it doesn't use keeps its usual job.
+A–H become eight macro knobs. Each macro moves up to four sound parameters, on multiple tracks you choose.
+They work like the stock modulation: they ride on top of the sound and don't change your kit. This is especially useful when using the Digitakt as a MPE sound module.
 
 <img src="docs/img/macro-turned.png" alt="The macro screen" width="380">&nbsp;&nbsp;&nbsp;&nbsp;<img src="docs/img/setup.png" alt="Setting up macro C" width="380">
 
 > [!WARNING]
 > **Experimental.** This version runs on a Digitakt II (tested on a unit). The Digitone II version has only run in an
-> emulator, never on a unit. Don't install it on a device you rely on. This is unofficial custom firmware: you use it
+> emulator, never on a unit. This is unofficial custom firmware: you use it
 > at your own risk, and it is not made or supported by Elektron.
 
 ## What you need
