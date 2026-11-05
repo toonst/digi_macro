@@ -20,6 +20,8 @@ Before you start:
 
 - [ ] **Hold PAGE, press MOD.** The macro screen opens: the header says "Macro Mode", MOD lights blue, the other page
   keys go dark, eight round knobs are shown in the centre.
+- [ ] **A fresh macro** (no parameter set yet) shows a dotted square with a cross instead of a knob, as a free knob
+  on a MIDI track's SRC page does; once a parameter is set in its setup, the knob comes back.
 - [ ] **Leave with MOD.** You're back on the page you came from, and the key LEDs are as before.
 - [ ] **Hold MOD, press PAGE.** Opens too. Releasing both keys leaves it open.
 - [ ] **Leave with a page key** (TRIG, SRC, FLTR, AMP, FX): that page opens directly.

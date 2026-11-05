@@ -19,6 +19,14 @@ static const mm_dest table[] = {
 static const mm_dests dests = {table, 3, 70};
 static raster r;
 
+/* A free knob on the MIDI machine's SRC page (DT2 1.17 in digikit's emulator: track 1 on MIDI, CHAN at x 25-41, y 13-29) */
+static const char *const unassigned_mark[17] = {
+    ".#.#.#.#.#.#.#.#.", "#...............#", ".................", "#...............#", "....#.......#....",
+    "#....#.....#....#", "......#...#......", "#......#.#......#", "........#........", "#......#.#......#",
+    "......#...#......", "#....#.....#....#", "....#.......#....", "#...............#", ".................",
+    "#...............#", ".#.#.#.#.#.#.#.#.",
+};
+
 static void macro_screen(void)
 {
     mm_t s;
@@ -36,6 +44,17 @@ static void macro_screen(void)
     CHECK(raster_count(&r, 2, 22, 12, 26) > 8); /* MAC */
     CHECK(raster_count(&r, 1, 14, 1, 35) == 0 && raster_count(&r, 13, 14, 13, 35) == 0); /* a pixel free each side */
     CHECK(raster_count(&r, 0, 40, 16, 63) == 0); /* no VOL fader under it */
+    for (int k = 0; k < MM_MACROS; k++) {       /* nothing assigned: the MIDI pages' mark, pixel for pixel */
+        int cx = 33 + 26 * (k & 3), cy = k < 4 ? 21 : 48, same = 1;
+        for (int y = 0; y < 17; y++)
+            for (int x = 0; x < 17; x++)
+                same &= r.px[cy - 8 + y][cx - 8 + x] == (unassigned_mark[y][x] == '#');
+        CHECK(same);
+        CHECK(raster_count(&r, cx - 10, cy - 10, cx + 10, cy - 9) == 0); /* nothing around it */
+    }
+    for (int k = 0; k < MM_MACROS; k++)         /* every macro with a parameter: the knobs */
+        s.m[k].slot[3].dest = 55;
+    raster_draw(&r, &s);
     for (int k = 0; k < MM_MACROS; k++) {
         int cx = 33 + 26 * (k & 3), cy = k < 4 ? 21 : 48, ly = k < 4 ? 32 : 59;
         CHECK(r.px[cy - 8][cx] && r.px[cy + 8][cx]); /* the rim */
@@ -51,16 +70,23 @@ static void macro_screen(void)
     raster_draw(&r, &s);
     CHECK(raster_count(&r, 59 - 6, 17, 59 - 1, 27) >= 4); /* turned left */
 
-    int before = raster_count(&r, 20, 32, 46, 36);
+    unsigned char was[5][27];
+    for (int y = 0; y < 5; y++)
+        for (int x = 0; x < 27; x++)
+            was[y][x] = r.px[32 + y][20 + x];
     s.popup = 1;                                /* a turned knob shows its value */
     raster_draw(&r, &s);
-    CHECK(raster_count(&r, 20, 32, 46, 36) != before);
+    int differs = 0;
+    for (int y = 0; y < 5; y++)
+        for (int x = 0; x < 27; x++)
+            differs |= was[y][x] != r.px[32 + y][20 + x];
+    CHECK(differs);
 
     s.popup = 0;
     s.m[2].slot[1].dest = 30;                   /* a set knob shows its first destination */
     raster_draw(&r, &s);
     CHECK(raster_count(&r, 85 - 12, 32, 85 + 12, 36) > 20);
-    before = raster_count(&r, 85 - 12, 32, 85 + 12, 36);
+    int before = raster_count(&r, 85 - 12, 32, 85 + 12, 36);
     mm_set_name(&s, 2, "BASS");                 /* a name wins */
     raster_draw(&r, &s);
     CHECK(raster_count(&r, 85 - 12, 32, 85 + 12, 36) != before);

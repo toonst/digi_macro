@@ -38,8 +38,12 @@ int main(int argc, char **argv)
 
     s.state = MM_MACRO;
     raster_draw(&r, &s);
-    save(&r, dir, "macro-centre");
+    save(&r, dir, "macro-centre");              /* a fresh unit: nothing assigned yet */
 
+    s.m[0].slot[0] = (mm_slot){37, 20 * 512, 0xffff}; /* the macros turned have parameters; E, G and H none yet */
+    s.m[1].slot[0] = (mm_slot){25, -8 * 512, 0x0003};
+    s.m[3].slot[0] = (mm_slot){55, 30 * 512, 0x0001};
+    s.m[5].slot[0] = (mm_slot){36, -40 * 512, 0xffff};
     s.m[0].pos = 40;
     s.m[1].pos = -25;
     s.m[2].pos = 63;

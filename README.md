@@ -26,7 +26,7 @@ like the others: every key it doesn't use keeps its usual job.
 | Do this | And |
 | --- | --- |
 | Hold PAGE + press MOD (or MOD + PAGE) | Macro mode opens: MOD lights blue |
-| Turn encoders A–H | Move that macro (−64 … +63). Push and turn for bigger steps |
+| Turn encoders A–H | Move that macro (−64 … +63). Push and turn for bigger steps. A macro with no parameter yet shows a dotted square with a cross, as a free knob on a MIDI track's pages |
 | FUNC + push an encoder | Open setup of that macro |
 | FUNC + push and hold an encoder | Name the macro (5 characters) |
 | Turn LEVEL/DATA | Move all eight macros together |

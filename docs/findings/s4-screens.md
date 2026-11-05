@@ -23,6 +23,14 @@ Rows counted from the top, columns from the left.
 | Parameter page (SRC, FX, ...) | Page box `x 0–14, y 13–36`, corners cut; under it the pattern VOL fader `y 40–56`. Knobs of radius 8 centred at `x 33, 59, 85, 111`, `y 21` and `48`; labels with their top row at 32 and 59 |
 | MODULATION SETUP (FUNC + FLTR, then a source) | Title at rows 0–4, the source's name at 6–10, both centred. Dotted separators at `x 17, 45, 73, 101`, rows 15–63, every other row. Column centres `x 31, 59, 87, 115`: the page heading (META for none) at row 25, the destination's short name at 33, the depth knob (radius 8) at `y 48`, the depth at 59. Left column: the source's icon at `x 10–14, y 28–32`, a fader box `x 3–13, y 40–55` with dotted sides, a base line at 56 (`x 1–15`), the value at 59 |
 
+A MIDI machine's SRC and FLTR pages (`MidiParameterPageView`) draw a knob with nothing assigned (no CC, as all of a
+fresh MIDI track's: CHAN, BANK, ..., VAL1–8) as a mark in the knob's place, the label under it as usual. Read from
+the frame in the emulator (DT2 1.17, track 1 set to MIDI with FUNC + SRC), for a knob centred at `(cx, cy)`: a dotted
+square, rows `cy ± 8` and columns `cx ± 8` with a pixel at every odd offset from the centre (so the corners are
+empty), and a cross, both diagonals from `cx − 4` to `cx + 4`. The macro screen draws it for a macro with no
+destination in any slot (`unassigned` in `src/mm_draw.c`): in the emulator its eight marks are the MIDI page's pixel
+for pixel, a pixel of margin around them included. **[D]**
+
 The macro screen keeps the header and draws the page box (MAC) and the knob grid without the VOL fader; the setup
 screen draws the MODULATION SETUP layout with MACRO MODE as the source's name, the macro's letter for the icon and its
 position on the fader. `src/mm_draw.c` has the coordinates.

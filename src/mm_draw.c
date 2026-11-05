@@ -91,6 +91,23 @@ static void knob(const mm_canvas *c, int cx, int cy, int a) /* a: the pointer's 
     line(c, cx, cy, cx + q10(isin(a) * len), cy - q10(icos(a) * len));
 }
 
+/* The MIDI machine's mark for a knob with nothing assigned (its SRC and FLTR pages, as DT2 1.17 draws them: a dotted
+ * square of 17 x 17, a pixel every other one with the corners left out, and a cross of 9 x 9 inside), where the knob
+ * would be. */
+static void unassigned(const mm_canvas *c, int cx, int cy)
+{
+    for (int d = -(KNOB_R - 1); d <= KNOB_R - 1; d += 2) {
+        px(c, cx + d, cy - KNOB_R);
+        px(c, cx + d, cy + KNOB_R);
+        px(c, cx - KNOB_R, cy + d);
+        px(c, cx + KNOB_R, cy + d);
+    }
+    for (int d = -4; d <= 4; d++) {
+        px(c, cx + d, cy + d);
+        px(c, cx - d, cy + d);
+    }
+}
+
 /* 3 x 5 glyphs, top row first, bit 2 the left column */
 static const struct {
     char ch;
@@ -197,6 +214,14 @@ static void fmt_depth(int v, char *buf)
     buf[i] = 0;
 }
 
+static int assigned(const mm_t *s, int k)
+{
+    for (int j = 0; j < MM_SLOTS; j++)
+        if (s->m[k].slot[j].dest)
+            return 1;
+    return 0;
+}
+
 /* What a knob of the macro screen is called: its name once given, else its first slot's destination once set, else
  * its letter. */
 static void macro_label(const mm_t *s, int k, char *buf)
@@ -241,7 +266,10 @@ static void draw_macro(const mm_t *s, const mm_canvas *c)
     small(c, 7, 22, MM_TEXT_CENTRE, "MAC");     /* the stock box's narrow font: 3-pixel letters, 1 pixel free */
     for (int k = 0; k < MM_MACROS; k++) {
         int col = k & 3, row = k >> 2;
-        knob(c, COL_X(col), ROW_Y(row), s->m[k].pos * 135 / 64);
+        if (assigned(s, k))
+            knob(c, COL_X(col), ROW_Y(row), s->m[k].pos * 135 / 64);
+        else
+            unassigned(c, COL_X(col), ROW_Y(row)); /* no parameter yet: the MIDI pages' mark for a free knob */
         if (s->popup == k + 1)
             fmt_signed(s->m[k].pos, buf);
         else
