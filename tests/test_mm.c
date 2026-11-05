@@ -925,6 +925,50 @@ static void test_scaled_encoders(void)
     CHECK(s.m[0].pos == 3);
 }
 
+/* FUNC + turn of a macro on SRC > TUNE: one fifth or octave a turn, whatever the turn's size. */
+static void test_func_turn_fifths(void)
+{
+    static const int up[] = {7, 12, 19, 24, 31, 36, 43, 48, 55, 60, 60};
+    static const int down[] = {-5, -12, -17, -24, -29, -36, -41, -48, -53, -60, -60};
+    mm_t s;
+    fresh(&s);
+    enter(&s);
+    s.m[1].slot[2] = (mm_slot){25, 2000, 1};    /* B: TUNE on slot 3 */
+    s.m[3].slot[0] = (mm_slot){30, 2000, 1};    /* D: FREQ only */
+    press(&s, MM_K_FUNC);
+    for (unsigned k = 0; k < sizeof up / sizeof up[0]; k++) {
+        mm_enc(&s, 2, k & 1 ? 3 : 1);
+        CHECK(s.m[1].pos == up[k]);
+    }
+    s.m[1].pos = 0;
+    for (unsigned k = 0; k < sizeof down / sizeof down[0]; k++) {
+        mm_enc(&s, 2, -1);
+        CHECK(s.m[1].pos == down[k]);
+    }
+    s.m[1].pos = 3;                             /* from between: the nearest one in the direction turned */
+    mm_enc(&s, 2, 1);
+    CHECK(s.m[1].pos == 7);
+    s.m[1].pos = 3;
+    mm_enc(&s, 2, -1);
+    CHECK(s.m[1].pos == 0);
+    s.m[1].pos = -8;
+    mm_enc(&s, 2, 1);
+    CHECK(s.m[1].pos == -5);
+    mm_enc(&s, 4, 1);                           /* a macro without TUNE turns as ever */
+    CHECK(s.m[3].pos == 1);
+    release(&s, MM_K_FUNC);
+    mm_enc(&s, 2, 1);                           /* without FUNC, in single steps */
+    CHECK(s.m[1].pos == -4);
+
+    panel[MM_K_FUNC] = 1;                       /* FUNC as the panel has it */
+    s.key_down = panel_down;
+    mm_enc(&s, 2, 1);
+    CHECK(s.m[1].pos == 0);
+    lift_silently(MM_K_FUNC);                   /* let go, no release passed on */
+    mm_enc(&s, 2, 1);
+    CHECK(s.m[1].pos == 1);
+}
+
 static void test_setup_pack(void)
 {
     mm_t a, b;
@@ -1221,6 +1265,7 @@ int main(void)
     test_list_lines();
     test_init_and_old_records();
     test_scaled_encoders();
+    test_func_turn_fifths();
     test_setup_pack();
     test_scope_per_kit();
     test_scope_positions();

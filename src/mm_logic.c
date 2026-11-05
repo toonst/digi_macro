@@ -314,6 +314,35 @@ int mm_key(mm_t *s, int code, int flags)
     return take;
 }
 
+static int func_held(const mm_t *s)
+{
+    return s->key_down ? s->key_down(MM_K_FUNC) : s->func;
+}
+
+/* 1 when one of the macro's slots is on SRC > TUNE. */
+static int has_tune(const mm_t *s, const mm_macro *m)
+{
+    for (int j = 0; j < MM_SLOTS; j++) {
+        int p = mm_dest_pos(s->dests, m->slot[j].dest);
+        const char *n = p >= 0 ? s->dests->d[p].name : 0;
+        if (n && s->dests->d[p].group == MM_G_SRC && n[0] == 'T' && n[1] == 'U' && n[2] == 'N' && n[3] == 'E' && !n[4])
+            return 1;
+    }
+    return 0;
+}
+
+/* FUNC + turn of a macro on TUNE: the next fifth or octave, +7, +12, +19, +24 ... and -5, -12, -17, -24 ...: the
+ * positions that are 0 or 7 modulo 12. Past the last one in range the knob stays. */
+static int fifth_step(int pos, int up)
+{
+    for (int v = pos + (up ? 1 : -1); v >= MM_POS_MIN && v <= MM_POS_MAX; v += up ? 1 : -1) {
+        int r = ((v % 12) + 12) % 12;
+        if (r == 0 || r == 7)
+            return v;
+    }
+    return pos;
+}
+
 static int step(const mm_t *s, int i, int delta)
 {
     return (s->pushes & (1u << i)) && !s->enc_scaled ? delta * MM_COARSE : delta;
@@ -348,7 +377,8 @@ int mm_enc(mm_t *s, int enc, int delta)
     delta = step(s, i, delta);
     if (s->state == MM_MACRO) {
         mm_macro *m = &s->m[i];
-        int v = clamp(m->pos + delta, MM_POS_MIN, MM_POS_MAX);
+        int v = func_held(s) && has_tune(s, m) ? fifth_step(m->pos, delta > 0) /* one fifth or octave a turn */
+                                               : clamp(m->pos + delta, MM_POS_MIN, MM_POS_MAX);
         if (v != m->pos) {
             m->pos = (int8_t)v;
             s->dirty_mods = 1;

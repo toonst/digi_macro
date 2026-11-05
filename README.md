@@ -26,6 +26,7 @@ They work like the stock modulation: they ride on top of the sound and don't cha
 | --- | --- |
 | Hold PAGE + press MOD (or MOD + PAGE) | Macro mode opens: MOD lights blue |
 | Turn encoders A–H | Move that macro (−64 … +63). A macro with no parameter yet shows a dotted square with a cross |
+| FUNC + turn an encoder | On a macro with SRC > TUNE: jump to the next fifth or octave, +7, +12, +19, +24 … up and −5, −12, −17, −24 … down. With a TUNE depth of 64.50, one step of the knob is one semitone |
 | FUNC + push an encoder | Open setup of that macro |
 | FUNC + push and hold an encoder | Name the macro |
 | Turn LEVEL/DATA | Move all eight macros together |
