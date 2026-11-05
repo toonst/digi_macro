@@ -108,6 +108,8 @@ In `tests/emu/project.py` (23 checks on each, all passing; 32 on DT2 1.17 with t
   shared between kits before).
 - The paste of A01 on A04 brings A01's knobs too; the saved kit records hold each kit's knob A, and after LOAD
   PROJECT each pattern's knobs are back as saved.
+- On a Digitakt II unit the setups and knob positions are back after a restart: the firmware's autosave of the
+  working project goes through the same kit and project saves core hooks.
 - Per project, an edit leaves the kits' setups. Per kit again, each kit has its own; per project again, the
   project's.
 - A04's kit with its own setup: copying A01 (FUNC + RECORD) and pasting it on A04 (FUNC + STOP) brings A01's kit's

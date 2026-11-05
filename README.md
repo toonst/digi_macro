@@ -54,8 +54,8 @@ In **SETTINGS > PERSONALIZE > MACRO SETUP** you choose where the macro setup liv
   macros you haven't turned yet has its knobs at the centre.
 
 The knob positions are part of the setup: they're saved with it, inside the project, and come back when you load the
-project. The unit's autosave keeps them across a restart along with the rest of the project (not yet checked on a
-unit). Switching between the two loses nothing: the project and every kit keep their own.
+project. The unit's autosave keeps them across a restart along with the rest of the project. Switching between the
+two loses nothing: the project and every kit keep their own.
 Copying a pattern or a kit takes its setup and knob positions along. Projects saved with an earlier build of
 macro-mode open fine, but their macro setups are not read (the format changed to make room for the positions).
 
