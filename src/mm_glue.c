@@ -7,6 +7,13 @@
 #include "mm_kits.h"
 #include "mm_os.h"
 
+/* MM_PROJECT_ONLY (src/mm_kits.h): the setup is the project's data and nothing else, so no card record either. */
+#ifdef MM_PROJECT_ONLY
+#undef CARD_READ_AT
+#undef CARD_WRITE_AT
+#undef CARD_SECTOR
+#endif
+
 #ifndef FILLRECT_AT
 #error "FILLRECT_AT: Bitmap::fillRect's address in the target OS (mm_os.h)"
 #endif

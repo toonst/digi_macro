@@ -131,6 +131,7 @@ MIDI ports (not USB).
 - Machine-specific parameters (on the Digitone II, all synth parameters) and the LFOs can't be chosen as macro
   targets yet.
 - Building without the per-kit setups: `MM_KITS=0 tools/build.sh …`. Then there's one setup, kept on the unit.
+  `MM_KITS=project tools/build.sh …` keeps one setup per project, saved in the project and nowhere else.
 
 ## More
 

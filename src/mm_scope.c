@@ -37,7 +37,7 @@ static uint8_t *block_on(mm_scope *p)
 {
     if (p->mode == MM_SCOPE_PROJECT)
         return p->proj;
-    return p->cur >= 0 && p->cur < MM_KITS ? p->kit[p->cur] : 0;
+    return p->cur >= 0 && p->cur < MM_SCOPE_KITS ? p->kit[p->cur] : 0;
 }
 
 void mm_scope_edited(mm_scope *p, const mm_t *s)
@@ -85,7 +85,7 @@ int mm_scope_follow(mm_scope *p, mm_t *s, int kit)
     }
     if (loaded)
         p->cur = -1;                /* another project: the kit on's from it */
-    if (kit < 0 || kit >= MM_KITS)
+    if (kit < 0 || kit >= MM_SCOPE_KITS)
         return 0;
     if (kit != p->cur || moved) {
         changed = take(s, p->kit[kit]);

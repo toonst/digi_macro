@@ -27,6 +27,8 @@ With the same arguments, the kits feature (a build with it, the default):
 
 - `tests/emu/project.py` (23 checks): the PERSONALIZE row, a setup following the kit on, the kits' and the
   project's setups kept apart, pattern copy and paste, SAVE PROJECT AS and LOAD PROJECT.
+- `tests/emu/project_only.py` (23 checks), for a build made with `MM_KITS=project`: the setup and the knobs in the
+  project's header, nothing in the kit records or on the mod's card sectors, and LOAD PROJECT bringing them back.
 - `tests/emu/compat.py` (12 checks): projects round-trip between the mod and the stock OS (the stock `.syx` runs
   as the build) and differ only in the bytes core keeps mods' data in; a project with someone else's bytes in them is a
   conflict, and core leaves those bytes alone (docs/DEVELOPING.md, "Storage and other mods").

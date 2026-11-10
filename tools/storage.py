@@ -44,8 +44,8 @@ def cflag(doc, name):
         if f.startswith('-D%s=' % name):
             return int(f.split('=', 1)[1], 0)
     dev = next((f[2:] for f in doc.get('cflags', []) if f in ('-DMM_DT2', '-DMM_DN2')), None)
-    if dev is None:
-        return None
+    if dev is None or (name.startswith('CARD_') and '-DMM_PROJECT_ONLY' in doc.get('cflags', [])):
+        return None                 # a project-only build writes no card sector (src/mm_glue.c)
     block, found = None, None
     for line in (pathlib.Path(__file__).resolve().parent.parent / 'src' / 'mm_os.h').read_text().splitlines():
         if line.startswith(('#if defined(', '#elif defined(')):

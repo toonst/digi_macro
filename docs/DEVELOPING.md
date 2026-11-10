@@ -50,6 +50,7 @@ events), and a header in `src/` that the rest of the mod calls through, empty wi
 | Feature | Fragment | Left out with | What it adds |
 | --- | --- | --- | --- |
 | Kits | `kits.json`, `src/mm_kits.h` | `MM_KITS=0` before `tools/check.sh` or `tools/build.sh` | Setups per project or per kit, PERSONALIZE > MACRO SETUP, in core's kit and project data (about 25 KB of RAM) |
+| Project | `project.json`, `src/mm_kits.h` (`MM_PROJECT_ONLY`) | Built in the kits feature's place with `MM_KITS=project` | One setup per project, in core's project data alone: no kit data, no MACRO SETUP row and no card record. For a build that shares a kit record's 191 bytes with other mods, as on Modwerk |
 
 Without it the mod keeps one setup, on the card.
 

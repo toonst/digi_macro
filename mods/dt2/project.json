@@ -1,0 +1,34 @@
+{
+ "_comment": "The project feature, in kits.json's place (src/mm_kits.h, MM_PROJECT_ONLY): one setup per project, as core's project data alone. No kit data, no MACRO SETUP row, no card record. tools/manifest.py adds it to mod.json with MM_KITS=project.",
+ "sources": [
+  "../../src/mm_scope.c",
+  "../../src/mm_kits.c"
+ ],
+ "cflags": [
+  "-DMM_FEATURE_KITS",
+  "-DMM_PROJECT_ONLY"
+ ],
+ "contribute": [
+  {
+   "to": "core_projdata",
+   "order": 50,
+   "data": "00000000",
+   "relocs": [
+    [
+     0,
+     "abs32",
+     "sym:mm_projdata",
+     0
+    ]
+   ]
+  }
+ ],
+ "resources": {
+  "names": [
+   "projdata:MMP2"
+  ],
+  "drop_names": [
+   "card:0x2df0e00-0x2df0e02"
+  ]
+ }
+}

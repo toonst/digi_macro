@@ -6,7 +6,8 @@
 #   out/            the firmware files a build makes: macro-dt2.syx, macro-dn2.syx
 #   out/build/      everything else: manifests, objects, .elemod files, symbol maps, test binaries, previews
 #
-# Options, as environment variables: MM_KITS=0 leaves the kits feature out, MM_LED_TEST=1 builds the LED colour test,
+# Options, as environment variables: MM_KITS=0 leaves the kits feature out and MM_KITS=project builds the project
+# feature in its place (one setup per project, no kit data and no card record), MM_LED_TEST=1 builds the LED colour test,
 # MM_WITH names other mods (mod.json or .elemod files, space-separated) to check the storage claims against,
 # ELEKLOADER_CROSS names the ColdFire toolchain's prefix (default: m68k-linux-gnu- or m68k-elf-, whichever is found).
 
@@ -40,7 +41,11 @@ DEVICES=(dt2)
 
 SRC=(src/mm_logic.c src/mm_apply.c src/mm_store.c src/mm_draw.c src/mm_scope.c)
 FEATURES=()
-[[ "${MM_KITS:-1}" == 0 ]] || FEATURES+=(kits)
+case "${MM_KITS:-1}" in
+    0) ;;
+    project) FEATURES+=(project) ;;
+    *) FEATURES+=(kits) ;;
+esac
 EXTRA=()
 [[ -z "${MM_LED_TEST:-}" ]] || EXTRA+=(--cflag=-DMM_LED_TEST)
 
@@ -111,6 +116,6 @@ compile() {
         "${CROSS}nm" "$BUILD/$dev.o" | grep -q " T $fn$" || { echo "$dev: $fn missing"; exit 1; }
     done
     echo "$dev: compiled, $("${CROSS}size" "$BUILD/$dev.o" | tail -1 | awk '{print "text " $1 ", data " $2 ", bss " $3}')"
-    "${CROSS}gcc" "${FLAGS[@]}" -c tests/emu/layout.c -o "$BUILD/$dev-layout.o"
+    "${CROSS}gcc" "${FLAGS[@]}" ${cflags[@]+"${cflags[@]}"} -c tests/emu/layout.c -o "$BUILD/$dev-layout.o"
     python3 tools/storage.py "$BUILD/$dev-manifest" ${WITH[@]+"${WITH[@]}"}
 }

@@ -209,8 +209,14 @@ int mm_setup_unpack(mm_t *s, const uint8_t *in); /* 0, or -1 (none); the positio
  * in its kit's or the project's block and follows the kit on. */
 #define MM_KITS 128
 enum { MM_SCOPE_PROJECT = 0, MM_SCOPE_KIT };
+/* MM_PROJECT_ONLY: one setup per project and no other (src/mm_kits.h); the kits' table is then not kept. */
+#ifdef MM_PROJECT_ONLY
+#define MM_SCOPE_KITS 1
+#else
+#define MM_SCOPE_KITS MM_KITS
+#endif
 typedef struct {
-    uint8_t kit[MM_KITS][MM_SETUP_SIZE]; /* core's kit data; all zero: none yet */
+    uint8_t kit[MM_SCOPE_KITS][MM_SETUP_SIZE]; /* core's kit data; all zero: none yet */
     uint8_t proj[MM_PROJ_SIZE];          /* core's project data */
     uint8_t mode;                 /* MM_SCOPE_* */
     volatile uint8_t gen;         /* bumped when a load or a copy changes a kit's setup */

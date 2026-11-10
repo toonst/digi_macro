@@ -8,11 +8,13 @@
 /* Not static, for the emulator scenarios (tests/emu/project.py). */
 mm_scope mm_scopes;
 
+#ifndef MM_PROJECT_ONLY
 static void kit_changed(int kit, int found)
 {
     (void)kit, (void)found;         /* none found: core zeroed the block, which is none here too */
     mm_scope_kit_changed(&mm_scopes);
 }
+#endif
 
 static void proj_loaded(int found)
 {
@@ -22,7 +24,9 @@ static void proj_loaded(int found)
 
 /* contributed to core's tables (mods/<dev>/kits.json), claimed as kitdata:MMK2 and projdata:MMP2 (MMKS and MMPS
  * were the format without the knobs' positions: core takes neither for these) */
+#ifndef MM_PROJECT_ONLY
 const core_kitdata_t mm_kitdata = {{'M', 'M', 'K', '2'}, MM_SETUP_SIZE, mm_scopes.kit, kit_changed};
+#endif
 const core_projdata_t mm_projdata = {{'M', 'M', 'P', '2'}, MM_PROJ_SIZE, mm_scopes.proj, proj_loaded};
 
 void mm_kits_tick(mm_t *s)
@@ -41,6 +45,18 @@ void mm_kits_tick(mm_t *s)
     }
 }
 
+#ifdef MM_PROJECT_ONLY
+/* One setup per project: no scope to keep, no row to choose it with, and no card record (mm_glue.c). */
+uint8_t mm_kits_card(void)
+{
+    return 0;
+}
+
+void mm_kits_card_restore(uint8_t b)
+{
+    (void)b;
+}
+#else
 /* The card's record keeps the scope: 0x80 | MM_SCOPE_*; older records have 0, per project. */
 uint8_t mm_kits_card(void)
 {
@@ -72,3 +88,4 @@ void mm_ev_personalize(void *menu)
 {
     core_addvalue(menu, &mm_row);
 }
+#endif

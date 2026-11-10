@@ -1,6 +1,7 @@
 """The manifest a build uses: mods/<dev>/mod.json, the mod without its optional features, plus each chosen feature's
 fragment mods/<dev>/<feature>.json (docs/DEVELOPING.md, "Features"). Lists (sources, cflags, subscribe, contribute,
-sites, resource names) are joined, tables (defsym, collections) merged; a name both define is an error. The sources
+sites, resource names) are joined, tables (defsym, collections) merged; a name both define is an error. A feature's
+`resources.drop_names` takes claims of mod.json away (the project feature writes no card sector). The sources
 are rewritten for the output folder, which elekloader's build and tools/check.sh's cross-compile then take as the
 mod's folder.
 
@@ -25,7 +26,12 @@ def merge(base, frag, name):
             if k in table and table[k] != v:
                 sys.exit('%s: %s %s is already %s' % (name, key, k, table[k]))
             table[k] = v
-    base.setdefault('resources', {}).setdefault('names', []).extend(frag.get('resources', {}).get('names', []))
+    names = base.setdefault('resources', {}).setdefault('names', [])
+    names.extend(frag.get('resources', {}).get('names', []))
+    for gone in frag.get('resources', {}).get('drop_names', []):    # a claim of mod.json's the feature gives up
+        if gone not in names:
+            sys.exit('%s: drop_names: %s is not a claim of mod.json' % (name, gone))
+        names.remove(gone)
     unknown = set(frag) - set(LISTS) - set(TABLES) - {'resources', '_comment'}
     if unknown:
         sys.exit('%s: keys a feature cannot set: %s' % (name, ', '.join(sorted(unknown))))
