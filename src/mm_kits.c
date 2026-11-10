@@ -3,7 +3,13 @@
  * the kit on, and SETTINGS > PERSONALIZE > MACRO SETUP (core-dt2 1.1: elekloader's docs/ADAPTING.md,
  * "Project data, kit data and value rows (core-dt2 1.1, Digitakt II)"). The logic is mm_scope.c's. */
 #include "mm_kits.h"
+/* core-dt2 1.1's header: digitakt-mk2/core.h in elekloader; mk2/core.h where an earlier copy of the core is kept
+ * (Modwerk's Digitakt II base). The names this file uses are the same in both. */
+#if defined(__has_include) && __has_include("digitakt-mk2/core.h")
 #include "digitakt-mk2/core.h"
+#else
+#include "mk2/core.h"
+#endif
 
 /* Not static, for the emulator scenarios (tests/emu/project.py). */
 mm_scope mm_scopes;
