@@ -32,6 +32,12 @@ With the same arguments, the kits feature (a build with it, the default):
 - `tests/emu/compat.py` (12 checks): projects round-trip between the mod and the stock OS (the stock `.syx` runs
   as the build) and differ only in the bytes core keeps mods' data in; a project with someone else's bytes in them is a
   conflict, and core leaves those bytes alone (docs/DEVELOPING.md, "Storage and other mods").
+- `tests/emu/compat_project.py` (13 checks): the same round trips and conflict for a build made with
+  `MM_KITS=project`, whose only bytes in the file are the header's gap. On such a build `scenario.py` fails its three
+  restart checks (they look for the card record this build does not keep) and `compat.py` its kit checks.
+- `tests/emu/frame_load.py`: what the mod adds to the frame interrupt, in instructions (not time): the interrupt's
+  length on the stock OS and with the mod, and the hook's own, with no macro, one macro and all eight on four
+  destinations and sixteen tracks each. It writes `frame-load.json`.
 
 The runner's other commands (`dump`, memory guards, register logs, `run-until`) are in digikit's
 docs/INSTRUMENTATION.md.

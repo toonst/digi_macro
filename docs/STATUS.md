@@ -4,7 +4,17 @@ Against [PLAN.md](../PLAN.md) section 7. Measured on the Digitakt II 1.17 in dig
 runner) on 5 November 2026, with this repository at bc2295e on core-dt2 1.1 as elekloader#221 now has it (0df8409):
 `tests/emu/scenario.py` 94 checks, `tests/emu/project.py` 32 and `tests/emu/compat.py` 12, all passing; host tests
 with `tools/check.sh`. On a unit: the same build (tools/build.sh, core 0df8409) runs on a Digitakt II, OS 1.17, as toonst
-reported on 5 November 2026. The Digitone II (68, 23 and 12 on the earlier core-dn2 0.3) is not built now (DEVELOPING.md).
+reported on 5 November 2026; the submodule's commit now (7b82f19, #221 rebased again) builds the same image
+(`98f9d975…`). The Digitone II (68, 23 and 12 on the earlier core-dn2 0.3) is not built now (DEVELOPING.md).
+
+The project feature (`MM_KITS=project`, the build Modwerk's library takes), on 10 November 2026: its sources at
+62f0b0a, compiled by Modwerk with m68k-elf GCC 16.2.0 and linked on Modwerk's Digitakt II base (core 1.1, identity
+`ce3e5488`) by the site's builder, pass `tests/emu/project_only.py` (23 checks) and `tests/emu/compat_project.py`
+(13), and 91 of `tests/emu/scenario.py`'s 94 (the three are its restart checks, which look for the card record this
+build does not keep). CREATE NEW keeps the setup that was on. `tests/emu/frame_load.py` on that image: the stock
+frame interrupt runs 44,355 instructions (median of 200 frames, stopped); the mod's hook runs 4 with no macro set
+up, 1,831 with one macro on four destinations and sixteen tracks, and 12,631 with all eight (the interrupt then
+58,417). Instruction counts in the emulator, not time on a unit. Not run on a unit yet.
 
 | Part | State |
 | --- | --- |
