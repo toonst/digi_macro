@@ -2,9 +2,10 @@
 
 The builds run in [digikit](https://github.com/toonst/digikit)'s emulator. Its daemon (`digi-emud`) refuses a build it
 does not know at start and loads a patched one ColdFire-only, where the frame interrupt (and so the macros) never runs.
-digikit's `zero_patched` runner (`packages/emulator/coupled/examples/zero_patched.rs`, on its
-`claude/zen-rubin-g8jh03` branch until it is merged; digikit's docs/INSTRUMENTATION.md, "Scripted patched runs") runs
-a patched build with the DSP side answering zeros instead, so the frame interrupt runs. Build it once, in a digikit
+The `zero_patched` runner (`packages/emulator/coupled/examples/zero_patched.rs`; docs/INSTRUMENTATION.md, "Scripted
+patched runs") runs a patched build with the DSP side answering zeros instead, so the frame interrupt runs. It is in
+toonst/digikit's `claude/zen-rubin-g8jh03` branch (`3d3a243`) and stays there: upstream digikit declined it
+(ElekLabs/digikit#215), so check out that branch, not upstream's main. Build it once, in a digikit
 checkout (it needs the Rust toolchain digikit's `mise.toml` names, and on Linux the ALSA headers: `libasound2-dev`):
 
 ```bash
